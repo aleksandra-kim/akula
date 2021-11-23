@@ -6,7 +6,7 @@ source = akula
 
 [paths]
 source =
-    src/
+    akula/
     */site-packages/
 
 [report]
