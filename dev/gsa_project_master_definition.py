@@ -3,17 +3,10 @@ import bw2data as bd
 from pathlib import Path
 import numpy as np
 
-from consumption_model_ch.consumption_fus import (
-    add_archetypes_consumption,
-    get_archetypes_scores_per_month,
-    get_archetypes_scores_per_sector,
-)
-
-from consumption_model_ch.plot_archetypes import plot_archetypes_scores_yearly, plot_archetypes_scores_per_sector
+from gsa_framework.models.life_cycle_assessment_bw25 import LCAModel25
 
 use_exiobase = False
-add_archetypes = False
-
+cutoff = 1e-16
 
 if __name__ == "__main__":
 
@@ -26,31 +19,27 @@ if __name__ == "__main__":
     else:
         project = "GSA for archetypes"
     bd.projects.set_current(project)
-    write_dir = Path("write_files") / project.lower().replace(" ", "_") / "archetype_scores"
-    write_dir.mkdir(parents=True, exist_ok=True)
+    write_dir_project = Path("write_files") / project.lower().replace(" ", "_")
+    write_dir_project.mkdir(parents=True, exist_ok=True)
 
-    # Add archetypes and compute total yearly scores per archetype
-    if add_archetypes:
-        add_archetypes_consumption(co_name)
+    hh_average = [act for act in co if "ch hh average consumption aggregated" == act['name']]
+    assert len(hh_average) == 1
+    demand_act = hh_average[0]
+    demand = {demand_act: 1}
     method = ("IPCC 2013", "climate change", "GWP 100a", "uncertain")
-    fp_archetypes_scores = write_dir / "monthly_scores.pickle"
-    archetypes_scores_monthly = get_archetypes_scores_per_month(co_name, method, fp_archetypes_scores)
-    # Compare with Andi's results (reproduce Fig. 3 in Andi's data mining paper, top part)
-    num_months_in_year = 12
-    archetypes_scores_yearly = {
-        archetype: score*num_months_in_year for archetype, score in archetypes_scores_monthly.items()
-    }
-    fig = plot_archetypes_scores_yearly(archetypes_scores_yearly)
-    # fig.write_html(write_dir / "yearly_scores.html")
-    fig.write_image(write_dir / "yearly_scores.pdf")
-    fig.show()
-    # Compare with Andi's contributions per sectors (reproduce Fig. 3 in Andi's data mining paper, bottom part)
-    fp_archetypes_scores_sectors = write_dir / "monthly_scores.pickle"
-    archetypes_scores_per_sector = get_archetypes_scores_per_sector(co_name, method, write_dir)
-    fig = plot_archetypes_scores_per_sector(archetypes_scores_per_sector)
-    # fig.write_html(write_dir / "sector_scores.html")
-    fig.write_image(write_dir / "sector_scores.pdf")
-    fig.show()
 
-    # hh_average = [act for act in co if "ch hh average consumption aggregated" == act['name']][0]
-    print()
+    write_dir_gsa = write_dir_project / demand_act['name'].lower().replace(" ", "_")
+    write_dir_gsa.mkdir(parents=True, exist_ok=True)
+    model = LCAModel25(demand, method, write_dir_gsa)
+    res = model.get_graph_traversal_params(cutoff=cutoff)
+
+    # # For the current demand, perform GSA
+    # archetypes = [act for act in co if "archetype" in act['name']]
+    # for demand_act in archetypes:
+    #     demand = {demand_act: 1}
+    #     write_dir_gsa = write_dir_project / demand_act['name'].lower().replace(" ", "_")
+    #     write_dir_gsa.mkdir(parents=True, exist_ok=True)
+    #     model = LCAModel25(demand, method, write_dir_gsa)
+    #     res = model.get_graph_traversal_params(cutoff=1e-2)
+
+    print(model.lca.score)
