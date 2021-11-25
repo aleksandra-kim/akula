@@ -11,7 +11,7 @@ from consumption_model_ch.consumption_fus import (
 
 from consumption_model_ch.plot_archetypes import plot_archetypes_scores_yearly, plot_archetypes_scores_per_sector
 
-use_exiobase = True
+use_exiobase = False
 add_archetypes = False
 
 
@@ -41,13 +41,15 @@ if __name__ == "__main__":
         archetype: score*num_months_in_year for archetype, score in archetypes_scores_monthly.items()
     }
     fig = plot_archetypes_scores_yearly(archetypes_scores_yearly)
-    fig.write_html(write_dir / "yearly_scores.html")
+    # fig.write_html(write_dir / "yearly_scores.html")
+    fig.write_image(write_dir / "yearly_scores.pdf")
     fig.show()
     # Compare with Andi's contributions per sectors (reproduce Fig. 3 in Andi's data mining paper, bottom part)
     fp_archetypes_scores_sectors = write_dir / "monthly_scores.pickle"
     archetypes_scores_per_sector = get_archetypes_scores_per_sector(co_name, method, write_dir)
     fig = plot_archetypes_scores_per_sector(archetypes_scores_per_sector)
-    fig.write_html(write_dir / "sector_scores.html")
+    # fig.write_html(write_dir / "sector_scores.html")
+    fig.write_image(write_dir / "sector_scores.pdf")
     fig.show()
 
     # hh_average = [act for act in co if "ch hh average consumption aggregated" == act['name']][0]
