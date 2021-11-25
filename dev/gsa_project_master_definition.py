@@ -1,115 +1,54 @@
-import bw2data as bd
 import bw2calc as bc
-import bw2io as bi
+import bw2data as bd
 from pathlib import Path
-from gwp_uncertainties import add_bw_method_with_gwp_uncertainties
+import numpy as np
 
-# Local files
-from consumption_model_ch.import_databases import (
-    import_exiobase_3,
-    import_consumption_db,
-)
 from consumption_model_ch.consumption_fus import (
-    add_consumption_activities,
-    add_consumption_categories,
-    add_consumption_sectors,
+    add_archetypes_consumption,
+    get_archetypes_scores_per_month,
+    get_archetypes_scores_per_sector,
 )
 
+from consumption_model_ch.plot_archetypes import plot_archetypes_scores_yearly, plot_archetypes_scores_per_sector
 
-def import_all_databases(use_exiobase, add_activities=True):
+use_exiobase = True
+add_archetypes = False
+
+
+if __name__ == "__main__":
 
     path_base = Path('/Users/akim/Documents/LCA_files/')
-    year = '151617'
 
-    directory_habe = path_base / 'HABE_2017/'
-    fp_ecoinvent_38 = path_base / "ecoinvent_38_cutoff" / "datasets"
-    # fp_ecoinvent_38 = "/Users/cmutel/Documents/lca/Ecoinvent/3.8/cutoff/datasets"
-    fp_ecoinvent_33 = path_base / "ecoinvent_33_cutoff"/ "datasets"
-    fp_exiobase = path_base / "exiobase_381_monetary" / "IOT_2015_pxp"
-    # fp_archetypes = path_base / "heia" / "hh_archetypes_weighted_ipcc_091011.csv"
-
-    ei38_name = "ecoinvent 3.8 cutoff"
-    ex38_name = "exiobase 3.8.1 monetary"
     co_name = "swiss consumption 1.0"
-
+    co = bd.Database(co_name)
     if use_exiobase:
         project = "GSA for archetypes with exiobase"
     else:
         project = "GSA for archetypes"
     bd.projects.set_current(project)
+    write_dir = Path("write_files") / project.lower().replace(" ", "_") / "archetype_scores"
+    write_dir.mkdir(parents=True, exist_ok=True)
 
-    # Import biosphere and ecoinvent databases
-    if ei38_name not in bd.databases:
-        bi.bw2setup()
-        ei = bi.SingleOutputEcospold2Importer(fp_ecoinvent_38, ei38_name)
-        ei.apply_strategies()
-        assert ei.all_linked
-        ei.write_database()
-
-    exclude_databases = [
-        'heia',
-        'Agribalyse 1.2',
-        'Agribalyse 1.3 - {}'.format(ei38_name),
-    ]
-
-    # Import exiobase
-    if use_exiobase:
-        import_exiobase_3(fp_exiobase, ex38_name)
-    else:
-        exclude_databases.append('exiobase 2.2')
-
-    # Import consumption database
-    import_consumption_db(
-        directory_habe, co_name, year, fp_ecoinvent_33, exclude_databases, fp_exiobase,
-    )
-
-    # Add uncertainties to GWP values
+    # Add archetypes and compute total yearly scores per archetype
+    if add_archetypes:
+        add_archetypes_consumption(co_name)
     method = ("IPCC 2013", "climate change", "GWP 100a", "uncertain")
-    if method not in bd.methods:
-        add_bw_method_with_gwp_uncertainties()
+    fp_archetypes_scores = write_dir / "monthly_scores.pickle"
+    archetypes_scores_monthly = get_archetypes_scores_per_month(co_name, method, fp_archetypes_scores)
+    # Compare with Andi's results (reproduce Fig. 3 in Andi's data mining paper, top part)
+    num_months_in_year = 12
+    archetypes_scores_yearly = {
+        archetype: score*num_months_in_year for archetype, score in archetypes_scores_monthly.items()
+    }
+    fig = plot_archetypes_scores_yearly(archetypes_scores_yearly)
+    fig.write_html(write_dir / "yearly_scores.html")
+    fig.show()
+    # Compare with Andi's contributions per sectors (reproduce Fig. 3 in Andi's data mining paper, bottom part)
+    fp_archetypes_scores_sectors = write_dir / "monthly_scores.pickle"
+    archetypes_scores_per_sector = get_archetypes_scores_per_sector(co_name, method, write_dir)
+    fig = plot_archetypes_scores_per_sector(archetypes_scores_per_sector)
+    fig.write_html(write_dir / "sector_scores.html")
+    fig.show()
 
-    # Add functional units
-    co = bd.Database(co_name)
-    option = 'aggregated'
-    if add_activities:
-        add_consumption_activities(co_name, option=option,)
-        add_consumption_categories(co_name)
-        add_consumption_sectors(co_name)
-
-    # LCIA for average consumption
-    co_average_act_name = 'ch hh average consumption {}'.format(option)
-    hh_average = [act for act in co if co_average_act_name == act['name']]
-    assert len(hh_average) == 1
-    demand_act = hh_average[0]
-    lca = bc.LCA({demand_act: 1}, method)
-    lca.lci()
-    lca.lcia()
-    print("{:8.3f}  {}".format(lca.score, demand_act['name']))
-
-    # LCIA for all Swiss consumption sectors
-    sectors = [act for act in co if "sector" in act['name'].lower()]
-    for demand_act in sectors:
-        lca = bc.LCA({demand_act: 1}, method)
-        lca.lci()
-        lca.lcia()
-        print("{:8.3f}  {}".format(lca.score, demand_act['name']))
-
-
-if __name__ == "__main__":
-
-    print("Impacts WITHOUT exiobase")
-    print("------------------------")
-    import_all_databases(False, False)
-
-    print("\n")
-    print("Impacts WITH exiobase")
-    print("---------------------")
-    import_all_databases(True, False)
-
-    # Backup GSA project
-    # bi.backup_project_directory(project)
-    # # Restore GSA project
-    # fp_gsa_project = path_base / "brightway2-project-GSA-backup.16-November-2021-11-50AM.tar.gz"
-    # if project not in bd.projects:
-    #     bi.restore_project_directory(fp_gsa_project)
-
+    # hh_average = [act for act in co if "ch hh average consumption aggregated" == act['name']][0]
+    print()
