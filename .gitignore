@@ -54,3 +54,6 @@ MANIFEST
 # Per-project virtualenvs
 .venv*/
 .conda*/
+
+# Local files
+dev/write_files/
