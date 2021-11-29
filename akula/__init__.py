@@ -1,17 +1,11 @@
-from .version import version as __version__
-# import sys
+__all__ = (
+    "DATA_DIR",
+    "generate_virtual_markets_datapackage",
+)
 
-# if sys.version_info[:2] >= (3, 8):
-#     # TODO: Import directly (no need for conditional) when `python_requires = >= 3.8`
-#     from importlib.metadata import PackageNotFoundError, version  # pragma: no cover
-# else:
-#     from importlib_metadata import PackageNotFoundError, version  # pragma: no cover
-#
-# try:
-#     # Change here if project is renamed and does not equal the package name
-#     dist_name = __name__
-#     __version__ = version(dist_name)
-# except PackageNotFoundError:  # pragma: no cover
-#     __version__ = "unknown"
-# finally:
-#     del version, PackageNotFoundError
+from pathlib import Path
+
+DATA_DIR = Path(__file__).parent.resolve() / "data"
+
+from .version import version as __version__
+from .virtual_markets import generate_virtual_markets_datapackage
