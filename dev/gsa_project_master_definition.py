@@ -8,6 +8,7 @@ from gsa_framework.models.life_cycle_assessment_bw25 import LCAModel25
 use_exiobase = False
 cutoff = 1e-16
 
+
 if __name__ == "__main__":
 
     path_base = Path('/Users/akim/Documents/LCA_files/')
@@ -34,12 +35,13 @@ if __name__ == "__main__":
     res = model.get_graph_traversal_params(cutoff=cutoff)
 
     # # For the current demand, perform GSA
-    # archetypes = [act for act in co if "archetype" in act['name']]
-    # for demand_act in archetypes:
-    #     demand = {demand_act: 1}
-    #     write_dir_gsa = write_dir_project / demand_act['name'].lower().replace(" ", "_")
-    #     write_dir_gsa.mkdir(parents=True, exist_ok=True)
-    #     model = LCAModel25(demand, method, write_dir_gsa)
-    #     res = model.get_graph_traversal_params(cutoff=1e-2)
+    archetypes = [act for act in co if "archetype" in act['name']]
+    for demand_act in archetypes:
+        print(demand_act['name'])
+        demand = {demand_act: 1}
+        write_dir_gsa = write_dir_project / demand_act['name'].lower().replace(" ", "_")
+        write_dir_gsa.mkdir(parents=True, exist_ok=True)
+        model = LCAModel25(demand, method, write_dir_gsa)
+        res = model.get_graph_traversal_params(cutoff=cutoff)
 
     print(model.lca.score)
