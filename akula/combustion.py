@@ -91,7 +91,7 @@ def get_liquid_fuels():
             ]
 
 
-def generate_liquid_fuels_combustion_correlated_samples(size=100, seed=42):
+def generate_liquid_fuels_combustion_correlated_samples(size=25000, seed=42):
     bd.projects.set_current('GSA for archetypes')
 
     fuels = get_liquid_fuels()
