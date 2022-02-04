@@ -12,8 +12,18 @@ from gsa_framework.utils import read_pickle, write_pickle
 project = "GSA for archetypes"
 bd.projects.set_current(project)
 fp_virtual_markets = DATA_DIR / "virtual-markets.zip"
+fp_ei_parameterization = DATA_DIR / "ecoinvent-parameterization.zip"
+fp_liquid_fuels = DATA_DIR / "liquid-fuels-kilogram.zip"
 fp_monte_carlo = Path("write_files") / project.lower().replace(" ", "_") / "monte_carlo"
 fp_monte_carlo.mkdir(parents=True, exist_ok=True)
+
+option = "virtual_markets"
+if option == "virtual_markets":
+    fp_option = fp_virtual_markets
+elif option == "ei_parameterization":
+    fp_option = fp_ei_parameterization
+elif option == "liquid_fuels":
+    fp_option = fp_liquid_fuels
 
 if __name__ == "__main__":
 
@@ -35,22 +45,22 @@ if __name__ == "__main__":
     demand = {demand_act: 1}
     demand_id = {demand_act.id: 1}
 
-    iterations = 2000
+    iterations = 500
     seed = 11111000
     dict_for_lca = dict(
         use_distributions=True,
         use_arrays=True,
         seed_override=seed,
     )
-    fp_monte_carlo_virtual_markets_no = fp_monte_carlo / "{}.{}.{}.pickle".format(
-        "virtual_markets_no", iterations, seed
+    fp_monte_carlo_base = fp_monte_carlo / "{}.{}.{}.pickle".format(
+        "base", iterations, seed
     )
-    fp_monte_carlo_virtual_markets_yes = fp_monte_carlo / "{}.{}.{}.pickle".format(
-        "virtual_markets_yes", iterations, seed
+    fp_monte_carlo_option = fp_monte_carlo / "{}.{}.{}.pickle".format(
+        option, iterations, seed
     )
 
-    if fp_monte_carlo_virtual_markets_no.exists():
-        scores = read_pickle(fp_monte_carlo_virtual_markets_no)
+    if fp_monte_carlo_base.exists():
+        scores = read_pickle(fp_monte_carlo_base)
     else:
         lca = bc.LCA(
             demand_id,
@@ -60,27 +70,27 @@ if __name__ == "__main__":
         lca.lci()
         lca.lcia()
         scores = [lca.score for _, _ in zip(lca, range(iterations))]
-        write_pickle(scores, fp_monte_carlo_virtual_markets_no)
+        write_pickle(scores, fp_monte_carlo_base)
 
-    if fp_monte_carlo_virtual_markets_yes.exists():
-        scores_vm = read_pickle(fp_monte_carlo_virtual_markets_yes)
+    if fp_monte_carlo_option.exists():
+        scores_vm = read_pickle(fp_monte_carlo_option)
     else:
         lca_vm = bc.LCA(
             demand_id,
-            data_objs=dps + [fp_virtual_markets],
+            data_objs=dps + [fp_option],
             **dict_for_lca,
         )
         lca_vm.lci()
         lca_vm.lcia()
         scores_vm = [lca_vm.score for _, _ in zip(lca_vm, range(iterations))]
-        write_pickle(scores_vm, fp_monte_carlo_virtual_markets_yes)
+        write_pickle(scores_vm, fp_monte_carlo_option)
 
     # Plot histograms
     from gsa_framework.visualization.plotting import plot_histogram_Y1_Y2, plot_correlation_Y1_Y2
     Y1 = np.array(scores)
     Y2 = np.array(scores_vm)
-    trace_name1 = "Without uncertainties in virtual markets"
-    trace_name2 = "With uncertainties in virtual markets"
+    trace_name1 = "Without uncertainties in {}".format(option.replace("_", " "))
+    trace_name2 = "With uncertainties in {}".format(option.replace("_", " "))
     lcia_text = "LCIA scores, {}".format(me.metadata['unit'])
     fig = plot_histogram_Y1_Y2(
         Y1,
