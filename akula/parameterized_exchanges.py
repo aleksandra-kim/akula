@@ -200,7 +200,7 @@ def get_parameterized_values(input_data, num_samples=25000):
                                         lookup_cache[(act["database"], act["code"])],
                                     ),
                                     params[exc["parameter_name"]],
-                                    exc["type"] == "production",
+                                    exc["type"] != "production",  # TODO Chris please check, changed this from == to !=
                                 )
                             )
                         else:

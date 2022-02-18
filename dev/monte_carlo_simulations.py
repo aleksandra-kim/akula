@@ -49,7 +49,7 @@ if __name__ == "__main__":
     demand = {demand_act: 1}
     demand_id = {demand_act.id: 1}
 
-    iterations = 20
+    iterations = 500
     seed = 11111000
     dict_for_lca = dict(
         use_distributions=True,

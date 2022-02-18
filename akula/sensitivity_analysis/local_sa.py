@@ -31,10 +31,10 @@ def get_inds_tech_without_noninf(lca, cutoff, max_calc=1e4):
     return use_indices
 
 
-def get_inds_bio_without_noninf(lca, cutoff):
+def get_inds_bio_without_noninf(lca):
     """Find datapackage indices that correspond to B*Ainv*f, where contributions are higher than cutoff"""
     inv = lca.characterized_inventory
-    finv = inv.multiply(abs(inv) > abs(lca.score * cutoff))
+    finv = inv.multiply(abs(inv) > 0)
     # Find row and column in B*Ainv*f
     biosphere_row_col = list(zip(*finv.nonzero()))
     # Translate row and column to datapackage indices
@@ -47,11 +47,11 @@ def get_inds_bio_without_noninf(lca, cutoff):
     return use_indices
 
 
-def get_inds_cf_without_noninf(lca, cutoff):
+def get_inds_cf_without_noninf(lca):
     """Find datapackage indices that correspond to C*B*Ainv*f, where contributions are higher than cutoff"""
     inv_sum = np.array(np.sum(lca.characterized_inventory, axis=1)).squeeze()
     # print('Characterized inventory:', inv.shape, inv.nnz)
-    finv_sum = inv_sum * abs(inv_sum) > abs(lca.score * cutoff)
+    finv_sum = inv_sum * abs(inv_sum) > 0
     characterization_row = list(finv_sum.nonzero()[0])
     # Translate row to datapackage indices
     biosphere_reversed = lca.dicts.biosphere.reversed
@@ -60,14 +60,13 @@ def get_inds_cf_without_noninf(lca, cutoff):
 
 
 class LocalSAInterface:
-    def __init__(self, indices, data, distributions, mask, factor=10, cutoff=1e-3):
+    def __init__(self, indices, data, distributions, mask, factor=10):
         self.indices = indices
         self.data = data
         self.distributions = distributions
         self.has_uncertainty = self.get_uncertainty_bool(self.distributions)
         self.factor = factor
-        self.cutoff = cutoff
-        self.mask = mask  # indices with high enough contributions
+        self.mask = mask  # boolen mask to select indices
 
         assert self.indices.shape[0] == self.data.shape[0] == self.distributions.shape[0]
 
@@ -87,7 +86,7 @@ class LocalSAInterface:
 
         if self.index < self.size:
             # 0 and 1 are `no` and `unknown` uncertainty
-            while self.masked_has_uncertainty[self.index]:
+            while not self.masked_has_uncertainty[self.index]:
                 self.index += 1
                 if self.index >= self.size:
                     raise StopIteration
@@ -95,7 +94,9 @@ class LocalSAInterface:
             raise StopIteration
 
         data = self.data.copy()
+        print(data[self.mask_where[self.index]])
         data[self.mask_where[self.index]] *= self.factor
+        print(data[self.mask_where[self.index]])
         return data
 
     @staticmethod
@@ -118,19 +119,17 @@ def run_local_sa(
         indices_array,
         data_array,
         distributions_array,
-        mask_without_noninf,
+        mask,
         flip_array=None,  # only needed for technosphere
         const_factor=10,
-        cutoff=1e-3,
 ):
 
     interface = LocalSAInterface(
         indices_array,
         data_array,
         distributions_array,
-        mask_without_noninf,
+        mask,
         const_factor,
-        cutoff,
     )
 
     dp = bwp.create_datapackage()
@@ -155,13 +154,11 @@ def run_local_sa(
         while True:
             next(lca_local_sa)
             count += 1
-            indices_local_sa_scores[tuple(interface.coordinates)] = lca_local_sa.score
+            print(lca_local_sa.score)
+            indices_local_sa_scores[tuple(interface.coordinates)] = np.array([lca_local_sa.score])
     except StopIteration:
         pass
 
     assert count <= sum(interface.mask)
 
     return indices_local_sa_scores
-
-
-
