@@ -97,30 +97,30 @@ if __name__ == "__main__":
     trace_name2 = "With uncertainties in {}".format(option.replace("_", " "))
     lcia_text = "LCIA scores, {}".format(me.metadata['unit'])
 
-    # fig = plot_histogram_Y1_Y2(
-    #     Y1,
-    #     Y2,
-    #     trace_name1=trace_name1,
-    #     trace_name2=trace_name2,
-    #     xaxes_title_text=lcia_text,
-    # )
-    # fig.update_layout(
-    #     width=800,
-    #     height=600,
-    # )
-    # fig.show()
-
-    fig = plot_correlation_Y1_Y2(
+    fig = plot_histogram_Y1_Y2(
         Y1,
         Y2,
-        start=0,
-        end=50,
         trace_name1=trace_name1,
         trace_name2=trace_name2,
-        yaxes1_title_text=lcia_text,
-        xaxes2_title_text=lcia_text,
-        yaxes2_title_text=lcia_text,
+        xaxes_title_text=lcia_text,
+    )
+    fig.update_layout(
+        width=800,
+        height=600,
     )
     fig.show()
+
+    # fig = plot_correlation_Y1_Y2(
+    #     Y1,
+    #     Y2,
+    #     start=0,
+    #     end=50,
+    #     trace_name1=trace_name1,
+    #     trace_name2=trace_name2,
+    #     yaxes1_title_text=lcia_text,
+    #     xaxes2_title_text=lcia_text,
+    #     yaxes2_title_text=lcia_text,
+    # )
+    # fig.show()
 
 print()
