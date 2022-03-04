@@ -7,7 +7,7 @@ import numpy as np
 from fs.zipfs import ZipFS
 
 from gsa_framework.models.life_cycle_assessment_bw25 import LCAModel25
-from akula.virtual_markets import DATA_DIR
+from akula.implicit_markets import DATA_DIR
 
 from gsa_framework.sensitivity_analysis.correlations import correlation_coefficients
 
