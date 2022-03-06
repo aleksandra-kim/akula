@@ -19,7 +19,7 @@ bd.projects.set_current(project)
 # fp_monte_carlo = Path("write_files") / project.lower().replace(" ", "_") / "monte_carlo"
 # fp_monte_carlo.mkdir(parents=True, exist_ok=True)
 
-generate_implicit_markets_datapackage(num_samples=200)
+generate_implicit_markets_datapackage(num_samples=2000)
 
 
 
