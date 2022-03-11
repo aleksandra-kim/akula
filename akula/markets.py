@@ -8,16 +8,18 @@ from fs.zipfs import ZipFS
 from scipy.stats import dirichlet
 from thefuzz import fuzz
 from tqdm import tqdm
+from sklearn.linear_model import LinearRegression
 
 DATA_DIR = Path(__file__).parent.resolve() / "data"
-MINIMUM_DIRICHLET_SCALE = 50
+MINIMUM_DIRICHLET_SCALE = 50.0
 
 
-def similar(a, b):
+def similar_im(a, b):
     return fuzz.partial_ratio(a, b) > 90 or fuzz.ratio(a, b) > 40
 
 
-def find_uncertain_implicit_markets(database):
+def find_markets(database, similarity_func, check_uncertainty):
+
     db = bd.Database(database)
 
     found = {}
@@ -31,14 +33,14 @@ def find_uncertain_implicit_markets(database):
         for exc in act.technosphere():
             if exc.input == exc.output:
                 continue
-            elif exc["uncertainty type"] < 2:
+            elif check_uncertainty and exc["uncertainty type"] < 2:
                 continue
             inpts[exc.input["reference product"]].append(exc)
 
         for key, lst in inpts.items():
             if (
                 len(lst) > 1
-                and similar(rp, key)
+                and similarity_func(rp, key)
                 and 0.98 <= sum([exc["amount"] for exc in lst]) <= 1.02
             ):
                 found[act] = lst
@@ -94,15 +96,21 @@ def get_dirichlet_scales(implicit_markets):
     return dirichlet_scales
 
 
-def generate_implicit_markets_datapackage(num_samples=25000):
+def generate_markets_datapackage(
+        similarity_func,
+        get_dirichlet_scales_func,
+        markets_type,
+        num_samples=25000
+):
     bd.projects.set_current("GSA for archetypes")
 
-    im = find_uncertain_implicit_markets("ecoinvent 3.8 cutoff")
-    dirichlet_scales = get_dirichlet_scales(im)
+    markets = find_markets("ecoinvent 3.8 cutoff", similarity_func, True)
+    dirichlet_scales = get_dirichlet_scales_func(markets)
+    print(min(dirichlet_scales), max(dirichlet_scales), np.mean(dirichlet_scales))
 
     dp = bwp.create_datapackage(
-        fs=ZipFS(str(DATA_DIR / "implicit-markets.zip"), write=True),
-        name="implicit markets",
+        fs=ZipFS(str(DATA_DIR / f"{markets_type}-markets.zip"), write=True),
+        name=f"{markets_type} markets",
         # set seed to have reproducible (though not sequential) sampling
         seed=42,
     )
@@ -113,11 +121,11 @@ def generate_implicit_markets_datapackage(num_samples=25000):
                 np.array([exc["amount"] for exc in lst]) * dirichlet_scales[i],
                 size=num_samples,
             )
-            for i, lst in enumerate(im.values())
+            for i, lst in enumerate(markets.values())
         ]
     ).T
     indices_array = np.array(
-        [(exc.input.id, exc.output.id) for lst in im.values() for exc in lst],
+        [(exc.input.id, exc.output.id) for lst in markets.values() for exc in lst],
         dtype=bwp.INDICES_DTYPE,
     )
     # All inputs -> all True
@@ -126,12 +134,46 @@ def generate_implicit_markets_datapackage(num_samples=25000):
         matrix="technosphere_matrix",
         data_array=data_array,
         # Resource group name that will show up in provenance
-        name="implicit markets",
+        name=f"{markets_type} markets",
         indices_array=indices_array,
         flip_array=flip_array,
     )
     dp.finalize_serialization()
 
 
+def similar_gm(a, b):
+    return a == b
+
+
+def get_market_lmeans(markets):
+    """Use large means as predictor fpr diricihlet scales."""
+    lmeans = []
+    for i, act in enumerate(markets.keys()):
+        exchanges = markets[act]
+        amounts = np.array([exc['amount'] for exc in exchanges])
+        mean = np.mean(amounts)
+        lmeans.append(np.mean(amounts[amounts >= mean]))
+    X = 1/(np.array(lmeans))**3
+    return X.reshape((-1, 1))
+
+
+def predict_dirichlet_scales_generic_markets(generic_markets):
+    """Get dirichlet scores for generic markets from implicit ones."""
+    implicit_markets = find_markets("ecoinvent 3.8 cutoff", similar_im, True)
+    Xtrain = get_market_lmeans(implicit_markets)
+    ytrain = get_dirichlet_scales(implicit_markets)
+    Xtest = get_market_lmeans(generic_markets)
+    reg = LinearRegression().fit(Xtrain, ytrain)
+    ytest = Xtest * reg.coef_
+    ytest[ytest < 50] = MINIMUM_DIRICHLET_SCALE
+    return ytest
+
+
 if __name__ == "__main__":
-    generate_implicit_markets_datapackage(num_samples=2000)
+    generate_markets_datapackage(similar_im, get_dirichlet_scales, "implicit", num_samples=2000)
+    generate_markets_datapackage(
+        similar_gm,
+        predict_dirichlet_scales_generic_markets,
+        "generic",
+        num_samples=2000
+    )

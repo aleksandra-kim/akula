@@ -6,7 +6,8 @@ from pathlib import Path
 import numpy as np
 from fs.zipfs import ZipFS
 
-from akula.implicit_markets import DATA_DIR, generate_implicit_markets_datapackage
+from akula.markets import DATA_DIR
+
 from gsa_framework.utils import read_pickle, write_pickle
 
 
@@ -18,9 +19,6 @@ bd.projects.set_current(project)
 # fp_households_unct = DATA_DIR / "households-fus-uncertainty.zip"
 # fp_monte_carlo = Path("write_files") / project.lower().replace(" ", "_") / "monte_carlo"
 # fp_monte_carlo.mkdir(parents=True, exist_ok=True)
-
-generate_implicit_markets_datapackage(num_samples=2000)
-
 
 
 # option = "ei_parameterization"
