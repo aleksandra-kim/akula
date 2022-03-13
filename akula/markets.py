@@ -9,13 +9,17 @@ from scipy.stats import dirichlet
 from thefuzz import fuzz
 from tqdm import tqdm
 from sklearn.linear_model import LinearRegression
+from gsa_framework.utils import read_pickle, write_pickle
 
 DATA_DIR = Path(__file__).parent.resolve() / "data"
-MINIMUM_DIRICHLET_SCALE = 50.0
 
 
 def similar_im(a, b):
     return fuzz.partial_ratio(a, b) > 90 or fuzz.ratio(a, b) > 40
+
+
+def similar_gm(a, b):
+    return a == b
 
 
 def find_markets(database, similarity_func, check_uncertainty):
@@ -83,7 +87,7 @@ def get_dirichlet_scale(alpha_exchanges, fit_variance=True):
                 lognormal_skewness = get_lognormal_skewness(scale)
                 scaling_factors.append(beta_skewness / lognormal_skewness)
     scaling_factor = np.mean(scaling_factors)
-    return max(scaling_factor, MINIMUM_DIRICHLET_SCALE)
+    return scaling_factor
 
 
 def get_dirichlet_scales(implicit_markets):
@@ -96,6 +100,23 @@ def get_dirichlet_scales(implicit_markets):
     return dirichlet_scales
 
 
+def predict_dirichlet_scales_generic_markets(generic_markets):
+    """Get dirichlet scores for generic markets from implicit ones."""
+    fp_implicit_markets = DATA_DIR / "implicit_markets.pickle"
+    if fp_implicit_markets.exists():
+        implicit_markets = read_pickle(fp_implicit_markets)
+    else:
+        implicit_markets = find_markets("ecoinvent 3.8 cutoff", similar_im, True)
+        write_pickle(implicit_markets, fp_implicit_markets)
+    Xtrain = get_market_lmeans(implicit_markets)
+    ytrain = get_dirichlet_scales(implicit_markets)
+    Xtest = get_market_lmeans(generic_markets)
+    reg = LinearRegression().fit(Xtrain, ytrain)
+    ytest = Xtest * reg.coef_
+    ytest = ytest.flatten()
+    return ytest
+
+
 def generate_markets_datapackage(
         similarity_func,
         get_dirichlet_scales_func,
@@ -104,9 +125,13 @@ def generate_markets_datapackage(
 ):
     bd.projects.set_current("GSA for archetypes")
 
-    markets = find_markets("ecoinvent 3.8 cutoff", similarity_func, True)
+    fp_markets = DATA_DIR / f"{markets_type}_markets.pickle"
+    if fp_markets.exists():
+        markets = read_pickle(fp_markets)
+    else:
+        markets = find_markets("ecoinvent 3.8 cutoff", similarity_func, False)
+        write_pickle(markets, fp_markets)
     dirichlet_scales = get_dirichlet_scales_func(markets)
-    print(min(dirichlet_scales), max(dirichlet_scales), np.mean(dirichlet_scales))
 
     dp = bwp.create_datapackage(
         fs=ZipFS(str(DATA_DIR / f"{markets_type}-markets.zip"), write=True),
@@ -141,10 +166,6 @@ def generate_markets_datapackage(
     dp.finalize_serialization()
 
 
-def similar_gm(a, b):
-    return a == b
-
-
 def get_market_lmeans(markets):
     """Use large means as predictor fpr diricihlet scales."""
     lmeans = []
@@ -157,23 +178,17 @@ def get_market_lmeans(markets):
     return X.reshape((-1, 1))
 
 
-def predict_dirichlet_scales_generic_markets(generic_markets):
-    """Get dirichlet scores for generic markets from implicit ones."""
-    implicit_markets = find_markets("ecoinvent 3.8 cutoff", similar_im, True)
-    Xtrain = get_market_lmeans(implicit_markets)
-    ytrain = get_dirichlet_scales(implicit_markets)
-    Xtest = get_market_lmeans(generic_markets)
-    reg = LinearRegression().fit(Xtrain, ytrain)
-    ytest = Xtest * reg.coef_
-    ytest[ytest < 50] = MINIMUM_DIRICHLET_SCALE
-    return ytest
-
-
 if __name__ == "__main__":
-    generate_markets_datapackage(similar_im, get_dirichlet_scales, "implicit", num_samples=2000)
+    num_samples = 25000
+    generate_markets_datapackage(
+        similar_im,
+        get_dirichlet_scales,
+        "implicit",
+        num_samples=num_samples,
+    )
     generate_markets_datapackage(
         similar_gm,
         predict_dirichlet_scales_generic_markets,
         "generic",
-        num_samples=2000
+        num_samples=num_samples,
     )
