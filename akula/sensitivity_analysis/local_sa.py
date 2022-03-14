@@ -10,11 +10,13 @@ def get_mask(all_indices, use_indices):
     for inds in use_indices:
         mask_current = all_indices == inds
         mask = mask | mask_current
+        if sum(mask_current) > 1:
+            print(inds)
     assert sum(mask) == len(use_indices)
     return mask
 
 
-def get_inds_tech_without_noninf(lca, cutoff, max_calc=1e4):
+def get_tindices_wo_noninf(lca, cutoff, max_calc=1e4):
     """Find datapackage indices with lowest contribution scores obtained with Supply chain traversal"""
     res = bc.GraphTraversal().calculate(
         lca, cutoff=cutoff, max_calc=max_calc
@@ -31,7 +33,7 @@ def get_inds_tech_without_noninf(lca, cutoff, max_calc=1e4):
     return use_indices
 
 
-def get_inds_bio_without_noninf(lca):
+def get_bindices_wo_noninf(lca):
     """Find datapackage indices that correspond to B*Ainv*f, where contributions are higher than cutoff"""
     inv = lca.characterized_inventory
     finv = inv.multiply(abs(inv) > 0)
@@ -47,7 +49,7 @@ def get_inds_bio_without_noninf(lca):
     return use_indices
 
 
-def get_inds_cf_without_noninf(lca):
+def get_cindices_wo_noninf(lca):
     """Find datapackage indices that correspond to C*B*Ainv*f, where contributions are higher than cutoff"""
     inv_sum = np.array(np.sum(lca.characterized_inventory, axis=1)).squeeze()
     # print('Characterized inventory:', inv.shape, inv.nnz)
@@ -66,7 +68,7 @@ class LocalSAInterface:
         self.distributions = distributions
         self.has_uncertainty = self.get_uncertainty_bool(self.distributions)
         self.factor = factor
-        self.mask = mask  # boolen mask to select indices
+        self.mask = mask  # boolean mask to select indices
 
         assert self.indices.shape[0] == self.data.shape[0] == self.distributions.shape[0]
 

@@ -1,41 +1,24 @@
 import bw2calc as bc
 import bw2data as bd
 import bw_processing as bwp
-
 from pathlib import Path
 import numpy as np
 from fs.zipfs import ZipFS
+from gsa_framework.utils import read_pickle, write_pickle
+from gsa_framework.visualization.plotting import plot_histogram_Y1_Y2, plot_correlation_Y1_Y2
 
 from akula.markets import DATA_DIR
 
-from gsa_framework.utils import read_pickle, write_pickle
 
-
-project = "GSA for archetypes"
-bd.projects.set_current(project)
-fp_implicit_markets = DATA_DIR / "implicit-markets.zip"
-fp_generic_markets = DATA_DIR / "generic-markets.zip"
-fp_ei_parameterization = DATA_DIR / "ecoinvent-parameterization.zip"
-fp_liquid_fuels = DATA_DIR / "liquid-fuels-kilogram.zip"
-fp_households_unct = DATA_DIR / "households-fus-uncertainty.zip"
-fp_monte_carlo = Path("write_files") / project.lower().replace(" ", "_") / "monte_carlo"
-fp_monte_carlo.mkdir(parents=True, exist_ok=True)
-
-
-option = "generic_markets"
-if option == "implicit_markets":
-    fp_option = fp_implicit_markets
-elif option == 'generic_markets':
-    fp_option = fp_generic_markets
-elif option == "ei_parameterization":
-    fp_option = fp_ei_parameterization
-elif option == "liquid_fuels":
-    fp_option = fp_liquid_fuels
-elif option == "households_unct":
-    fp_option = fp_households_unct
-
+option = "ecoinvent-parameterization"
 
 if __name__ == "__main__":
+    project = "GSA for archetypes"
+    bd.projects.set_current(project)
+    fp_monte_carlo = Path("write_files") / project.lower().replace(" ", "_") / "monte_carlo"
+    fp_monte_carlo.mkdir(parents=True, exist_ok=True)
+
+    fp_option = DATA_DIR / f"{option}.zip"
 
     method = ("IPCC 2013", "climate change", "GWP 100a", "uncertain")
     me = bd.Method(method)
@@ -62,12 +45,8 @@ if __name__ == "__main__":
         use_arrays=True,
         seed_override=seed,
     )
-    fp_monte_carlo_base = fp_monte_carlo / "{}.{}.{}.pickle".format(
-        "base", iterations, seed
-    )
-    fp_monte_carlo_option = fp_monte_carlo / "{}.{}.{}.pickle".format(
-        option, iterations, seed
-    )
+    fp_monte_carlo_base = fp_monte_carlo / f"base.{iterations}.{seed}.pickle"
+    fp_monte_carlo_option = fp_monte_carlo / f"{option}.{iterations}.{seed}.pickle"
 
     if fp_monte_carlo_base.exists():
         scores = read_pickle(fp_monte_carlo_base)
@@ -96,7 +75,6 @@ if __name__ == "__main__":
         write_pickle(scores_option, fp_monte_carlo_option)
 
     # Plot histograms
-    from gsa_framework.visualization.plotting import plot_histogram_Y1_Y2, plot_correlation_Y1_Y2
     Y1 = np.array(scores)
     Y2 = np.array(scores_option)
     trace_name1 = "Without uncertainties in {}".format(option.replace("_", " "))
@@ -128,5 +106,3 @@ if __name__ == "__main__":
         yaxes2_title_text=lcia_text,
     )
     fig.show()
-
-print()

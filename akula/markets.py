@@ -12,6 +12,7 @@ from sklearn.linear_model import LinearRegression
 from gsa_framework.utils import read_pickle, write_pickle
 
 DATA_DIR = Path(__file__).parent.resolve() / "data"
+SAMPLES = 25000
 
 
 def similar_im(a, b):
@@ -75,7 +76,8 @@ def get_dirichlet_scale(alpha_exchanges, fit_variance=True):
     scaling_factors = []
     for ialpha, iexc in alpha_exchanges.items():
         if ialpha >= alpha_threshold:
-            assert iexc['uncertainty type'] == 2
+            if iexc['uncertainty type'] != 2:
+                print(iexc['uncertainty type'])
             loc = iexc['loc']
             scale = iexc['scale']
             if fit_variance:
@@ -102,7 +104,7 @@ def get_dirichlet_scales(implicit_markets):
 
 def predict_dirichlet_scales_generic_markets(generic_markets):
     """Get dirichlet scores for generic markets from implicit ones."""
-    fp_implicit_markets = DATA_DIR / "implicit_markets.pickle"
+    fp_implicit_markets = DATA_DIR / "implicit-markets.pickle"
     if fp_implicit_markets.exists():
         implicit_markets = read_pickle(fp_implicit_markets)
     else:
@@ -125,11 +127,16 @@ def generate_markets_datapackage(
 ):
     bd.projects.set_current("GSA for archetypes")
 
-    fp_markets = DATA_DIR / f"{markets_type}_markets.pickle"
+    if markets_type == 'generic':
+        check_uncertainty = False
+    else:
+        check_uncertainty = True
+
+    fp_markets = DATA_DIR / f"{markets_type}-markets.pickle"
     if fp_markets.exists():
         markets = read_pickle(fp_markets)
     else:
-        markets = find_markets("ecoinvent 3.8 cutoff", similarity_func, False)
+        markets = find_markets("ecoinvent 3.8 cutoff", similarity_func, check_uncertainty)
         write_pickle(markets, fp_markets)
     dirichlet_scales = get_dirichlet_scales_func(markets)
 
@@ -179,16 +186,15 @@ def get_market_lmeans(markets):
 
 
 if __name__ == "__main__":
-    num_samples = 25000
     generate_markets_datapackage(
         similar_im,
         get_dirichlet_scales,
         "implicit",
-        num_samples=num_samples,
+        SAMPLES,
     )
     generate_markets_datapackage(
         similar_gm,
         predict_dirichlet_scales_generic_markets,
         "generic",
-        num_samples=num_samples,
+        SAMPLES,
     )

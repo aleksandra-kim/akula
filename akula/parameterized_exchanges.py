@@ -19,7 +19,8 @@ assert bi.__version__ >= (0, 9, "DEV7")
 
 
 SAMPLES = 25000
-FILEPATH = "/Users/cmutel/Documents/lca/Ecoinvent/3.8/cutoff/datasets"
+# FILEPATH = "/Users/cmutel/Documents/lca/Ecoinvent/3.8/cutoff/datasets"
+FILEPATH = "/Users/akim/Documents/LCA_files/ecoinvent_38_cutoff/datasets"
 
 DATA_DIR = Path(__file__).parent.resolve() / "data"
 MC_ERROR_TEXT = """Formula returned array of wrong shape:
@@ -97,7 +98,7 @@ class PatchedParameterSet(bwp.ParameterSet):
         return result
 
 
-def drop_pedigre_uncertainty(dct):
+def drop_pedigree_uncertainty(dct):
     if "scale" in dct and "scale with pedigree" in dct:
         dct["scale with pedigree"] = dct.pop("scale")
         dct["scale"] = dct.pop("scale without pedigree")
@@ -131,7 +132,7 @@ def clean_dct(dct):
 def reformat_parameters(act):
     parameters = {
         substitutions.get(dct["name"], dct["name"]): clean_dct(
-            drop_pedigre_uncertainty(dct)
+            drop_pedigree_uncertainty(dct)
         )
         for dct in act["parameters"]
         if "name" in dct
@@ -200,7 +201,7 @@ def get_parameterized_values(input_data, num_samples=25000):
                                         lookup_cache[(act["database"], act["code"])],
                                     ),
                                     params[exc["parameter_name"]],
-                                    exc["type"] != "production",  # TODO Chris please check, changed this from == to !=
+                                    exc["type"] != "production",
                                 )
                             )
                         else:
