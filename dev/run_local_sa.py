@@ -12,42 +12,34 @@ from akula.sensitivity_analysis.local_sa import *
 from akula.markets import DATA_DIR
 
 
-# def get_tresource_kind(kind, dp_ei, dp_co):
-#     return np.hstack(
-#         [
-#             dp_ei.get_resource(f'ecoinvent_3.8_cutoff_technosphere_matrix.{kind}')[0],
-#             dp_co.get_resource(f'swiss_consumption_1.0_technosphere_matrix.{kind}')[0]
-#         ]
-#     )
-
-
-def run_tlocal_sa(
-        matrix_type,
+def run_local_sa_technosphere(
         func_unit_mapped,
         packages,
-        tech_indices,
-        tech_data,
         tech_has_uncertainty,
         mask_tech_without_noninf,
-        flip_tech,
         factors,
         directory,
         tag,
 ):
+    ecoinvent = bd.Database('ecoinvent 3.8 cutoff').datapackage()
+    tech_ecoinvent = ecoinvent.filter_by_attribute('matrix', 'technosphere_matrix')
+    tech_indices = tech_ecoinvent.get_resource('ecoinvent_3.8_cutoff_technosphere_matrix.indices')[0]
+    tech_data = tech_ecoinvent.get_resource('ecoinvent_3.8_cutoff_technosphere_matrix.data')[0]
+    tech_flip = tech_ecoinvent.get_resource('ecoinvent_3.8_cutoff_technosphere_matrix.flip')[0]
     for i, factor in enumerate(factors):
         fp_factor = directory / f"local_sa.{tag}.factor_{factor:.0e}.pickle"
         if fp_factor.exists():
             local_sa_current = read_pickle(fp_factor)
         else:
             local_sa_current = run_local_sa(
-                matrix_type,
+                "technosphere",
                 func_unit_mapped,
                 packages,
                 tech_indices,
                 tech_data,
                 tech_has_uncertainty,
                 mask_tech_without_noninf,
-                flip_tech,
+                tech_flip,
                 factor,
             )
             write_pickle(local_sa_current, fp_factor)
@@ -94,16 +86,10 @@ cf = bd.Method(method).datapackage()
 
 # Technosphere
 tei = ei.filter_by_attribute('matrix', 'technosphere_matrix')
-# tco = co.filter_by_attribute('matrix', 'technosphere_matrix')
-
-# tindices = get_tresource_kind('indices', tei, tco)
-# tdata = get_tresource_kind('data', tei, tco)
-# tflip = get_tresource_kind('flip', tei, tco)
 tindices_ei = tei.get_resource('ecoinvent_3.8_cutoff_technosphere_matrix.indices')[0]
 tdata_ei = tei.get_resource('ecoinvent_3.8_cutoff_technosphere_matrix.data')[0]
 tflip_ei = tei.get_resource('ecoinvent_3.8_cutoff_technosphere_matrix.flip')[0]
 tdistributions_ei = tei.get_resource('ecoinvent_3.8_cutoff_technosphere_matrix.distributions')[0]
-# tindices_co = tco.get_resource('swiss_consumption_1.0_technosphere_matrix.indices')[0]
 
 # Biosphere
 bei = ei.filter_by_attribute('matrix', 'biosphere_matrix')
@@ -116,24 +102,6 @@ cindices = cf.get_resource('IPCC_2013_climate_change_GWP_100a_uncertain_matrix_d
 cdata = cf.get_resource('IPCC_2013_climate_change_GWP_100a_uncertain_matrix_data.data')[0]
 cdistributions = cf.get_resource('IPCC_2013_climate_change_GWP_100a_uncertain_matrix_data.distributions')[0]
 
-# # Get technosphere uncertainty boolean array
-# has_uncertainty_ei = tdistributions_ei['uncertainty_type'] >= 2
-# has_uncertainty_dict = {}
-# for act in bd.Database('swiss consumption 1.0'):
-#     exchanges = list(act.exchanges())
-#     col = lca.dicts.activity[act.id]
-#     for exc in exchanges:
-#         if exc.get('has_uncertainty'):
-#             row = lca.dicts.activity[exc.input.id]
-#             has_uncertainty_dict[(exc.input.id, act.id)] = True
-# has_uncertainty_co = np.array([has_uncertainty_dict.get(tuple(ids), False) for ids in tindices_co])
-
-# has_uncertainty_tech = np.hstack(
-#     [
-#         has_uncertainty_ei,
-#         has_uncertainty_co,
-#     ]
-# )
 
 # STEP 1: Remove non influential with contribution analysis
 ############################################################
@@ -175,25 +143,65 @@ else:
 # STEP 2: Run local SA
 ######################
 
-# 2.1.1 Technosphere
-fp_tlocal_sa = write_dir / f"local_sa.tech.cutoff_{ctff:.0e}.maxcalc_{mclc:.0e}.pickle"
-if fp_tlocal_sa.exists():
-    tlocal_sa = read_pickle(fp_tlocal_sa)
+# --> Technosphere
+const_factors = [1/const_factor, const_factor]
+# # 2.1.1 Technosphere ecoinvent
+# fp_tlocal_sa = write_dir / f"local_sa.tech.cutoff_{ctff:.0e}.maxcalc_{mclc:.0e}.pickle"
+# if fp_tlocal_sa.exists():
+#     tlocal_sa = read_pickle(fp_tlocal_sa)
+# else:
+#     tlocal_sa = run_tlocal_sa(
+#         fu_mapped,
+#         pkgs,
+#         tdistributions_ei,
+#         tmask_wo_noninf,
+#         const_factors,
+#         write_dir,
+#         f"tech.cutoff_{ctff:.0e}.maxcalc_{mclc:.0e}",
+#     )
+#     write_pickle(tlocal_sa, fp_tlocal_sa)
+
+# 2.1.2 Generic markets
+fp_generic_markets = DATA_DIR / "generic-markets.zip"
+gms = bwp.load_datapackage(ZipFS(fp_generic_markets))
+gindices = gms.get_resource("generic markets.indices")[0]
+gmask = get_mask(tindices_ei, gindices)
+fp_glocal_sa = write_dir / f"local_sa.generic_markets.pickle"
+if fp_glocal_sa.exists():
+    glocal_sa = read_pickle(fp_glocal_sa)
 else:
-    tlocal_sa = run_tlocal_sa(
-        "technosphere",
+    glocal_sa = run_local_sa_technosphere(
         fu_mapped,
         pkgs,
-        tindices_ei,
-        tdata_ei,
-        tdistributions_ei,
-        tmask_wo_noninf,
-        tflip_ei,
-        [1/const_factor, const_factor],
+        gmask,
+        gmask,
+        const_factors,
         write_dir,
-        "tech.cutoff_{cutoff:.0e}.maxcalc_{max_calc:.0e}",
+        "generic_markets",
     )
-    write_pickle(tlocal_sa, fp_tlocal_sa)
+    write_pickle(glocal_sa, fp_glocal_sa)
+
+# 2.1.3 Carbon
+fp_liquid_fuels = DATA_DIR / "liquid-fuels-kilogram.zip"
+lfk = bwp.load_datapackage(ZipFS(fp_liquid_fuels))
+findices = lfk.get_resource("liquid fuels in kilograms.indices")[0]
+fmask = get_mask(tindices_ei, findices)
+
+fp_flocal_sa = write_dir / f"local_sa.liquid_fuels.pickle"
+if fp_flocal_sa.exists():
+    flocal_sa = read_pickle(fp_flocal_sa)
+else:
+    flocal_sa = run_local_sa_technosphere(
+        fu_mapped,
+        pkgs,
+        tdistributions_ei,
+        fmask,
+        const_factors,
+        write_dir,
+        "liquid_fuels",
+    )
+    write_pickle(flocal_sa, fp_flocal_sa)
+
 
 # 2.2.1 Biosphere
 fp_blocal_sa = write_dir / f"local_sa.bio.pickle"
@@ -214,7 +222,7 @@ else:
     write_pickle(blocal_sa, fp_blocal_sa)
 
 # 2.3.1 Characterization
-fp_clocal_sa = write_dir / f"local_sa.cf.pickle"
+fp_clocal_sa = write_dir / "local_sa.cf.pickle"
 if fp_clocal_sa.exists():
     clocal_sa = read_pickle(fp_clocal_sa)
 else:
@@ -231,27 +239,22 @@ else:
     )
     write_pickle(clocal_sa, fp_clocal_sa)
 
-# 2.1.2, 2.1.4 Technosphere - Generic markets and carbon
-fp_generic_markets = DATA_DIR / "generic-markets.zip"
-gms = bwp.load_datapackage(ZipFS(fp_generic_markets))
-gindices = gms.get_resource("generic markets.indices")[0]
-gmask = get_mask(tindices_ei, gindices)
-
-fp_glocal_sa = write_dir / f"local_sa.generic_markets.pickle"
-if fp_glocal_sa.exists():
-    local_sa = read_pickle(fp_glocal_sa)
-else:
-    tlocal_sa = run_tlocal_sa(
-        "technosphere",
-        fu_mapped,
-        pkgs,
-        tindices_ei,
-        tdata_ei,
-        tdistributions_ei,
-        gmask,
-        tflip_ei,
-        [1/const_factor, const_factor],
-        write_dir,
-        "generic_markets",
-    )
-    write_pickle(tlocal_sa, fp_glocal_sa)
+# 2.4 Remove lowly influential based on variance
+# Add static score
+local_sa_list = [
+    tlocal_sa,
+    blocal_sa,
+    clocal_sa,
+    glocal_sa,
+    flocal_sa,
+]
+for dict_ in local_sa_list:
+    values = np.vstack(list(dict_.values()))
+    values = np.hstack([values, np.ones((len(values), 1))*static_score])
+    variances = np.var(values, axis=1)
+    for i, k in enumerate(dict_.keys()):
+        #         dict_.update({k: values[i,:]})
+        dict_[k] = {
+            "arr": values[i, :],
+            "var": variances[i],
+        }

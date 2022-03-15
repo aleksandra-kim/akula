@@ -1,18 +1,16 @@
 import numpy as np
 import bw2calc as bc
 import bw_processing as bwp
+from tqdm import tqdm
 
 
 def get_mask(all_indices, use_indices):
     """Creates a `mask` such that `all_indices[mask]=use_indices`."""
     use_indices = np.array(use_indices, dtype=[('row', '<i4'), ('col', '<i4')])
     mask = np.zeros(len(all_indices), dtype=bool)
-    for inds in use_indices:
+    for inds in tqdm(use_indices):
         mask_current = all_indices == inds
         mask = mask | mask_current
-        if sum(mask_current) > 1:
-            print(inds)
-    assert sum(mask) == len(use_indices)
     return mask
 
 
@@ -96,9 +94,9 @@ class LocalSAInterface:
             raise StopIteration
 
         data = self.data.copy()
-        print(data[self.mask_where[self.index]])
+        # print(data[self.mask_where[self.index]])
         data[self.mask_where[self.index]] *= self.factor
-        print(data[self.mask_where[self.index]])
+        # print(data[self.mask_where[self.index]])
         return data
 
     @staticmethod
@@ -156,7 +154,7 @@ def run_local_sa(
         while True:
             next(lca_local_sa)
             count += 1
-            print(lca_local_sa.score)
+            # print(lca_local_sa.score)
             indices_local_sa_scores[tuple(interface.coordinates)] = np.array([lca_local_sa.score])
     except StopIteration:
         pass

@@ -1,4 +1,4 @@
-from bw2data.backends import ActivityDataset as AD, ExchangeDataset as ED
+from bw2data.backends import ExchangeDataset as ED
 from fs.zipfs import ZipFS
 from pathlib import Path
 import bw2data as bd
@@ -59,8 +59,8 @@ def get_samples_and_scaling_vector(activity, fuels, size=10, seed=None):
 def rescale_biosphere_exchanges_by_factors(activity, factors, flows):
     """Rescale biosphere exchanges with flows ``flows`` from ``activity`` by vector ``factors``.
 
-    ``flows`` are biosphere flow objects, with e.g. all the CO2 flows, but also other flows such as metals, volatile organics, etc.
-    Only rescales flows in ``flows`` which are present in ``activity`` exchanges.
+    ``flows`` are biosphere flow objects, with e.g. all the CO2 flows, but also other flows such as metals,
+    volatile organics, etc. Only rescales flows in ``flows`` which are present in ``activity`` exchanges.
 
     Assumes the static values are balanced, i.e. won't calculate CO2 emissions from carbon in
     fuels but just rescales given values.
@@ -85,9 +85,9 @@ def rescale_biosphere_exchanges_by_factors(activity, factors, flows):
 def get_liquid_fuels():
     flows = ('market for diesel,', 'diesel,', 'petrol,', 'market for petrol,')
     return [x
-                    for x in bd.Database("ecoinvent 3.8 cutoff")
-                    if x['unit'] == 'kilogram'
-                    and((any(x['name'].startswith(flow) for flow in flows) or x['name'] == 'market for diesel'))
+            for x in bd.Database("ecoinvent 3.8 cutoff")
+            if x['unit'] == 'kilogram'
+            and (any(x['name'].startswith(flow) for flow in flows) or x['name'] == 'market for diesel')
             ]
 
 
@@ -98,7 +98,8 @@ def generate_liquid_fuels_combustion_correlated_samples(size=25000, seed=42):
     co2 = [x for x in bd.Database('biosphere3') if x['name'] == 'Carbon dioxide, fossil']
     ei = bd.Database("ecoinvent 3.8 cutoff")
 
-    candidate_codes = ED.select(ED.output_code).distinct().where((ED.input_code << {o['code'] for o in co2}) & (ED.output_database == 'ecoinvent 3.8 cutoff')).tuples()
+    candidate_codes = ED.select(ED.output_code).distinct().where(
+        (ED.input_code << {o['code'] for o in co2}) & (ED.output_database == 'ecoinvent 3.8 cutoff')).tuples()
     candidates = [ei.get(code=o[0]) for o in candidate_codes]
     print("Found {} candidate activities".format(len(candidates)))
 
@@ -124,7 +125,7 @@ def generate_liquid_fuels_combustion_correlated_samples(size=25000, seed=42):
             if i.shape == (0,):
                 continue
 
-            i2, f2, d2 = rescale_biosphere_exchanges_by_factors(candidate, factors, co2)
+            # i2, f2, d2 = rescale_biosphere_exchanges_by_factors(candidate, factors, co2)
 
             indices.append(i)
             flip.append(f)
