@@ -14,6 +14,7 @@ from bw2parameters.errors import BroadcastingError
 from fs.zipfs import ZipFS
 from stats_arrays import uncertainty_choices
 from tqdm import tqdm
+from gsa_framework.utils import read_pickle, write_pickle
 
 assert bi.__version__ >= (0, 9, "DEV7")
 
@@ -162,8 +163,13 @@ def check_that_parameters_are_reasonable(act, results, rtol=0.1):
 
 
 def get_ecoinvent_raw_data(filepath=FILEPATH):
-    eii = bi.SingleOutputEcospold2Importer(filepath, "ecoinvent 3.8 cutoff")
-    eii.apply_strategies()
+    fp_ei = DATA_DIR / "ecoinvent.pickle"
+    if fp_ei.exists():
+        eii = read_pickle(fp_ei)
+    else:
+        eii = bi.SingleOutputEcospold2Importer(filepath, "ecoinvent 3.8 cutoff")
+        eii.apply_strategies()
+        write_pickle(eii, fp_ei)
     return eii.data
 
 
@@ -248,6 +254,65 @@ def get_parameterized_values(input_data, num_samples=25000):
     return sorted(tech_data), sorted(bio_data)
 
 
+def get_parameterized_local_sa_values(input_data):
+    tech_data, bio_data = [], []
+
+    lookup_cache = {
+        (x, y): z
+        for x, y, z in AD.select(AD.database, AD.code, AD.id)
+        .where(AD.database << ("biosphere3", "ecoinvent 3.8 cutoff"))
+        .tuples()
+    }
+
+    for act in tqdm(input_data):
+        if any(exc.get("formula") for exc in act["exchanges"]):
+            try:
+                params = stochastic_parameter_set_for_activity(
+                    act, iterations=1
+                )
+                if check_that_parameters_are_reasonable(act, params):
+
+                    for exc in act["exchanges"]:
+                        if not exc.get("formula"):
+                            continue
+                        if exc["input"][0] == "ecoinvent 3.8 cutoff":
+                            tech_data.append(
+                                (
+                                    (
+                                        lookup_cache[exc["input"]],
+                                        lookup_cache[(act["database"], act["code"])],
+                                    ),
+                                    params[exc["parameter_name"]],
+                                    exc["type"] != "production",
+                                )
+                            )
+                        else:
+                            bio_data.append(
+                                (
+                                    (
+                                        lookup_cache[exc["input"]],
+                                        lookup_cache[(act["database"], act["code"])],
+                                    ),
+                                    params[exc["parameter_name"]],
+                                    False,
+                                )
+                            )
+            except (ValueError, SyntaxError, bwp.errors.DuplicateName):
+                pass
+            except bwp.errors.ParameterError:
+                pass
+
+    print(
+        """Parameterized exchanges statistics:
+    {} technosphere exchanges
+    {} biosphere exchanges""".format(
+            len(tech_data), len(bio_data)
+        )
+    )
+
+    return sorted(tech_data), sorted(bio_data)
+
+
 def generate_parameterized_exchanges_datapackage(tech_data, bio_data):
     dp = bp.create_datapackage(
         fs=ZipFS(str(DATA_DIR / "ecoinvent-parameterization.zip"), write=True),
@@ -286,8 +351,10 @@ if __name__ == "__main__":
     print("Importing ecoinvent to get exchange parameterization data")
     ei_raw_data = get_ecoinvent_raw_data(FILEPATH)
 
-    print("Generating parameterized values")
-    td, bd = get_parameterized_values(ei_raw_data, num_samples=SAMPLES)
+    td, bd = get_parameterized_local_sa_values(ei_raw_data)
 
-    print("Writing datapackage")
-    generate_parameterized_exchanges_datapackage(td, bd)
+    # print("Generating parameterized values")
+    # td, bd = get_parameterized_values(ei_raw_data, num_samples=SAMPLES)
+    #
+    # print("Writing datapackage")
+    # generate_parameterized_exchanges_datapackage(td, bd)

@@ -56,6 +56,19 @@ def get_samples_and_scaling_vector(activity, fuels, size=10, seed=None):
     return indices, flip, sample, carbon_total_per_sample / static_total
 
 
+def get_static_samples_and_scaling_vector(activity, fuels, const_factor=10):
+    exchanges = [exc for exc in activity.technosphere() if exc.input in fuels]
+    static_total = sum(exc['amount'] * exc['properties']['carbon content']['amount'] for exc in exchanges)
+    static = np.array([exc['amount'] for exc in activity.technosphere() if exc.input in fuels])
+    sample = np.tile(static, (len(static), 1))
+    np.fill_diagonal(sample, static*const_factor)
+    indices = np.array([(exc.input.id, exc.output.id) for exc in exchanges], dtype=bwp.INDICES_DTYPE)
+    carbon_fraction = np.array([exc['properties']['carbon content']['amount'] for exc in exchanges]).reshape((-1, 1))
+    carbon_total_per_sample = (sample * carbon_fraction).sum(axis=0).ravel()
+    assert carbon_total_per_sample.shape == (len(static),)
+    return indices, static, carbon_total_per_sample / static_total
+
+
 def rescale_biosphere_exchanges_by_factors(activity, factors, flows):
     """Rescale biosphere exchanges with flows ``flows`` from ``activity`` by vector ``factors``.
 
@@ -71,15 +84,17 @@ def rescale_biosphere_exchanges_by_factors(activity, factors, flows):
         * Numpy flip array with shape ``(len(found_exchanges,))``
         * Numpy data array with shape ``(len(found_exchanges), len(factors))``
     """
-    indices, data = [], []
+    indices, sample, static = [], [], []
     assert isinstance(factors, np.ndarray) and len(factors.shape) == 1
 
     for exc in activity.biosphere():
         if exc.input in flows:
             indices.append((exc.input.id, exc.output.id))
-            data.append(factors * exc['amount'])
+            sample.append(factors * exc['amount'])
+            static.append(exc['amount'])
 
-    return np.array(indices, dtype=bwp.INDICES_DTYPE), np.zeros(len(indices), dtype=bool), np.vstack(data)
+    # return np.array(indices, dtype=bwp.INDICES_DTYPE), np.zeros(len(indices), dtype=bool), np.vstack(data)
+    return np.array(indices, dtype=bwp.INDICES_DTYPE), np.vstack(sample), np.vstack(static)
 
 
 def get_liquid_fuels():
@@ -107,11 +122,12 @@ def generate_liquid_fuels_combustion_correlated_samples(size=25000, seed=42):
     unbalanced_log = open(DATA_DIR / "liquid-fuels.unbalanced.log", "w")
     error_log = open(DATA_DIR / "liquid-fuels.error.log", "w")
 
-    indices, flip, data = [], [], []
+    indices_tech, flip_tech, data_tech = [], [], []
+    indices_bio, data_bio = [], []
 
     dp = bwp.create_datapackage(
         fs=ZipFS(str(DATA_DIR / "liquid-fuels-kilogram.zip"), write=True),
-        name="liquid fuels in kilograms",
+        name="liquid-fuels",
         # set seed to have reproducible (though not sequential) sampling
         seed=42,
     )
@@ -121,15 +137,18 @@ def generate_liquid_fuels_combustion_correlated_samples(size=25000, seed=42):
             unbalanced_log.write("{}\t{}\n".format(candidate.id, str(candidate)))
 
         try:
-            i, f, d, factors = get_samples_and_scaling_vector(candidate, fuels, size=size, seed=seed)
-            if i.shape == (0,):
+            tindices, tflip, tsample, factors = get_samples_and_scaling_vector(candidate, fuels, size=size, seed=seed)
+            if tindices.shape == (0,):
                 continue
 
-            # i2, f2, d2 = rescale_biosphere_exchanges_by_factors(candidate, factors, co2)
+            bindices, bsample, _ = rescale_biosphere_exchanges_by_factors(candidate, factors, co2)
 
-            indices.append(i)
-            flip.append(f)
-            data.append(d)
+            indices_tech.append(tindices)
+            flip_tech.append(tflip)
+            data_tech.append(tsample)
+
+            indices_bio.append(bindices)
+            data_bio.append(bsample)
 
             processed_log.write("{}\t{}\n".format(candidate.id, str(candidate)))
         except KeyError:
@@ -142,18 +161,94 @@ def generate_liquid_fuels_combustion_correlated_samples(size=25000, seed=42):
     # for a, b, c in zip(indices, flip, data):
     #     print(a.shape, b.shape, c.shape)
 
+    indices = indices_tech + indices_bio
     print("Found {} exchanges in {} datasets".format(sum(len(x) for x in indices), len(indices)))
 
     dp.add_persistent_array(
         matrix="technosphere_matrix",
-        data_array=np.vstack(data),
+        data_array=np.vstack(data_tech),
         # Resource group name that will show up in provenance
-        name="liquid fuels in kilograms",
-        indices_array=np.hstack(indices),
-        flip_array=np.hstack(flip),
+        name="liquid-fuels-tech",
+        indices_array=np.hstack(indices_tech),
+        flip_array=np.hstack(flip_tech),
     )
+
+    dp.add_persistent_array(
+        matrix="biosphere_matrix",
+        data_array=np.vstack(data_bio),
+        # Resource group name that will show up in provenance
+        name="liquid-fuels-bio",
+        indices_array=np.hstack(indices_bio),
+    )
+
+    dp.finalize_serialization()
+
+
+def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10):
+    bd.projects.set_current('GSA for archetypes')
+
+    fuels = get_liquid_fuels()
+    co2 = [x for x in bd.Database('biosphere3') if x['name'] == 'Carbon dioxide, fossil']
+    ei = bd.Database("ecoinvent 3.8 cutoff")
+
+    candidate_codes = ED.select(ED.output_code).distinct().where(
+        (ED.input_code << {o['code'] for o in co2}) & (ED.output_database == 'ecoinvent 3.8 cutoff')).tuples()
+    candidates = [ei.get(code=o[0]) for o in candidate_codes]
+
+    indices_tech, static_tech = [], []
+    indices_bio, sample_bio, static_bio = [], [], []
+
+    dp = bwp.create_datapackage(
+        fs=ZipFS(str(DATA_DIR / f"local-sa-liquid-fuels-factor{const_factor}.zip"), write=True),
+        name="local-sa-liquid-fuels",
+        # set seed to have reproducible (though not sequential) sampling
+        seed=42,
+    )
+
+    for candidate in tqdm(candidates):
+        try:
+            tindices, tstatic, factors = get_static_samples_and_scaling_vector(candidate, fuels, const_factor)
+            if tindices.shape == (0,):
+                continue
+
+            bindices, bsample, bstatic = rescale_biosphere_exchanges_by_factors(candidate, factors, co2)
+
+            indices_tech.append(tindices)
+            static_tech.append(tstatic)
+
+            indices_bio.append(bindices)
+            sample_bio.append(bsample)
+            static_bio.append(bstatic)
+
+        except KeyError:
+            pass
+
+    # for a, b, c in zip(indices, flip, data):
+    #     print(a.shape, b.shape, c.shape)
+
+    indices = indices_tech + indices_bio
+    print("Found {} exchanges in {} datasets".format(sum(len(x) for x in indices), len(indices)))
+
+    dp.add_persistent_array(
+        matrix="technosphere_matrix",
+        data_array=np.vstack(data_tech),
+        # Resource group name that will show up in provenance
+        name="local-sa-liquid-fuels-tech",
+        indices_array=np.hstack(indices_tech),
+        flip_array=np.ones(len(indices_tech)),
+    )
+
+    dp.add_persistent_array(
+        matrix="biosphere_matrix",
+        data_array=np.vstack(data_bio),
+        # Resource group name that will show up in provenance
+        name="local-sa-liquid-fuels-bio",
+        indices_array=np.hstack(indices_bio),
+    )
+
     dp.finalize_serialization()
 
 
 if __name__ == "__main__":
-    generate_liquid_fuels_combustion_correlated_samples()
+    # generate_liquid_fuels_combustion_correlated_samples()
+    generate_liquid_fuels_combustion_local_sa_samples()

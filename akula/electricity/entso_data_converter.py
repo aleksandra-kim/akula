@@ -24,6 +24,11 @@ To run this script, you must have the following environment variables set:
     BENTSO_DATA_DIR: Directory to cache data from ENTSO-E API
     ENTSOE_API_TOKEN: API token you get from signing up to ENTSO-E transparency platform
 
+Request an API key by sending an email to transparency@entsoe.eu with “Restful API access” in the subject line. 
+In the email body state your registered email address. You will receive an email when you have been provided 
+with the API key. The key is then visible in your ENTSO-E account under “Web API Security Token”. 
+Source: https://thesmartinsights.com/how-to-query-data-from-the-entso-e-transparency-platform-using-python/ 
+
 """
 
 

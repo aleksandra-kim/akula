@@ -10,7 +10,7 @@ from gsa_framework.visualization.plotting import plot_histogram_Y1_Y2, plot_corr
 from akula.markets import DATA_DIR
 
 
-option = "ecoinvent-parameterization"
+option = "liquid-fuels-kilogram"
 
 if __name__ == "__main__":
     project = "GSA for archetypes"

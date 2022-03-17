@@ -2,6 +2,7 @@ import numpy as np
 import bw2calc as bc
 import bw_processing as bwp
 from tqdm import tqdm
+# from bw2data.backends.schema import ActivityDataset as AD
 
 
 def get_mask(all_indices, use_indices):
@@ -154,6 +155,8 @@ def run_local_sa(
         while True:
             next(lca_local_sa)
             count += 1
+            if count % 500 == 0:
+                print(count)
             # print(lca_local_sa.score)
             indices_local_sa_scores[tuple(interface.coordinates)] = np.array([lca_local_sa.score])
     except StopIteration:

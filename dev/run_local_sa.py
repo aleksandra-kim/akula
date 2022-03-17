@@ -52,6 +52,10 @@ def run_local_sa_technosphere(
     return local_sa_results
 
 
+def run_local_sa_from_samples():
+    return
+
+
 project = 'GSA for archetypes'
 bd.projects.set_current(project)
 const_factor = 10
@@ -143,25 +147,25 @@ else:
 # STEP 2: Run local SA
 ######################
 
-# --> Technosphere
+# --> Technosphere, 25867 exchanges
 const_factors = [1/const_factor, const_factor]
-# # 2.1.1 Technosphere ecoinvent
-# fp_tlocal_sa = write_dir / f"local_sa.tech.cutoff_{ctff:.0e}.maxcalc_{mclc:.0e}.pickle"
-# if fp_tlocal_sa.exists():
-#     tlocal_sa = read_pickle(fp_tlocal_sa)
-# else:
-#     tlocal_sa = run_tlocal_sa(
-#         fu_mapped,
-#         pkgs,
-#         tdistributions_ei,
-#         tmask_wo_noninf,
-#         const_factors,
-#         write_dir,
-#         f"tech.cutoff_{ctff:.0e}.maxcalc_{mclc:.0e}",
-#     )
-#     write_pickle(tlocal_sa, fp_tlocal_sa)
+# 2.1.1 Technosphere ecoinvent
+fp_tlocal_sa = write_dir / f"local_sa.tech.cutoff_{ctff:.0e}.maxcalc_{mclc:.0e}.pickle"
+if fp_tlocal_sa.exists():
+    tlocal_sa = read_pickle(fp_tlocal_sa)
+else:
+    tlocal_sa = run_local_sa_technosphere(
+        fu_mapped,
+        pkgs,
+        tdistributions_ei,
+        tmask_wo_noninf,
+        const_factors,
+        write_dir,
+        f"tech.cutoff_{ctff:.0e}.maxcalc_{mclc:.0e}",
+    )
+    write_pickle(tlocal_sa, fp_tlocal_sa)
 
-# 2.1.2 Generic markets
+# 2.1.2 Generic markets, 13586 exchanges
 fp_generic_markets = DATA_DIR / "generic-markets.zip"
 gms = bwp.load_datapackage(ZipFS(fp_generic_markets))
 gindices = gms.get_resource("generic markets.indices")[0]
@@ -181,7 +185,7 @@ else:
     )
     write_pickle(glocal_sa, fp_glocal_sa)
 
-# 2.1.3 Carbon
+# 2.1.3 Carbon, 1403 exchanges
 fp_liquid_fuels = DATA_DIR / "liquid-fuels-kilogram.zip"
 lfk = bwp.load_datapackage(ZipFS(fp_liquid_fuels))
 findices = lfk.get_resource("liquid fuels in kilograms.indices")[0]
@@ -191,7 +195,7 @@ fp_flocal_sa = write_dir / f"local_sa.liquid_fuels.pickle"
 if fp_flocal_sa.exists():
     flocal_sa = read_pickle(fp_flocal_sa)
 else:
-    flocal_sa = run_local_sa_technosphere(
+    flocal_sa = run_local_sa_from_samples(
         fu_mapped,
         pkgs,
         tdistributions_ei,
@@ -203,7 +207,7 @@ else:
     write_pickle(flocal_sa, fp_flocal_sa)
 
 
-# 2.2.1 Biosphere
+# 2.2.1 Biosphere, 12480 exchanges
 fp_blocal_sa = write_dir / f"local_sa.bio.pickle"
 if fp_blocal_sa.exists():
     blocal_sa = read_pickle(fp_blocal_sa)
@@ -221,7 +225,7 @@ else:
     )
     write_pickle(blocal_sa, fp_blocal_sa)
 
-# 2.3.1 Characterization
+# 2.3.1 Characterization, 77 exchanges
 fp_clocal_sa = write_dir / "local_sa.cf.pickle"
 if fp_clocal_sa.exists():
     clocal_sa = read_pickle(fp_clocal_sa)
@@ -241,20 +245,20 @@ else:
 
 # 2.4 Remove lowly influential based on variance
 # Add static score
-local_sa_list = [
-    tlocal_sa,
-    blocal_sa,
-    clocal_sa,
-    glocal_sa,
-    flocal_sa,
-]
-for dict_ in local_sa_list:
-    values = np.vstack(list(dict_.values()))
-    values = np.hstack([values, np.ones((len(values), 1))*static_score])
-    variances = np.var(values, axis=1)
-    for i, k in enumerate(dict_.keys()):
-        #         dict_.update({k: values[i,:]})
-        dict_[k] = {
-            "arr": values[i, :],
-            "var": variances[i],
-        }
+# local_sa_list = [
+#     tlocal_sa,
+#     blocal_sa,
+#     clocal_sa,
+#     glocal_sa,
+#     flocal_sa,
+# ]
+# for dict_ in local_sa_list:
+#     values = np.vstack(list(dict_.values()))
+#     values = np.hstack([values, np.ones((len(values), 1))*static_score])
+#     variances = np.var(values, axis=1)
+#     for i, k in enumerate(dict_.keys()):
+#         #         dict_.update({k: values[i,:]})
+#         dict_[k] = {
+#             "arr": values[i, :],
+#             "var": variances[i],
+#         }
