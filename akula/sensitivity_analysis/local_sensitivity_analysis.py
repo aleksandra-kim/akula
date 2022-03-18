@@ -231,20 +231,19 @@ def run_local_sa_from_samples(
     )
     lca_local_sa.lci()
     lca_local_sa.lcia()
-    print(lca_local_sa.score)
 
     indices = dp.get_resource(f"local-sa-{name}-tech.indices")[0]
-    indices_local_sa_scores = {}
+    indices_local_sa_scores = {tuple(indices[0]): np.array([lca_local_sa.score])}
 
-    count = 0
+    count = 1
     try:
         while True:
             next(lca_local_sa)
-            count += 1
-            print(lca_local_sa.score)
             if count % 200 == 0:
                 print(count)
+            print(lca_local_sa.score)
             indices_local_sa_scores[tuple(indices[count])] = np.array([lca_local_sa.score])
+            count += 1
     except StopIteration:
         pass
 
@@ -261,7 +260,7 @@ def run_local_sa_from_samples_technosphere(
         directory,
 ):
     tag = name.replace("-", "_")
-    for i, factor in factors:
+    for i, factor in enumerate(factors):
         fp_factor = directory / f"local_sa.{tag}.factor_{factor:.0e}.pickle"
         if fp_factor.exists():
             local_sa_current = read_pickle(fp_factor)

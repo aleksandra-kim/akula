@@ -106,6 +106,19 @@ def get_liquid_fuels():
             ]
 
 
+def get_candidates(co2, ei_name='ecoinvent 3.8 cutoff'):
+    ei = bd.Database(ei_name)
+    candidate_codes = ED.select(ED.output_code).distinct().where(
+        (ED.input_code << {o['code'] for o in co2}) & (ED.output_database == ei_name)).tuples()
+    candidates = [ei.get(code=o[0]) for o in candidate_codes]
+    print("Found {} candidate activities".format(len(candidates)))
+    return candidates
+
+
+def get_co2():
+    return [x for x in bd.Database('biosphere3') if x['name'] == 'Carbon dioxide, fossil']
+
+
 def generate_liquid_fuels_combustion_correlated_samples(size=25000, seed=42):
     bd.projects.set_current('GSA for archetypes')
 
@@ -179,17 +192,45 @@ def generate_liquid_fuels_combustion_correlated_samples(size=25000, seed=42):
     dp.finalize_serialization()
 
 
-def get_candidates(co2, ei_name='ecoinvent 3.8 cutoff'):
-    ei = bd.Database(ei_name)
-    candidate_codes = ED.select(ED.output_code).distinct().where(
-        (ED.input_code << {o['code'] for o in co2}) & (ED.output_database == ei_name)).tuples()
-    candidates = [ei.get(code=o[0]) for o in candidate_codes]
-    print("Found {} candidate activities".format(len(candidates)))
-    return candidates
+def create_technosphere_dp(indices_tech, static_tech, const_factor):
+    # Create data for technosphere
+    tindices = np.hstack(indices_tech)
+    tstatic = np.hstack(static_tech)
+    tdata = np.tile(tstatic, (len(tstatic), 1))
+    np.fill_diagonal(tdata, tstatic*const_factor)
+    targsort = np.argsort(tindices)
+    assert len(tindices) == len(tstatic)
+    return tindices[targsort], tdata[targsort]
 
 
-def get_co2():
-    return [x for x in bd.Database('biosphere3') if x['name'] == 'Carbon dioxide, fossil']
+def create_biosphere_dp(indices_tech, indices_bio, sample_bio, static_bio):
+    # Create data for biosphere
+    num_acts = len(indices_tech)
+    bindices = np.hstack(indices_bio)
+    bstatic, blist = [], []
+    ib, it = 0, 0
+    for i in range(num_acts):
+        bstatic.append(static_bio[i].reshape(-1, 1))
+        len_tech = len(indices_tech[i])
+        len_bio = len(indices_bio[i])
+        assert len_tech == sample_bio[i].shape[1]
+        for j in range(len_bio):
+            blist.append(
+                [ib, it, list(sample_bio[i][j, :])]
+            )
+        it += len_tech
+        ib += 1
+    bstatic = np.vstack(bstatic).flatten()
+    assert len(bindices) == len(bstatic)
+
+    bdata = np.tile(bstatic, (it, 1)).T
+    for el in blist:
+        end = el[1] + len(el[2])
+        bdata[el[0], el[1]:end] = el[2]
+
+    bargsort = np.argsort(bindices)
+
+    return bindices[bargsort], bdata[bargsort]
 
 
 def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0, seed=42):
@@ -229,44 +270,8 @@ def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0, seed=42
 
     assert len(indices_tech) == len(indices_bio)
 
-    # Create data for technosphere
-    tindices = np.hstack(indices_tech)
-    tstatic = np.hstack(static_tech)
-    tdata = np.tile(tstatic, (len(tstatic), 1))
-    np.fill_diagonal(tdata, tstatic*const_factor)
-
-    # Create data for biosphere
-    bindices = np.hstack(indices_bio)
-    num_acts = len(indices_tech)
-    bstatic, blist = [], []
-    ib, it = 0, 0
-    for i in range(num_acts):
-        bstatic.append(static_bio[i].reshape(-1, 1))
-        len_tech = len(indices_tech[i])
-        len_bio = len(indices_bio[i])
-        assert len_tech == sample_bio[i].shape[1]
-        for j in range(len_bio):
-            blist.append(
-                [ib, it, list(sample_bio[i][j, :])]
-            )
-        it += len_tech
-        ib += 1
-    bstatic = np.vstack(bstatic).flatten()
-    assert len(tindices) == len(tstatic) == blist[-1][1]+1
-    assert len(bindices) == len(bstatic)
-
-    bdata = np.tile(bstatic, (len(tindices), 1)).T
-    for el in blist:
-        end = el[1] + len(el[2])
-        bdata[el[0], el[1]:end] = el[2]
-
-    # Sort indices
-    targsort = np.argsort(tindices)
-    tindices = tindices[targsort]
-    tdata = tdata.T[targsort]
-    bargsort = np.argsort(bindices)
-    bindices = bindices[bargsort]
-    bdata = bdata[bargsort]
+    tindices, tdata = create_technosphere_dp(indices_tech, static_tech, const_factor)
+    bindices, bdata = create_biosphere_dp(indices_tech, indices_bio, sample_bio, static_bio)
 
     indices = indices_tech + indices_bio
     print("Found {} exchanges in {} datasets".format(sum(len(x) for x in indices), len(indices)))

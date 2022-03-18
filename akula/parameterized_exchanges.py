@@ -38,50 +38,62 @@ substitutions = {
 
 
 class PatchedParameterSet(bwp.ParameterSet):
-    def evaluate_monte_carlo(self, iterations=1000):
+
+    def __init__(self, iterations=None):
         """Evaluate each formula using Monte Carlo and variable uncertainty data, if present.
 
         Formulas **must** return a one-dimensional array, or ``BroadcastingError`` is raised.
 
         Returns dictionary of ``{parameter name: numpy array}``."""
-        interpreter = Interpreter()
-        result = {}
+        self.interpreter = Interpreter()
+        self.iterations = iterations
 
-        def get_rng_sample(obj):
-            if isinstance(obj, np.ndarray):
-                # Already a Monte Carlo sample
-                return obj
-            if "uncertainty_type" not in obj:
-                if "uncertainty type" not in obj:
-                    obj = obj.copy()
-                    obj["uncertainty_type"] = 0
-                    obj["loc"] = obj["amount"]
-                else:
-                    obj["uncertainty_type"] = obj["uncertainty type"]
-            kls = uncertainty_choices[obj["uncertainty_type"]]
-            return kls.bounded_random_variables(kls.from_dicts(obj), iterations).ravel()
+    def get_static_sample(obj):
+        return obj["amount"]
 
-        def fix_shape(array):
-            # This is new
-            if array is None:
-                return np.zeros((iterations,))
-            elif isinstance(array, Number):
-                return np.ones((iterations,)) * array
-            elif not isinstance(array, np.ndarray):
-                return np.zeros((iterations,))
-            # End new section
-            elif array.shape in {(1, iterations), (iterations, 1)}:
-                return array.reshape((iterations,))
+
+    def get_rng_sample(obj, iterations):
+        if isinstance(obj, np.ndarray):
+            # Already a Monte Carlo sample
+            return obj
+        if "uncertainty_type" not in obj:
+            if "uncertainty type" not in obj:
+                obj = obj.copy()
+                obj["uncertainty_type"] = 0
+                obj["loc"] = obj["amount"]
             else:
-                return array
+                obj["uncertainty_type"] = obj["uncertainty type"]
+        kls = uncertainty_choices[obj["uncertainty_type"]]
+        return kls.bounded_random_variables(kls.from_dicts(obj), iterations).ravel()
 
+    @staticmethod
+    def fix_shape(array, iterations):
+        # This is new
+        if array is None:
+            return np.zeros((iterations,))
+        elif isinstance(array, Number):
+            return np.ones((iterations,)) * array
+        elif not isinstance(array, np.ndarray):
+            return np.zeros((iterations,))
+        # End new section
+        elif array.shape in {(1, iterations), (iterations, 1)}:
+            return array.reshape((iterations,))
+        else:
+            return array
+
+    def evaluate_samples(self, stochastic=True):
+        if stochastic:
+            get_sample = self.get_rng_sample
+        else:
+            get_sample = self.get_static_sample
+        result = {}
         for key in self.order:
             if key in self.global_params:
-                interpreter.symtable[key] = result[key] = get_rng_sample(
+                self.interpreter.symtable[key] = result[key] = get_sample(
                     self.global_params[key]
                 )
             elif self.params[key].get("formula"):
-                sample = fix_shape(interpreter(self.params[key]["formula"]))
+                sample = self.fix_shape(self.interpreter(self.params[key]["formula"]))
                 if sample.shape != (iterations,):
                     raise BroadcastingError(
                         MC_ERROR_TEXT.format(
@@ -91,9 +103,9 @@ class PatchedParameterSet(bwp.ParameterSet):
                             sample.shape,
                         )
                     )
-                interpreter.symtable[key] = result[key] = sample
+                self.interpreter.symtable[key] = result[key] = sample
             else:
-                interpreter.symtable[key] = result[key] = get_rng_sample(
+                self.interpreter.symtable[key] = result[key] = get_sample(
                     self.params[key]
                 )
         return result
@@ -264,6 +276,7 @@ def get_parameterized_local_sa_values(input_data):
         .tuples()
     }
 
+    parameters_dict = {}
     for act in tqdm(input_data):
         if any(exc.get("formula") for exc in act["exchanges"]):
             try:
@@ -271,6 +284,8 @@ def get_parameterized_local_sa_values(input_data):
                     act, iterations=1
                 )
                 if check_that_parameters_are_reasonable(act, params):
+                    # Save all parameters
+                    parameters_dict[act['code']] = params
 
                     for exc in act["exchanges"]:
                         if not exc.get("formula"):
@@ -286,17 +301,18 @@ def get_parameterized_local_sa_values(input_data):
                                     exc["type"] != "production",
                                 )
                             )
-                        else:
-                            bio_data.append(
-                                (
-                                    (
-                                        lookup_cache[exc["input"]],
-                                        lookup_cache[(act["database"], act["code"])],
-                                    ),
-                                    params[exc["parameter_name"]],
-                                    False,
-                                )
-                            )
+                            print("")
+                    #     else:
+                    #         bio_data.append(
+                    #             (
+                    #                 (
+                    #                     lookup_cache[exc["input"]],
+                    #                     lookup_cache[(act["database"], act["code"])],
+                    #                 ),
+                    #                 params[exc["parameter_name"]],
+                    #                 False,
+                    #             )
+                    #         )
             except (ValueError, SyntaxError, bwp.errors.DuplicateName):
                 pass
             except bwp.errors.ParameterError:
