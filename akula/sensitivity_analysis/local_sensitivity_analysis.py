@@ -1,8 +1,14 @@
 import numpy as np
+import bw2data as bd
 import bw2calc as bc
 import bw_processing as bwp
 from tqdm import tqdm
-# from bw2data.backends.schema import ActivityDataset as AD
+from fs.zipfs import ZipFS
+from copy import deepcopy
+from pathlib import Path
+from gsa_framework.utils import read_pickle, write_pickle
+
+DATA_DIR = Path(__file__).parents[1].resolve() / "data"
 
 
 def get_mask(all_indices, use_indices):
@@ -104,7 +110,7 @@ class LocalSAInterface:
     def get_uncertainty_bool(distributions):
         try:
             arr = distributions['uncertainty_type'] >= 2
-        except:
+        except KeyError:
             arr = distributions > 0
         return arr
 
@@ -165,3 +171,112 @@ def run_local_sa(
     assert count <= sum(interface.mask)
 
     return indices_local_sa_scores
+
+
+def run_local_sa_technosphere(
+        func_unit_mapped,
+        packages,
+        tech_has_uncertainty,
+        mask_tech_without_noninf,
+        factors,
+        directory,
+        tag,
+):
+    ecoinvent = bd.Database('ecoinvent 3.8 cutoff').datapackage()
+    tech_ecoinvent = ecoinvent.filter_by_attribute('matrix', 'technosphere_matrix')
+    tech_indices = tech_ecoinvent.get_resource('ecoinvent_3.8_cutoff_technosphere_matrix.indices')[0]
+    tech_data = tech_ecoinvent.get_resource('ecoinvent_3.8_cutoff_technosphere_matrix.data')[0]
+    tech_flip = tech_ecoinvent.get_resource('ecoinvent_3.8_cutoff_technosphere_matrix.flip')[0]
+    for i, factor in enumerate(factors):
+        fp_factor = directory / f"local_sa.{tag}.factor_{factor:.0e}.pickle"
+        if fp_factor.exists():
+            local_sa_current = read_pickle(fp_factor)
+        else:
+            local_sa_current = run_local_sa(
+                "technosphere",
+                func_unit_mapped,
+                packages,
+                tech_indices,
+                tech_data,
+                tech_has_uncertainty,
+                mask_tech_without_noninf,
+                tech_flip,
+                factor,
+            )
+            write_pickle(local_sa_current, fp_factor)
+        if i == 0:
+            local_sa_results = deepcopy(local_sa_current)
+        else:
+            local_sa_results = {
+                k: np.hstack([local_sa_results[k], local_sa_current[k]]) for k in local_sa_results.keys()
+            }
+    return local_sa_results
+
+
+def run_local_sa_from_samples(
+        name,
+        func_unit_mapped,
+        packages,
+        factor,
+        seed=42
+):
+    fp = DATA_DIR / f"local-sa-{factor:.0e}-{name}.zip"
+    dp = bwp.load_datapackage(ZipFS(fp))
+
+    lca_local_sa = bc.LCA(
+        demand=func_unit_mapped,
+        data_objs=packages + [dp],
+        use_arrays=True,
+        seed_override=seed,
+    )
+    lca_local_sa.lci()
+    lca_local_sa.lcia()
+    print(lca_local_sa.score)
+
+    indices = dp.get_resource(f"local-sa-{name}-tech.indices")[0]
+    indices_local_sa_scores = {}
+
+    count = 0
+    try:
+        while True:
+            next(lca_local_sa)
+            count += 1
+            print(lca_local_sa.score)
+            if count % 200 == 0:
+                print(count)
+            indices_local_sa_scores[tuple(indices[count])] = np.array([lca_local_sa.score])
+    except StopIteration:
+        pass
+
+    print(count, len(indices))
+    # assert count == len(indices) - 1
+    return indices_local_sa_scores
+
+
+def run_local_sa_from_samples_technosphere(
+        name,
+        func_unit_mapped,
+        packages,
+        factors,
+        directory,
+):
+    tag = name.replace("-", "_")
+    for i, factor in factors:
+        fp_factor = directory / f"local_sa.{tag}.factor_{factor:.0e}.pickle"
+        if fp_factor.exists():
+            local_sa_current = read_pickle(fp_factor)
+        else:
+            local_sa_current = run_local_sa_from_samples(
+                name,
+                func_unit_mapped,
+                packages,
+                factor,
+            )
+            write_pickle(local_sa_current, fp_factor)
+        if i == 0:
+            local_sa_results = deepcopy(local_sa_current)
+        else:
+            local_sa_results = {
+                k: np.hstack([local_sa_results[k], local_sa_current[k]]) for k in local_sa_results.keys()
+            }
+    return local_sa_results

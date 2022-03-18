@@ -22,7 +22,7 @@ HABE_CODES_DICT = {
 def compute_ci(y, conf_level=0.95):
     z = norm.ppf(0.5 + conf_level / 2)
     mean = np.mean(y)
-    half_width = z*np.std(y)/np.sqrt(len(y))
+    half_width = z*np.std(y)
     return mean, half_width
 
 
@@ -435,8 +435,9 @@ fig.update_layout(
     width=1400,
 )
 filepath_fig = fp_monte_carlo / "figures" / \
-               f"confidence_intervals.per_income.uncertainty_bg_fg.{iterations}.{seed}.pdf"
-fig.write_image(filepath_fig.as_posix())
+               f"_confidence_intervals.per_income.uncertainty_bg_fg.{iterations}.{seed}.html"
+# fig.write_image(filepath_fig.as_posix())
+fig.write_html(filepath_fig.as_posix())
 
 
 

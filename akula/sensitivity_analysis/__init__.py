@@ -1,1 +1,1 @@
-from .local_sa import get_mask
+from .local_sensitivity_analysis import get_mask

@@ -110,13 +110,8 @@ def generate_liquid_fuels_combustion_correlated_samples(size=25000, seed=42):
     bd.projects.set_current('GSA for archetypes')
 
     fuels = get_liquid_fuels()
-    co2 = [x for x in bd.Database('biosphere3') if x['name'] == 'Carbon dioxide, fossil']
-    ei = bd.Database("ecoinvent 3.8 cutoff")
-
-    candidate_codes = ED.select(ED.output_code).distinct().where(
-        (ED.input_code << {o['code'] for o in co2}) & (ED.output_database == 'ecoinvent 3.8 cutoff')).tuples()
-    candidates = [ei.get(code=o[0]) for o in candidate_codes]
-    print("Found {} candidate activities".format(len(candidates)))
+    co2 = get_co2()
+    candidates = get_candidates(co2)
 
     processed_log = open(DATA_DIR / "liquid-fuels.processed.log", "w")
     unbalanced_log = open(DATA_DIR / "liquid-fuels.unbalanced.log", "w")
@@ -129,7 +124,7 @@ def generate_liquid_fuels_combustion_correlated_samples(size=25000, seed=42):
         fs=ZipFS(str(DATA_DIR / "liquid-fuels-kilogram.zip"), write=True),
         name="liquid-fuels",
         # set seed to have reproducible (though not sequential) sampling
-        seed=42,
+        seed=seed,
     )
 
     for candidate in tqdm(candidates):
@@ -184,25 +179,34 @@ def generate_liquid_fuels_combustion_correlated_samples(size=25000, seed=42):
     dp.finalize_serialization()
 
 
-def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10):
+def get_candidates(co2, ei_name='ecoinvent 3.8 cutoff'):
+    ei = bd.Database(ei_name)
+    candidate_codes = ED.select(ED.output_code).distinct().where(
+        (ED.input_code << {o['code'] for o in co2}) & (ED.output_database == ei_name)).tuples()
+    candidates = [ei.get(code=o[0]) for o in candidate_codes]
+    print("Found {} candidate activities".format(len(candidates)))
+    return candidates
+
+
+def get_co2():
+    return [x for x in bd.Database('biosphere3') if x['name'] == 'Carbon dioxide, fossil']
+
+
+def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0, seed=42):
     bd.projects.set_current('GSA for archetypes')
 
     fuels = get_liquid_fuels()
-    co2 = [x for x in bd.Database('biosphere3') if x['name'] == 'Carbon dioxide, fossil']
-    ei = bd.Database("ecoinvent 3.8 cutoff")
-
-    candidate_codes = ED.select(ED.output_code).distinct().where(
-        (ED.input_code << {o['code'] for o in co2}) & (ED.output_database == 'ecoinvent 3.8 cutoff')).tuples()
-    candidates = [ei.get(code=o[0]) for o in candidate_codes]
+    co2 = get_co2()
+    candidates = get_candidates(co2)
 
     indices_tech, static_tech = [], []
     indices_bio, sample_bio, static_bio = [], [], []
 
     dp = bwp.create_datapackage(
-        fs=ZipFS(str(DATA_DIR / f"local-sa-liquid-fuels-factor{const_factor}.zip"), write=True),
+        fs=ZipFS(str(DATA_DIR / f"local-sa-{const_factor:.0e}-liquid-fuels.zip"), write=True),
         name="local-sa-liquid-fuels",
         # set seed to have reproducible (though not sequential) sampling
-        seed=42,
+        seed=seed,
     )
 
     for candidate in tqdm(candidates):
@@ -223,32 +227,71 @@ def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10):
         except KeyError:
             pass
 
-    # for a, b, c in zip(indices, flip, data):
-    #     print(a.shape, b.shape, c.shape)
+    assert len(indices_tech) == len(indices_bio)
+
+    # Create data for technosphere
+    tindices = np.hstack(indices_tech)
+    tstatic = np.hstack(static_tech)
+    tdata = np.tile(tstatic, (len(tstatic), 1))
+    np.fill_diagonal(tdata, tstatic*const_factor)
+
+    # Create data for biosphere
+    bindices = np.hstack(indices_bio)
+    num_acts = len(indices_tech)
+    bstatic, blist = [], []
+    ib, it = 0, 0
+    for i in range(num_acts):
+        bstatic.append(static_bio[i].reshape(-1, 1))
+        len_tech = len(indices_tech[i])
+        len_bio = len(indices_bio[i])
+        assert len_tech == sample_bio[i].shape[1]
+        for j in range(len_bio):
+            blist.append(
+                [ib, it, list(sample_bio[i][j, :])]
+            )
+        it += len_tech
+        ib += 1
+    bstatic = np.vstack(bstatic).flatten()
+    assert len(tindices) == len(tstatic) == blist[-1][1]+1
+    assert len(bindices) == len(bstatic)
+
+    bdata = np.tile(bstatic, (len(tindices), 1)).T
+    for el in blist:
+        end = el[1] + len(el[2])
+        bdata[el[0], el[1]:end] = el[2]
+
+    # Sort indices
+    targsort = np.argsort(tindices)
+    tindices = tindices[targsort]
+    tdata = tdata.T[targsort]
+    bargsort = np.argsort(bindices)
+    bindices = bindices[bargsort]
+    bdata = bdata[bargsort]
 
     indices = indices_tech + indices_bio
     print("Found {} exchanges in {} datasets".format(sum(len(x) for x in indices), len(indices)))
 
     dp.add_persistent_array(
         matrix="technosphere_matrix",
-        data_array=np.vstack(data_tech),
+        data_array=tdata,
         # Resource group name that will show up in provenance
         name="local-sa-liquid-fuels-tech",
-        indices_array=np.hstack(indices_tech),
-        flip_array=np.ones(len(indices_tech)),
+        indices_array=tindices,
+        flip_array=np.ones(len(tindices), dtype=bool),
     )
 
     dp.add_persistent_array(
         matrix="biosphere_matrix",
-        data_array=np.vstack(data_bio),
+        data_array=bdata,
         # Resource group name that will show up in provenance
         name="local-sa-liquid-fuels-bio",
-        indices_array=np.hstack(indices_bio),
+        indices_array=bindices,
     )
 
     dp.finalize_serialization()
 
 
 if __name__ == "__main__":
+    # generate_liquid_fuels_combustion_local_sa_samples(const_factor=10)
+    generate_liquid_fuels_combustion_local_sa_samples(const_factor=0.1)
     # generate_liquid_fuels_combustion_correlated_samples()
-    generate_liquid_fuels_combustion_local_sa_samples()
