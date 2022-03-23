@@ -229,6 +229,7 @@ def run_local_sa_from_samples(
         data_objs=packages + [dp],
         use_arrays=True,
         seed_override=seed,
+        use_distributions=False,
     )
     lca_local_sa.lci()
     lca_local_sa.lcia()
@@ -236,21 +237,23 @@ def run_local_sa_from_samples(
     if indices is None:
         indices = dp.get_resource(f"local-sa-{name}-tech.indices")[0]
 
-    indices_local_sa_scores = {tuple(indices[0]): np.array([lca_local_sa.score])}
+    # indices_local_sa_scores = {tuple(indices[0]): np.array([lca_local_sa.score])}
+    indices_local_sa_scores = {}
 
-    count = 1
+    count = 0
     try:
         while True:
+            indices_local_sa_scores[tuple(indices[count])] = np.array([lca_local_sa.score])
+
             next(lca_local_sa)
+            count += 1
+
             if count % 200 == 0:
                 print(count)
-            print(lca_local_sa.score)
-            indices_local_sa_scores[tuple(indices[count])] = np.array([lca_local_sa.score])
-            count += 1
-    except StopIteration:
+    except (StopIteration, IndexError) as e:
         pass
 
-    print(count, len(indices))
+    assert count == len(indices)
     return indices_local_sa_scores
 
 

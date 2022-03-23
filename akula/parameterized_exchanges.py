@@ -341,7 +341,8 @@ def remove_unused_parameters(params_dict):
     formulas = {v['formula'] for p, v in params_dict.items() if "__exchange" in p}
     formulas_str = "|".join(formulas)
     for param in params:
-        if param not in formulas_str and "__exchange_" not in param:
+        unct = params_dict[param].get("uncertainty type", 0)
+        if ((param not in formulas_str) or (unct < 2)) and ("__exchange_" not in param):
             params_dict.pop(param)
     return params_dict
 
@@ -522,7 +523,7 @@ if __name__ == "__main__":
 
     # dp_name = "local-sa-1e+01-ecoinvent-parameterization"
     # dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{dp_name}.zip")))
-    # plist = get_parameters(ei_raw_data)
+    plist = get_parameters(ei_raw_data)
 
     print("Generating local SA datapackage")
     generate_local_sa_datapackage(ei_raw_data, const_factor=10.0)
