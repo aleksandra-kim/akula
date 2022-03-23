@@ -4,6 +4,7 @@ from fs.zipfs import ZipFS
 # Local files
 from akula.sensitivity_analysis.local_sensitivity_analysis import *
 from akula.markets import DATA_DIR
+from akula.parameterized_exchanges import get_parameters, get_lookup_cache
 
 
 project = 'GSA for archetypes'
@@ -117,43 +118,48 @@ else:
     write_pickle(tlocal_sa, fp_tlocal_sa)
 
 # 2.1.2 Generic markets, 13586 exchanges
-fp_generic_markets = DATA_DIR / "generic-markets.zip"
-gms = bwp.load_datapackage(ZipFS(fp_generic_markets))
-gindices = gms.get_resource("generic markets.indices")[0]
-gmask = get_mask(tindices_ei, gindices)
-fp_glocal_sa = write_dir / f"local_sa.generic_markets.pickle"
-if fp_glocal_sa.exists():
-    glocal_sa = read_pickle(fp_glocal_sa)
-else:
-    glocal_sa = run_local_sa_technosphere(
-        fu_mapped,
-        pkgs,
-        gmask,
-        gmask,
-        const_factors,
-        write_dir,
-        "generic_markets",
-    )
-    write_pickle(glocal_sa, fp_glocal_sa)
+# fp_generic_markets = DATA_DIR / "generic-markets.zip"
+# gms = bwp.load_datapackage(ZipFS(fp_generic_markets))
+# gindices = gms.get_resource("generic markets.indices")[0]
+# gmask = get_mask(tindices_ei, gindices)
+# fp_glocal_sa = write_dir / f"local_sa.generic_markets.pickle"
+# if fp_glocal_sa.exists():
+#     glocal_sa = read_pickle(fp_glocal_sa)
+# else:
+#     glocal_sa = run_local_sa_technosphere(
+#         fu_mapped,
+#         pkgs,
+#         gmask,
+#         gmask,
+#         const_factors,
+#         write_dir,
+#         "generic_markets",
+#     )
+#     write_pickle(glocal_sa, fp_glocal_sa)
 
-# 2.1.3 Combustion, 1403 iterations
-dp_name = "liquid-fuels"
-fp_flocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
-if fp_flocal_sa.exists():
-    flocal_sa = read_pickle(fp_flocal_sa)
-else:
-    flocal_sa = run_local_sa_from_samples_technosphere(
-        dp_name,
-        fu_mapped,
-        pkgs,
-        const_factors,
-        write_dir,
-    )
-    write_pickle(flocal_sa, fp_flocal_sa)
+# # 2.1.3 Combustion, 1403 iterations
+# dp_name = "liquid-fuels"
+# fp_flocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
+# if fp_flocal_sa.exists():
+#     flocal_sa = read_pickle(fp_flocal_sa)
+# else:
+#     flocal_sa = run_local_sa_from_samples_technosphere(
+#         dp_name,
+#         fu_mapped,
+#         pkgs,
+#         const_factors,
+#         None,
+#         write_dir,
+#     )
+#     write_pickle(flocal_sa, fp_flocal_sa)
 
 # 2.1.3 Parameterization
 dp_name = "ecoinvent-parameterization"
 fp_plocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
+lookup_cache = get_lookup_cache()
+parameters = get_parameters()
+activities = [lookup_cache[(param['activity']["database"], param['activity']["code"])] for param in parameters]
+pindices = [(activities[i], p) for i, param in enumerate(parameters) for p in param['parameters']]
 if fp_plocal_sa.exists():
     plocal_sa = read_pickle(fp_plocal_sa)
 else:
@@ -162,6 +168,7 @@ else:
         fu_mapped,
         pkgs,
         const_factors,
+        pindices,
         write_dir,
     )
     write_pickle(plocal_sa, fp_plocal_sa)

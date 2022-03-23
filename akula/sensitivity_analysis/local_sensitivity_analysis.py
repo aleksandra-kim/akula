@@ -218,7 +218,8 @@ def run_local_sa_from_samples(
         func_unit_mapped,
         packages,
         factor,
-        seed=42
+        indices=None,
+        seed=42,
 ):
     fp = DATA_DIR / f"local-sa-{factor:.0e}-{name}.zip"
     dp = bwp.load_datapackage(ZipFS(fp))
@@ -232,7 +233,9 @@ def run_local_sa_from_samples(
     lca_local_sa.lci()
     lca_local_sa.lcia()
 
-    indices = dp.get_resource(f"local-sa-{name}-tech.indices")[0]
+    if indices is None:
+        indices = dp.get_resource(f"local-sa-{name}-tech.indices")[0]
+
     indices_local_sa_scores = {tuple(indices[0]): np.array([lca_local_sa.score])}
 
     count = 1
@@ -248,7 +251,6 @@ def run_local_sa_from_samples(
         pass
 
     print(count, len(indices))
-    # assert count == len(indices) - 1
     return indices_local_sa_scores
 
 
@@ -257,6 +259,7 @@ def run_local_sa_from_samples_technosphere(
         func_unit_mapped,
         packages,
         factors,
+        indices,
         directory,
 ):
     tag = name.replace("-", "_")
@@ -270,6 +273,7 @@ def run_local_sa_from_samples_technosphere(
                 func_unit_mapped,
                 packages,
                 factor,
+                indices,
             )
             write_pickle(local_sa_current, fp_factor)
         if i == 0:

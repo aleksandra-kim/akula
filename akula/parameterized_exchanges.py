@@ -179,6 +179,51 @@ def get_ecoinvent_raw_data(filepath=FILEPATH):
     return eii.data
 
 
+def get_lookup_cache():
+    return {
+        (x, y): z
+        for x, y, z in AD.select(AD.database, AD.code, AD.id)
+        .where(AD.database << ("biosphere3", "ecoinvent 3.8 cutoff"))
+        .tuples()
+    }
+
+
+def add_tech_bio_data(
+        technosphere_data, biosphere_data, lookup_cache, exchange, activity, parameters, parameters_static=None,
+):
+    if parameters_static is None:
+        parameters_static = {}
+    if exchange["input"][0] == "ecoinvent 3.8 cutoff":
+        technosphere_data.append(
+            (
+                (
+                    lookup_cache[exchange["input"]],
+                    lookup_cache[(activity["database"], activity["code"])],
+                ),
+                parameters[exchange["parameter_name"]],
+                exchange["type"] != "production",
+                parameters_static.get(exchange["parameter_name"], None),
+            )
+        )
+        if parameters_static is not None:
+            biosphere_data.append((None, None, None, None))
+    else:
+        biosphere_data.append(
+            (
+                (
+                    lookup_cache[exchange["input"]],
+                    lookup_cache[(activity["database"], activity["code"])],
+                ),
+                parameters[exchange["parameter_name"]],
+                False,
+                parameters_static.get(exchange["parameter_name"], None),
+            )
+        )
+        if parameters_static is not None:
+            technosphere_data.append((None, None, None, None))
+    return technosphere_data, biosphere_data
+
+
 def get_parameterized_values(input_data, num_samples=25000):
     tech_data, bio_data = [], []
     found, errors, unreasonable, missing = 0, 0, 0, 0
@@ -234,49 +279,86 @@ def get_parameterized_values(input_data, num_samples=25000):
     return sorted(tech_data), sorted(bio_data)
 
 
-def get_lookup_cache():
-    return {
-        (x, y): z
-        for x, y, z in AD.select(AD.database, AD.code, AD.id)
-        .where(AD.database << ("biosphere3", "ecoinvent 3.8 cutoff"))
-        .tuples()
-    }
+def get_dp_arrays(dict_):
+    indices, sample, flip, static, positions = [], [], [], [], []
+    i, j, k = 0, 0, 0
+    for params in dict_.values():
+        param = list(params.values())[0]
+        indices += [p[0] for p in param if p[0] is not None]
+        flip += [p[2] for p in param if p[2] is not None]
+        static += [p[3] for p in param if p[3] is not None]
+        for param in params.values():
+            sample += [p[1] for p in param if p[1] is not None]
+            k = 0
+            for element in param:
+                if element[0] is not None:
+                    positions.append((i+k, j))
+                    k += 1
+            j += 1
+        i += k
+    indices = np.array(indices, dtype=bwp.INDICES_DTYPE)
+    sample = np.array(sample).flatten()
+    flip = np.array(flip, dtype=bool).flatten()
+    static = np.array(static).flatten()
+    data = np.tile(static, (j, 1)).T
+    for p, pos in enumerate(positions):
+        data[pos[0], pos[1]] = sample[p]
+    return indices, data, flip
 
 
-def add_tech_bio_data(
-        technosphere_data, biosphere_data, lookup_cache, exchange, activity, parameters, parameters_static=None,
-):
-    if parameters_static is None:
-        parameters_static = {}
-    if exchange["input"][0] == "ecoinvent 3.8 cutoff":
-        technosphere_data.append(
-            (
-                (
-                    lookup_cache[exchange["input"]],
-                    lookup_cache[(activity["database"], activity["code"])],
-                ),
-                parameters[exchange["parameter_name"]],
-                exchange["type"] != "production",
-                parameters_static.get(exchange["parameter_name"], None),
-            )
-        )
-        if parameters_static is not None:
-            biosphere_data.append((None, None, None, None))
+def get_parameters(data=None):
+    if FILEPATH_PARAMETERS.exists():
+        parameters_list = read_pickle(FILEPATH_PARAMETERS)
     else:
-        biosphere_data.append(
-            (
-                (
-                    lookup_cache[exchange["input"]],
-                    lookup_cache[(activity["database"], activity["code"])],
-                ),
-                parameters[exchange["parameter_name"]],
-                False,
-                parameters_static.get(exchange["parameter_name"], None),
-            )
-        )
-        if parameters_static is not None:
-            technosphere_data.append((None, None, None, None))
-    return technosphere_data, biosphere_data
+        parameters_list = []
+        for act in tqdm(data):
+            if any(exc.get("formula") for exc in act["exchanges"]):
+                try:
+                    ps = PatchedParameterSet(reformat_parameters(act))
+                    params_exchanges = ps.evaluate_monte_carlo(iterations=1, stochastic=False)
+                    if check_that_parameters_are_reasonable(act, params_exchanges):
+                        params = remove_unused_parameters(ps.params)
+                        params_wo_exchanges = {p: v for p, v in params.items() if "__exchange_" not in p}
+                        if len(params_wo_exchanges) > 0:
+                            excs = remove_unused_exchanges(ps.params)
+                            parameters_list.append(
+                                {
+                                    "parameters": params_wo_exchanges,
+                                    "activity": act,
+                                    "exchanges": excs,
+                                }
+                            )
+                except (ValueError, SyntaxError, bwpa.errors.DuplicateName):
+                    pass
+                except bwpa.errors.ParameterError:
+                    pass
+        write_pickle(parameters_list, FILEPATH_PARAMETERS)
+    return parameters_list
+
+
+def remove_unused_parameters(params_dict):
+    params = list(params_dict.keys())
+    formulas = {v['formula'] for p, v in params_dict.items() if "__exchange" in p}
+    formulas_str = "|".join(formulas)
+    for param in params:
+        if param not in formulas_str and "__exchange_" not in param:
+            params_dict.pop(param)
+    return params_dict
+
+
+def remove_unused_exchanges(params_dict):
+    exchanges = {p: v for p, v in params_dict.items() if "__exchange_" in p}
+    params = [p for p, v in params_dict.items() if "__exchange_" not in p]
+    exchanges_copy = deepcopy(exchanges)
+    for exc, dict_ in exchanges_copy.items():
+        flag = False
+        for p in params:
+            if p in dict_['formula']:
+                flag = True
+                continue
+        if not flag:
+            exchanges.pop(exc)
+    return exchanges
 
 
 def get_parameterized_local_sa_values(input_data, const_factor=10.0):
@@ -329,47 +411,6 @@ def get_parameterized_local_sa_values(input_data, const_factor=10.0):
     return technosphere, biosphere
 
 
-def get_dp_arrays(dict_):
-    indices, sample, flip, static, positions = [], [], [], [], []
-    j = 0
-    for params in dict_.values():
-        for param in params.values():
-            indices += [p[0] for p in param if p[0] is not None]
-            sample += [p[1] for p in param if p[1] is not None]
-            flip += [p[2] for p in param if p[2] is not None]
-            static += [p[3] for p in param if p[3] is not None]
-            for p in param:
-                if p[0] is not None:
-                    positions.append(j)
-            j += 1
-    indices = np.array(indices, dtype=bwp.INDICES_DTYPE)
-    sample = np.array(sample).flatten()
-    flip = np.array(flip, dtype=bool).flatten()
-    static = np.array(static).flatten()
-    data = np.tile(static, (j, 1)).T
-    for i, j in enumerate(positions):
-        data[i, j] = sample[j]
-    return indices, data, flip
-
-
-# def local_sa_dp(dict_):
-#     indices, sample, static, flip = get_dp_arrays(dict_)
-#     mask_not_none = np.array([x[0][0] is not None for xs in dict_.values() for x in xs.values()])
-#     num_samples = len(mask_not_none)
-#     data = np.tile(static, (num_samples, 1)).T
-#     temp = np.tile(static, (len(static), 1)).T
-#     np.fill_diagonal(temp, sample)
-#     data[:, mask_not_none] = temp
-#     return indices, data, flip
-
-
-# def construct_local_sa_arrays(tech, bio):
-#     tindices, tdata, tflip = local_sa_dp(tech)
-#     bindices, bdata, bflip = local_sa_dp(bio)
-#
-#     return
-
-
 def generate_local_sa_datapackage(input_data, const_factor=10.0):
 
     technosphere, biosphere = get_parameterized_local_sa_values(input_data, const_factor)
@@ -378,6 +419,7 @@ def generate_local_sa_datapackage(input_data, const_factor=10.0):
     bindices, bdata, bflip = get_dp_arrays(biosphere)
 
     name = f"local-sa-{const_factor:.0e}-ecoinvent-parameterization"
+    name_short = "local-sa-ecoinvent-parameterization"
 
     dp = bwp.create_datapackage(
         fs=ZipFS(str(DATA_DIR / f"{name}.zip"), write=True),
@@ -388,7 +430,7 @@ def generate_local_sa_datapackage(input_data, const_factor=10.0):
     dp.add_persistent_array(
         matrix="technosphere_matrix",
         data_array=tdata,
-        name=f"{name}-tech",
+        name=f"{name_short}-tech",
         indices_array=tindices,
         flip_array=tflip,
     )
@@ -396,7 +438,7 @@ def generate_local_sa_datapackage(input_data, const_factor=10.0):
     dp.add_persistent_array(
         matrix="biosphere_matrix",
         data_array=bdata,
-        name=f"{name}-bio",
+        name=f"{name_short}-bio",
         indices_array=bindices,
         flip_array=bflip,
     )
@@ -404,43 +446,37 @@ def generate_local_sa_datapackage(input_data, const_factor=10.0):
     dp.finalize_serialization()
 
 
-def get_parameters(data):
-    if FILEPATH_PARAMETERS.exists():
-        parameters_list = read_pickle(FILEPATH_PARAMETERS)
-    else:
-        parameters_list = []
-        for act in tqdm(data):
-            if any(exc.get("formula") for exc in act["exchanges"]):
-                try:
-                    ps = PatchedParameterSet(reformat_parameters(act))
-                    params_exchanges = ps.evaluate_monte_carlo(iterations=1, stochastic=False)
-                    if check_that_parameters_are_reasonable(act, params_exchanges):
-                        params = remove_unused_parameters(ps.params)
-                        params_wo_exchanges = {p: v for p, v in params.items() if "__exchange_" not in p}
-                        if len(params_wo_exchanges) > 0:
-                            parameters_list.append(
-                                {
-                                    "parameters": params_wo_exchanges,
-                                    "activity": act,
-                                    "exchanges": {p: v for p, v in params.items() if "__exchange_" in p},
-                                }
-                            )
-                except (ValueError, SyntaxError, bwpa.errors.DuplicateName):
-                    pass
-                except bwpa.errors.ParameterError:
-                    pass
-        write_pickle(parameters_list, FILEPATH_PARAMETERS)
-    return parameters_list
+def generate_parameterized_exchanges_datapackage(tech_data, bio_data):
+    name = "ecoinvent-parameterization"
+    dp = bwp.create_datapackage(
+        fs=ZipFS(str(DATA_DIR / f"{name}.zip"), write=True),
+        name=f"{name}",
+        seed=42,
+    )
 
+    indices = np.empty(len(tech_data), dtype=bwp.INDICES_DTYPE)
+    indices[:] = [x for x, y, z in tech_data]
 
-def remove_unused_parameters(params_dict):
-    params = list(params_dict.keys())
-    formulas = {v['formula'] for p, v in params_dict.items() if "__exchange" in p}
-    formulas_str = "|".join(formulas)
-    for param in params:
-        if param not in formulas_str and "__exchange_" not in param:
-            params_dict.pop(param)
-    return params_dict
+    dp.add_persistent_array(
+        matrix="technosphere_matrix",
+        data_array=np.vstack([y for x, y, z in tech_data]),
+        name=f"{name}-tech",
+        indices_array=indices,
+        flip_array=np.hstack([z for x, y, z in tech_data]),
+    )
+
+    indices = np.empty(len(bio_data), dtype=bwp.INDICES_DTYPE)
+    indices[:] = [x for x, y, z in bio_data]
+
+    dp.add_persistent_array(
+        matrix="biosphere_matrix",
+        data_array=np.vstack([y for x, y, z in bio_data]),
+        name=f"{name}-bio",
+        indices_array=indices,
+        flip_array=np.hstack([z for x, y, z in bio_data]),
+    )
+
+    dp.finalize_serialization()
 
 
 # def generate_parameters_datapackage(input_data):
@@ -478,48 +514,19 @@ def remove_unused_parameters(params_dict):
 #     dp.finalize_serialization()
 
 
-def generate_parameterized_exchanges_datapackage(tech_data, bio_data):
-    name = "ecoinvent-parameterization"
-    dp = bwp.create_datapackage(
-        fs=ZipFS(str(DATA_DIR / f"{name}.zip"), write=True),
-        name=f"{name}",
-        seed=42,
-    )
-
-    indices = np.empty(len(tech_data), dtype=bwp.INDICES_DTYPE)
-    indices[:] = [x for x, y, z in tech_data]
-
-    dp.add_persistent_array(
-        matrix="technosphere_matrix",
-        data_array=np.vstack([y for x, y, z in tech_data]),
-        name=f"{name}-tech",
-        indices_array=indices,
-        flip_array=np.hstack([z for x, y, z in tech_data]),
-    )
-
-    indices = np.empty(len(bio_data), dtype=bwp.INDICES_DTYPE)
-    indices[:] = [x for x, y, z in bio_data]
-
-    dp.add_persistent_array(
-        matrix="biosphere_matrix",
-        data_array=np.vstack([y for x, y, z in bio_data]),
-        name=f"{name}-bio",
-        indices_array=indices,
-        flip_array=np.hstack([z for x, y, z in bio_data]),
-    )
-
-    dp.finalize_serialization()
-
-
 if __name__ == "__main__":
     bd.projects.set_current("GSA for archetypes")
 
     print("Importing ecoinvent to get exchange parameterization data")
     ei_raw_data = get_ecoinvent_raw_data(FILEPATH)
 
+    # dp_name = "local-sa-1e+01-ecoinvent-parameterization"
+    # dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{dp_name}.zip")))
+    # plist = get_parameters(ei_raw_data)
+
     print("Generating local SA datapackage")
-    generate_local_sa_datapackage(ei_raw_data, const_factor=0.1)
     generate_local_sa_datapackage(ei_raw_data, const_factor=10.0)
+    generate_local_sa_datapackage(ei_raw_data, const_factor=0.1)
 
     # print("Generating parameterized values")
     # td, bd = get_parameterized_values(ei_raw_data, num_samples=SAMPLES)
