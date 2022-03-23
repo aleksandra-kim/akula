@@ -226,58 +226,34 @@ def add_tech_bio_data(
 
 def get_parameterized_values(input_data, num_samples=25000):
     tech_data, bio_data = [], []
-    found, errors, unreasonable, missing = 0, 0, 0, 0
 
     lookup_cache = get_lookup_cache()
 
-    error_log = open("error.log", "w")
-    missing_reference_log = open("undefined_reference.log", "w")
+    parameters_list = get_parameters(input_data)
 
-    for act in tqdm(input_data):
-        if any(exc.get("formula") for exc in act["exchanges"]):
-            try:
-                params = parameter_set_for_activity(act, iterations=num_samples, stochastic=True)
-                if check_that_parameters_are_reasonable(act, params):
-                    found += 1
+    for element in tqdm(parameters_list):
 
-                    for exc in act["exchanges"]:
-                        if not exc.get("formula"):
-                            continue
-                        tech_data, bio_data = add_tech_bio_data(
-                            tech_data, bio_data, lookup_cache, exc, act, params,
-                        )
-                else:
-                    unreasonable += 1
-            except (ValueError, SyntaxError, bwpa.errors.DuplicateName):
-                error_log.write(act["filename"] + "\n")
-                traceback.print_exc(file=error_log)
-                errors += 1
-            except bwpa.errors.ParameterError:
-                missing_reference_log.write(act["filename"] + "\n")
-                traceback.print_exc(file=missing_reference_log)
-                missing += 1
+        act = element['activity']
 
-    error_log.close()
-    missing_reference_log.close()
+        use_exchanges = list(element['exchanges'])
+        use_exchanges = [int(exc.replace("__exchange_", "")) for exc in use_exchanges]
 
-    print(
-        f"""Activity statistics:
-    Parameterized activities: {found}
-    Activities whose formulas we can't parse: {errors}
-    Activities whose formulas produce unreasonable values: {unreasonable}
-    Activities whose formulas contain missing references: {missing}"""
-    )
+        # use_parameters = [p for p in element['parameters'] if "__exchange_" not in p]
+        # num_params = len(act['parameters'])
 
-    print(
-        """Parameterized exchanges statistics:
-    {} technosphere exchanges
-    {} biosphere exchanges""".format(
-            len(tech_data), len(bio_data)
-        )
-    )
+        # tech_dict, bio_dict = {}, {}
 
-    return sorted(tech_data), sorted(bio_data)
+        params = parameter_set_for_activity(act, iterations=num_samples, stochastic=True)
 
+        for iexc in use_exchanges:
+            exc = act['exchanges'][iexc]
+            tech_data, bio_data = add_tech_bio_data(
+                tech_data, bio_data, lookup_cache, exc, act, params,
+            )
+    tech_data = [t for t in tech_data if t[0] is not None]
+    bio_data = [b for b in bio_data if b[0] is not None]
+    # return sorted(tech_data), sorted(bio_data)
+    return tech_data, bio_data
 
 def get_dp_arrays(dict_):
     indices, sample, flip, static, positions = [], [], [], [], []
@@ -306,19 +282,28 @@ def get_dp_arrays(dict_):
     return indices, data, flip
 
 
-def get_parameters(data=None):
+def get_parameters(input_data=None):
     if FILEPATH_PARAMETERS.exists():
         parameters_list = read_pickle(FILEPATH_PARAMETERS)
     else:
+        found, errors, unreasonable, missing = 0, 0, 0, 0
+
+        error_log = open("error.log", "w")
+        missing_reference_log = open("undefined_reference.log", "w")
+
         parameters_list = []
-        for act in tqdm(data):
+
+        for act in tqdm(input_data):
             if any(exc.get("formula") for exc in act["exchanges"]):
                 try:
                     ps = PatchedParameterSet(reformat_parameters(act))
                     params_exchanges = ps.evaluate_monte_carlo(iterations=1, stochastic=False)
                     if check_that_parameters_are_reasonable(act, params_exchanges):
+                        found += 1
+
                         params = remove_unused_parameters(ps.params)
                         params_wo_exchanges = {p: v for p, v in params.items() if "__exchange_" not in p}
+
                         if len(params_wo_exchanges) > 0:
                             excs = remove_unused_exchanges(ps.params)
                             parameters_list.append(
@@ -328,10 +313,29 @@ def get_parameters(data=None):
                                     "exchanges": excs,
                                 }
                             )
+                    else:
+                        unreasonable += 1
                 except (ValueError, SyntaxError, bwpa.errors.DuplicateName):
+                    error_log.write(act["filename"] + "\n")
+                    traceback.print_exc(file=error_log)
+                    errors += 1
                     pass
                 except bwpa.errors.ParameterError:
-                    pass
+                    missing_reference_log.write(act["filename"] + "\n")
+                traceback.print_exc(file=missing_reference_log)
+                missing += 1
+
+        error_log.close()
+        missing_reference_log.close()
+
+        print(
+            f"""Activity statistics:
+        Parameterized activities: {found}
+        Activities whose formulas we can't parse: {errors}
+        Activities whose formulas produce unreasonable values: {unreasonable}
+        Activities whose formulas contain missing references: {missing}"""
+        )
+
         write_pickle(parameters_list, FILEPATH_PARAMETERS)
     return parameters_list
 
@@ -343,6 +347,7 @@ def remove_unused_parameters(params_dict):
     for param in params:
         unct = params_dict[param].get("uncertainty type", 0)
         if ((param not in formulas_str) or (unct < 2)) and ("__exchange_" not in param):
+        # if (param not in formulas_str) and ("__exchange_" not in param):
             params_dict.pop(param)
     return params_dict
 
@@ -456,28 +461,89 @@ def generate_parameterized_exchanges_datapackage(tech_data, bio_data):
     )
 
     indices = np.empty(len(tech_data), dtype=bwp.INDICES_DTYPE)
-    indices[:] = [x for x, y, z in tech_data]
+    indices[:] = [x for x, y, z, _ in tech_data]
 
     dp.add_persistent_array(
         matrix="technosphere_matrix",
-        data_array=np.vstack([y for x, y, z in tech_data]),
+        data_array=np.vstack([y for x, y, z, _ in tech_data]),
         name=f"{name}-tech",
         indices_array=indices,
-        flip_array=np.hstack([z for x, y, z in tech_data]),
+        flip_array=np.hstack([z for x, y, z, _ in tech_data]),
     )
 
     indices = np.empty(len(bio_data), dtype=bwp.INDICES_DTYPE)
-    indices[:] = [x for x, y, z in bio_data]
+    indices[:] = [x for x, y, z, _ in bio_data]
 
     dp.add_persistent_array(
         matrix="biosphere_matrix",
-        data_array=np.vstack([y for x, y, z in bio_data]),
+        data_array=np.vstack([y for x, y, z, _ in bio_data]),
         name=f"{name}-bio",
         indices_array=indices,
-        flip_array=np.hstack([z for x, y, z in bio_data]),
+        flip_array=np.hstack([z for x, y, z, _ in bio_data]),
     )
 
     dp.finalize_serialization()
+
+
+def get_parameterized_values2(input_data, num_samples=25000):
+    tech_data, bio_data = [], []
+    found, errors, unreasonable, missing = 0, 0, 0, 0
+
+    lookup_cache = get_lookup_cache()
+
+    error_log = open("error.log", "w")
+    missing_reference_log = open("undefined_reference.log", "w")
+
+    parameters_list = get_parameters(input_data)
+
+    for element in tqdm(parameters_list):
+        act = element['activity']
+        if any(exc.get("formula") for exc in act["exchanges"]):
+            try:
+                params = parameter_set_for_activity(act, iterations=num_samples, stochastic=True)
+                if check_that_parameters_are_reasonable(act, params):
+                    found += 1
+
+                    for exc in act["exchanges"]:
+                        if not exc.get("formula"):
+                            continue
+                        tech_data, bio_data = add_tech_bio_data(
+                            tech_data, bio_data, lookup_cache, exc, act, params,
+                        )
+
+                else:
+                    unreasonable += 1
+            except (ValueError, SyntaxError, bwpa.errors.DuplicateName):
+                error_log.write(act["filename"] + "\n")
+                traceback.print_exc(file=error_log)
+                errors += 1
+            except bwpa.errors.ParameterError:
+                missing_reference_log.write(act["filename"] + "\n")
+                traceback.print_exc(file=missing_reference_log)
+                missing += 1
+
+    error_log.close()
+    missing_reference_log.close()
+
+    tech_data = [t for t in tech_data if t[0] is not None]
+    bio_data = [b for b in bio_data if b[0] is not None]
+
+    print(
+        f"""Activity statistics:
+    Parameterized activities: {found}
+    Activities whose formulas we can't parse: {errors}
+    Activities whose formulas produce unreasonable values: {unreasonable}
+    Activities whose formulas contain missing references: {missing}"""
+    )
+
+    print(
+        f"""Parameterized exchanges statistics:
+    {len(tech_data)} technosphere exchanges
+    {len(bio_data)} biosphere exchanges"""
+    )
+
+    # return sorted(tech_data), sorted(bio_data)
+    return tech_data, bio_data
 
 
 # def generate_parameters_datapackage(input_data):
@@ -521,15 +587,13 @@ if __name__ == "__main__":
     print("Importing ecoinvent to get exchange parameterization data")
     ei_raw_data = get_ecoinvent_raw_data(FILEPATH)
 
-    # dp_name = "local-sa-1e+01-ecoinvent-parameterization"
-    # dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{dp_name}.zip")))
-    plist = get_parameters(ei_raw_data)
-
     print("Generating local SA datapackage")
     generate_local_sa_datapackage(ei_raw_data, const_factor=10.0)
     generate_local_sa_datapackage(ei_raw_data, const_factor=0.1)
 
-    # print("Generating parameterized values")
-    # td, bd = get_parameterized_values(ei_raw_data, num_samples=SAMPLES)
-    # print("Writing datapackage")
-    # generate_parameterized_exchanges_datapackage(td, bd)
+    print("Generating parameterized values")
+    td, bd = get_parameterized_values(ei_raw_data, num_samples=SAMPLES)
+    print("Writing datapackage")
+    generate_parameterized_exchanges_datapackage(td, bd)
+
+    print("")

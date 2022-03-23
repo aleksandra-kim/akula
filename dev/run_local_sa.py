@@ -1,11 +1,17 @@
 from pathlib import Path
 from fs.zipfs import ZipFS
+import bw2data as bd
+import bw2calc as bc
+import bw_processing as bwp
+from copy import deepcopy
+from gsa_framework.utils import read_pickle, write_pickle
 
 # Local files
-from akula.sensitivity_analysis.local_sensitivity_analysis import *
+from akula.sensitivity_analysis.local_sensitivity_analysis import (
+    run_local_sa, run_local_sa_technosphere,
+    get_mask, get_tindices_wo_noninf, get_bindices_wo_noninf, get_cindices_wo_noninf,
+)
 from akula.markets import DATA_DIR
-from akula.parameterized_exchanges import get_parameters, get_lookup_cache
-
 
 project = 'GSA for archetypes'
 bd.projects.set_current(project)
@@ -154,25 +160,29 @@ else:
 #     write_pickle(flocal_sa, fp_flocal_sa)
 
 # 2.1.3 Parameterization
-dp_name = "ecoinvent-parameterization"
-fp_plocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
-lookup_cache = get_lookup_cache()
-parameters = get_parameters()
-activities = [lookup_cache[(param['activity']["database"], param['activity']["code"])] for param in parameters]
-pindices = [(activities[i], p) for i, param in enumerate(parameters) for p in param['parameters']]
-if fp_plocal_sa.exists():
-    plocal_sa = read_pickle(fp_plocal_sa)
-else:
-    plocal_sa = run_local_sa_from_samples_technosphere(
-        dp_name,
-        fu_mapped,
-        pkgs,
-        const_factors,
-        pindices,
-        write_dir,
-    )
-    write_pickle(plocal_sa, fp_plocal_sa)
+# dp_name = "ecoinvent-parameterization"
+# fp_plocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
+# lookup_cache = get_lookup_cache()
+# parameters = get_parameters()
+# activities = [lookup_cache[(param['activity']["database"], param['activity']["code"])] for param in parameters]
+# pindices = [(activities[i], p) for i, param in enumerate(parameters) for p in param['parameters']]
+# if fp_plocal_sa.exists():
+#     plocal_sa = read_pickle(fp_plocal_sa)
+# else:
+#     plocal_sa = run_local_sa_from_samples_technosphere(
+#         dp_name,
+#         fu_mapped,
+#         pkgs,
+#         const_factors,
+#         pindices,
+#         write_dir,
+#     )
+#     write_pickle(plocal_sa, fp_plocal_sa)
 
+name = "ecoinvent-parameterization"
+factor = 10.0
+fp = DATA_DIR / f"local-sa-{factor:.0e}-{name}.zip"
+dp = bwp.load_datapackage(ZipFS(fp))
 
 # --> 2.2.1 Biosphere, 12480 exchanges
 fp_blocal_sa = write_dir / f"local_sa.bio.pickle"
