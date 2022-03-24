@@ -419,7 +419,7 @@ class ENTSODataConverter:
             data[(self.hv_mixes[src].id, market.id, True)] = vector / total
 
         if country == "CH":
-            act = bd.get_activity(("Swiss residual electricity mix", "CH-residual"))
+            act = bd.get_activity(("swiss residual electricity mix", "CH-residual"))
             assert act.id == 100000
             data[(act.id, market.id, True)] = (
                 swissgrid_total_cut - df.sum(axis=1)

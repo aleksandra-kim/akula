@@ -8,7 +8,7 @@ from gsa_framework.utils import read_pickle, write_pickle
 
 # Local files
 from akula.sensitivity_analysis.local_sensitivity_analysis import (
-    run_local_sa, run_local_sa_technosphere,
+    run_local_sa, run_local_sa_technosphere, run_local_sa_from_samples_technosphere,
     get_mask, get_tindices_wo_noninf, get_bindices_wo_noninf, get_cindices_wo_noninf,
 )
 from akula.markets import DATA_DIR
@@ -143,23 +143,23 @@ else:
 #     )
 #     write_pickle(glocal_sa, fp_glocal_sa)
 
-# # 2.1.3 Combustion, 1403 iterations
-# dp_name = "liquid-fuels"
-# fp_flocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
-# if fp_flocal_sa.exists():
-#     flocal_sa = read_pickle(fp_flocal_sa)
-# else:
-#     flocal_sa = run_local_sa_from_samples_technosphere(
-#         dp_name,
-#         fu_mapped,
-#         pkgs,
-#         const_factors,
-#         None,
-#         write_dir,
-#     )
-#     write_pickle(flocal_sa, fp_flocal_sa)
+# 2.1.3 Combustion, 1403 iterations
+dp_name = "liquid-fuels-kilogram"
+fp_flocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
+if fp_flocal_sa.exists():
+    flocal_sa = read_pickle(fp_flocal_sa)
+else:
+    flocal_sa = run_local_sa_from_samples_technosphere(
+        dp_name,
+        fu_mapped,
+        pkgs,
+        const_factors,
+        None,
+        write_dir,
+    )
+    write_pickle(flocal_sa, fp_flocal_sa)
 
-# 2.1.3 Parameterization
+# 2.1.4, 2.2.2 Parameterization for tech and bio exchanges
 # dp_name = "ecoinvent-parameterization"
 # fp_plocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
 # lookup_cache = get_lookup_cache()
@@ -179,10 +179,11 @@ else:
 #     )
 #     write_pickle(plocal_sa, fp_plocal_sa)
 
-name = "ecoinvent-parameterization"
-factor = 10.0
-fp = DATA_DIR / f"local-sa-{factor:.0e}-{name}.zip"
-dp = bwp.load_datapackage(ZipFS(fp))
+# 2.1.5
+dp_name = "entso-average"
+dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{dp_name}.zip")))
+indices = dp.get_resource(f"{dp_name}.indices")[0]
+data = dp.get_resource(f"{dp_name}.data")[0]
 
 # --> 2.2.1 Biosphere, 12480 exchanges
 fp_blocal_sa = write_dir / f"local_sa.bio.pickle"

@@ -243,8 +243,10 @@ def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0, seed=42
     indices_tech, static_tech = [], []
     indices_bio, sample_bio, static_bio = [], [], []
 
+    name = "liquid-fuels-kilogram"
+
     dp = bwp.create_datapackage(
-        fs=ZipFS(str(DATA_DIR / f"local-sa-{const_factor:.0e}-liquid-fuels.zip"), write=True),
+        fs=ZipFS(str(DATA_DIR / f"local-sa-{const_factor:.0e}-{name}.zip"), write=True),
         name="local-sa-liquid-fuels",
         # set seed to have reproducible (though not sequential) sampling
         seed=seed,
@@ -280,7 +282,7 @@ def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0, seed=42
         matrix="technosphere_matrix",
         data_array=tdata,
         # Resource group name that will show up in provenance
-        name="local-sa-liquid-fuels-tech",
+        name=f"local-sa-{name}-tech",
         indices_array=tindices,
         flip_array=np.ones(len(tindices), dtype=bool),
     )
@@ -289,7 +291,7 @@ def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0, seed=42
         matrix="biosphere_matrix",
         data_array=bdata,
         # Resource group name that will show up in provenance
-        name="local-sa-liquid-fuels-bio",
+        name=f"local-sa-{name}-bio",
         indices_array=bindices,
     )
 
@@ -297,6 +299,6 @@ def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0, seed=42
 
 
 if __name__ == "__main__":
-    # generate_liquid_fuels_combustion_local_sa_samples(const_factor=10)
+    generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0)
     generate_liquid_fuels_combustion_local_sa_samples(const_factor=0.1)
     # generate_liquid_fuels_combustion_correlated_samples()

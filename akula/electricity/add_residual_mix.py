@@ -3,10 +3,10 @@ from bw2data.backends.schema import ActivityDataset as AD
 
 
 def add_swiss_residual_mix():
-    if "Swiss residual electricity mix" in bd.databases:
+    if "swiss residual electricity mix" in bd.databases:
         return
 
-    # From noteboook
+    # From notebook
     switzerland_residual = {
         "electricity production, hydro, reservoir, alpine region": 0.2814150228066876,
         "electricity production, hydro, run-of-river": 0.636056236216345,
@@ -20,23 +20,23 @@ def add_swiss_residual_mix():
 
     bd.projects.set_current("GSA for archetypes")
 
-    sr = bd.Database("Swiss residual electricity mix")
+    sr = bd.Database("swiss residual electricity mix")
     sr.register()
 
     # Create `ActivityDataset` as this is the only way to specify the `id`.
     AD.create(
         id=100000,
         code="CH-residual",
-        database="Swiss residual electricity mix",
+        database="swiss residual electricity mix",
         location="CH",
-        name="Swiss residual electricity mix",
+        name="swiss residual electricity mix",
         product="electricity, high voltage",
         type="process",
         data=dict(
             unit="kilowatt_hour",
             comment="Difference between generation fractions for SwissGrid and ENTSO",
             location="CH",
-            name="Swiss residual electricity mix",
+            name="swiss residual electricity mix",
             reference_product="electricity, high voltage",
         ),
     )
@@ -58,7 +58,7 @@ def add_swiss_residual_mix():
 
     sr.process()
 
-    bd.databases["ecoinvent 3.8 cutoff"]['depends'].append("Swiss residual electricity mix")
+    bd.databases["ecoinvent 3.8 cutoff"]['depends'].append("swiss residual electricity mix")
     bd.databases.flush()
 
 
