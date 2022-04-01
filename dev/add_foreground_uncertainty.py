@@ -137,7 +137,7 @@ archetype_labels = [
     'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N',
     'O', 'OA', 'OB', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
 ]
-# archetype_labels = ['ALL']
+archetype_labels = ['ALL']
 
 color_bg = "rgb(29,105,150)"
 color_bg_fg = "rgb(148, 52, 110)"
@@ -146,188 +146,188 @@ color_darkgray_hex = "#485063"
 color_black_hex = "#212931"
 lca_scores_axis_title = r"$\text{LCIA scores, [kg CO}_2\text{-eq per CHF}]$"
 
-# for archetype_label in archetype_labels:
-#     co_static = co_dp
-#     fp_monte_carlo_bg = fp_monte_carlo / "{}.{}.{}.{}.pickle".format(
-#         archetype_label, "bg", iterations, seed
-#     )
-#     dps_bg = [me_dp, bs_dp, ei_dp, co_static]
-#
-#     options = {
-#         "bg": {
-#             "fp": fp_monte_carlo_bg,
-#             "dps": dps_bg,
-#         },
-#     }
-#     if archetype_label == 'ALL':
-#         fu = [act for act in co_bw if f"ch hh average consumption aggregated, years {year}" in act['name']]
-#         assert len(fu) == 1
-#         fu = fu[0]
-#         fu_mapped, _, _ = bd.prepare_lca_inputs(demand={fu: 1}, method=method, remapping=False)
-#     else:
-#         fu = [act for act in co_bw if f"archetype {archetype_label} consumption, years {year}" in act['name']]
-#         assert len(fu) == 1
-#         fu = fu[0]
-#         fu_mapped, _, _ = bd.prepare_lca_inputs(demand={fu: 1}, method=method, remapping=False)
-#
-#         use_indices = [(exc.input.id, fu.id) for exc in fu.exchanges() if exc['type'] != 'production']
-#         use_mask = get_mask(co_indices, use_indices)
-#         use_flip = co_flip[use_mask]
-#         household_data = get_household_data_weighted(
-#             use_indices,
-#             year,
-#             co_name,
-#             archetype_label,
-#             fp_archetype_clustering,
-#         )
-#         choice = np.sort(np.random.choice(household_data.shape[1], iterations, replace=True))
-#         use_data = household_data[:, choice]
-#         use_indices = np.array(use_indices, dtype=[('row', '<i4'), ('col', '<i4')])
-#         co_uncertain = bwp.create_datapackage(sequential=True)
-#         co_uncertain.add_persistent_array(
-#             matrix="technosphere_matrix",
-#             indices_array=use_indices,
-#             name="swiss_consumptwion_1.0_technosphere_matrix",
-#             data_array=use_data,
-#             flip_array=use_flip,
-#         )
-#         fp_monte_carlo_bg_fg = fp_monte_carlo / "{}.{}.{}.{}.pickle".format(
-#             archetype_label + ".per_income", "bg+fg", iterations, seed
-#         )
-#
-#         dps_bg_fg = [me_dp, bs_dp, ei_dp, co_static, co_uncertain]
-#         options["bg+fg"] = {
-#             "fp": fp_monte_carlo_bg_fg,
-#             "dps": dps_bg_fg,
-#         }
-#
-#         ppl_per_hh = fu['ppl_per_household']
-#         income_per_hh = fu['income_per_household']
-#
-#     scores = {}
-#     for option, data in options.items():
-#         print(option)
-#         fp = data['fp']
-#         dps = data['dps']
-#         if fp.exists():
-#             scores[option] = read_pickle(fp)
-#         else:
-#             if option == 'fg':
-#                 use_distributions = False
-#             else:
-#                 use_distributions = True
-#             dict_for_lca = dict(
-#                 use_distributions=use_distributions,
-#                 use_arrays=True,
-#                 seed_override=seed,
-#             )
-#             lca_new = bc.LCA(
-#                 fu_mapped,
-#                 data_objs=dps,
-#                 **dict_for_lca,
-#             )
-#             lca_new.lci()
-#             lca_new.lcia()
-#             scores_current = []
-#             for i in range(iterations):
-#                 next(lca_new)
-#                 scores_current.append(lca_new.score)
-#             scores[option] = scores_current
-#             write_pickle(scores[option], fp)
-#
-#     if archetype_label != "ALL":
-#         temp = [x for x in scores['bg+fg'] if x == x]
-#         temp = [x for x in temp if np.percentile(temp, 5) < x < np.percentile(temp, 95)]
-#         bin_min = min(temp)  # min(scores['bg+fg'])
-#         bin_max = max(temp)  # max(scores['bg+fg'])
-#     else:
-#         bin_min = min(scores['bg'])
-#         bin_max = max(scores['bg'])
-#     num_bins = 100
-#     opacity = 0.65
-#
-#     bins_ = np.linspace(bin_min, bin_max, num_bins, endpoint=True)
-#
-#     fig = go.Figure()
-#
-#     if archetype_label != "ALL":
-#         # Background + foreground
-#         freq1, bins1 = np.histogram(scores['bg+fg'], bins=bins_)
-#         fig.add_trace(
-#             go.Scatter(
-#                 x=bins1,
-#                 y=freq1,
-#                 name=r"$\text{Background and foreground vary}$",
-#                 opacity=opacity,
-#                 line=dict(color=color_bg_fg, width=1, shape="hvh"),
-#                 showlegend=True,
-#                 fill="tozeroy",
-#             ),
-#         )
-#
-#         # Background
-#         freq2, bins2 = np.histogram(np.array(scores['bg'])/income_per_hh, bins=bins_)
-#         fig.add_trace(
-#             go.Scatter(
-#                 x=bins2,
-#                 y=freq2,
-#                 name=r"$\text{Only background varies}$",
-#                 opacity=opacity,
-#                 line=dict(color=color_bg, width=1, shape="hvh"),
-#                 showlegend=True,
-#                 fill="tozeroy",
-#             ),
-#         )
-#
-#         fig.update_xaxes(
-#             range=(bin_min, bin_max),
-#             title_text=lca_scores_axis_title,
-#             showgrid=True,
-#             gridwidth=1,
-#             gridcolor=color_gray_hex,
-#             zeroline=True,
-#             zerolinewidth=1,
-#             zerolinecolor=color_gray_hex,
-#             showline=True,
-#             linewidth=1,
-#             linecolor=color_gray_hex,
-#         )
-#         fig.update_yaxes(
-#             title_text=r"$\text{Frequency}$",
-#             range=[-10, max(freq2)+50],
-#             showgrid=True,
-#             gridwidth=1,
-#             gridcolor=color_gray_hex,
-#             zeroline=True,
-#             zerolinewidth=1,
-#             zerolinecolor=color_black_hex,
-#             showline=True,
-#             linewidth=1,
-#             linecolor=color_gray_hex,
-#         )
-#         fig.update_layout(
-#             width=600,
-#             height=250,
-#             paper_bgcolor="rgba(255,255,255,1)",
-#             plot_bgcolor="rgba(255,255,255,1)",
-#             legend=dict(
-#                 x=0.7,
-#                 y=0.90,
-#                 orientation="v",
-#                 xanchor="center",
-#                 font=dict(size=12),
-#                 bordercolor=color_darkgray_hex,
-#                 borderwidth=1,
-#             ),
-#             margin=dict(l=65, r=0, t=60, b=0),
-#             title={
-#                 'text': f"Archetype {archetype_label}",
-#             }
-#         )
-#
-#         filepath_fig = fp_monte_carlo / "figures" / \
-#             f"{archetype_label}.per_income.uncertainty_bg_fg.{iterations}.{seed}.pdf"
-#         fig.write_image(filepath_fig.as_posix())
+for archetype_label in archetype_labels:
+    co_static = co_dp
+    fp_monte_carlo_bg = fp_monte_carlo / "{}.{}.{}.{}.pickle".format(
+        archetype_label, "bg", iterations, seed
+    )
+    dps_bg = [me_dp, bs_dp, ei_dp, co_static]
+
+    options = {
+        "bg": {
+            "fp": fp_monte_carlo_bg,
+            "dps": dps_bg,
+        },
+    }
+    if archetype_label == 'ALL':
+        fu = [act for act in co_bw if f"ch hh average consumption aggregated, years {year}" in act['name']]
+        assert len(fu) == 1
+        fu = fu[0]
+        fu_mapped, _, _ = bd.prepare_lca_inputs(demand={fu: 1}, method=method, remapping=False)
+    else:
+        fu = [act for act in co_bw if f"archetype {archetype_label} consumption, years {year}" in act['name']]
+        assert len(fu) == 1
+        fu = fu[0]
+        fu_mapped, _, _ = bd.prepare_lca_inputs(demand={fu: 1}, method=method, remapping=False)
+
+        use_indices = [(exc.input.id, fu.id) for exc in fu.exchanges() if exc['type'] != 'production']
+        use_mask = get_mask(co_indices, use_indices)
+        use_flip = co_flip[use_mask]
+        household_data = get_household_data_weighted(
+            use_indices,
+            year,
+            co_name,
+            archetype_label,
+            fp_archetype_clustering,
+        )
+        choice = np.sort(np.random.choice(household_data.shape[1], iterations, replace=True))
+        use_data = household_data[:, choice]
+        use_indices = np.array(use_indices, dtype=[('row', '<i4'), ('col', '<i4')])
+        co_uncertain = bwp.create_datapackage(sequential=True)
+        co_uncertain.add_persistent_array(
+            matrix="technosphere_matrix",
+            indices_array=use_indices,
+            name="swiss_consumptwion_1.0_technosphere_matrix",
+            data_array=use_data,
+            flip_array=use_flip,
+        )
+        fp_monte_carlo_bg_fg = fp_monte_carlo / "{}.{}.{}.{}.pickle".format(
+            archetype_label + ".per_income", "bg+fg", iterations, seed
+        )
+
+        dps_bg_fg = [me_dp, bs_dp, ei_dp, co_static, co_uncertain]
+        options["bg+fg"] = {
+            "fp": fp_monte_carlo_bg_fg,
+            "dps": dps_bg_fg,
+        }
+
+        ppl_per_hh = fu['ppl_per_household']
+        income_per_hh = fu['income_per_household']
+
+    scores = {}
+    for option, data in options.items():
+        print(option)
+        fp = data['fp']
+        dps = data['dps']
+        if fp.exists():
+            scores[option] = read_pickle(fp)
+        else:
+            if option == 'fg':
+                use_distributions = False
+            else:
+                use_distributions = True
+            dict_for_lca = dict(
+                use_distributions=use_distributions,
+                use_arrays=True,
+                seed_override=seed,
+            )
+            lca_new = bc.LCA(
+                fu_mapped,
+                data_objs=dps,
+                **dict_for_lca,
+            )
+            lca_new.lci()
+            lca_new.lcia()
+            scores_current = []
+            for i in range(iterations):
+                next(lca_new)
+                scores_current.append(lca_new.score)
+            scores[option] = scores_current
+            write_pickle(scores[option], fp)
+
+    if archetype_label != "ALL":
+        temp = [x for x in scores['bg+fg'] if x == x]
+        temp = [x for x in temp if np.percentile(temp, 5) < x < np.percentile(temp, 95)]
+        bin_min = min(temp)  # min(scores['bg+fg'])
+        bin_max = max(temp)  # max(scores['bg+fg'])
+    else:
+        bin_min = min(scores['bg'])
+        bin_max = max(scores['bg'])
+    num_bins = 100
+    opacity = 0.65
+
+    bins_ = np.linspace(bin_min, bin_max, num_bins, endpoint=True)
+
+    fig = go.Figure()
+
+    if archetype_label != "ALL":
+        # Background + foreground
+        freq1, bins1 = np.histogram(scores['bg+fg'], bins=bins_)
+        fig.add_trace(
+            go.Scatter(
+                x=bins1,
+                y=freq1,
+                name=r"$\text{Background and foreground vary}$",
+                opacity=opacity,
+                line=dict(color=color_bg_fg, width=1, shape="hvh"),
+                showlegend=True,
+                fill="tozeroy",
+            ),
+        )
+
+        # Background
+        freq2, bins2 = np.histogram(np.array(scores['bg'])/income_per_hh, bins=bins_)
+        fig.add_trace(
+            go.Scatter(
+                x=bins2,
+                y=freq2,
+                name=r"$\text{Only background varies}$",
+                opacity=opacity,
+                line=dict(color=color_bg, width=1, shape="hvh"),
+                showlegend=True,
+                fill="tozeroy",
+            ),
+        )
+
+        fig.update_xaxes(
+            range=(bin_min, bin_max),
+            title_text=lca_scores_axis_title,
+            showgrid=True,
+            gridwidth=1,
+            gridcolor=color_gray_hex,
+            zeroline=True,
+            zerolinewidth=1,
+            zerolinecolor=color_gray_hex,
+            showline=True,
+            linewidth=1,
+            linecolor=color_gray_hex,
+        )
+        fig.update_yaxes(
+            title_text=r"$\text{Frequency}$",
+            range=[-10, max(freq2)+50],
+            showgrid=True,
+            gridwidth=1,
+            gridcolor=color_gray_hex,
+            zeroline=True,
+            zerolinewidth=1,
+            zerolinecolor=color_black_hex,
+            showline=True,
+            linewidth=1,
+            linecolor=color_gray_hex,
+        )
+        fig.update_layout(
+            width=600,
+            height=250,
+            paper_bgcolor="rgba(255,255,255,1)",
+            plot_bgcolor="rgba(255,255,255,1)",
+            legend=dict(
+                x=0.7,
+                y=0.90,
+                orientation="v",
+                xanchor="center",
+                font=dict(size=12),
+                bordercolor=color_darkgray_hex,
+                borderwidth=1,
+            ),
+            margin=dict(l=65, r=0, t=60, b=0),
+            title={
+                'text': f"Archetype {archetype_label}",
+            }
+        )
+
+        filepath_fig = fp_monte_carlo / "figures" / \
+            f"{archetype_label}.per_income.uncertainty_bg_fg.{iterations}.{seed}.pdf"
+        fig.write_image(filepath_fig.as_posix())
 
         # start = 0
         # end = 200

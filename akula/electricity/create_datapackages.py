@@ -28,6 +28,9 @@ def create_average_entso_datapackages():
     indices, data = [], []
 
     for country in tqdm(ENTSO_COUNTRIES):
+
+        print(country)
+
         if country in ("LU", "MT", "MK"):
             continue
 
@@ -81,6 +84,9 @@ def create_timeseries_entso_datapackages():
     indices, data = [], []
 
     for country in tqdm(sorted(ENTSO_COUNTRIES)):
+
+        print(country)
+
         if country in ("LU", "MT", "MK"):
             continue
 

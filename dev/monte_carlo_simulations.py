@@ -10,13 +10,14 @@ from gsa_framework.visualization.plotting import plot_histogram_Y1_Y2, plot_corr
 from akula.markets import DATA_DIR
 
 
-option = "ecoinvent-parameterization"
+option = "liquid-fuels-kilogram"
 
 if __name__ == "__main__":
     project = "GSA for archetypes"
     bd.projects.set_current(project)
     fp_monte_carlo = Path("write_files") / project.lower().replace(" ", "_") / "monte_carlo"
     fp_monte_carlo.mkdir(parents=True, exist_ok=True)
+    write_figs = Path("/Users/akim/PycharmProjects/akula/dev/write_files/paper3")
 
     fp_option = DATA_DIR / f"{option}.zip"
 
@@ -24,9 +25,10 @@ if __name__ == "__main__":
     me = bd.Method(method)
     bs = bd.Database("biosphere3")
     ei = bd.Database("ecoinvent 3.8 cutoff")
+    re = bd.Database("swiss residual electricity mix")
     co_name = "swiss consumption 1.0"
     co = bd.Database(co_name)
-    list_ = [me, bs, ei, co]
+    list_ = [me, bs, ei, co, re]
     dps = [
         bwp.load_datapackage(ZipFS(db.filepath_processed()))
         for db in list_
@@ -37,6 +39,11 @@ if __name__ == "__main__":
     demand_act = hh_average[0]
     demand = {demand_act: 1}
     demand_id = {demand_act.id: 1}
+
+    lca = bc.LCA(demand, method)
+    lca.lci()
+    lca.lcia()
+    print(lca.score)
 
     iterations = 500
     seed = 11111000
@@ -81,18 +88,18 @@ if __name__ == "__main__":
     trace_name2 = "With uncertainties in {}".format(option.replace("_", " "))
     lcia_text = "LCIA scores, {}".format(me.metadata['unit'])
 
-    fig = plot_histogram_Y1_Y2(
-        Y1,
-        Y2,
-        trace_name1=trace_name1,
-        trace_name2=trace_name2,
-        xaxes_title_text=lcia_text,
-    )
-    fig.update_layout(
-        width=800,
-        height=600,
-    )
-    fig.show()
+    # fig = plot_histogram_Y1_Y2(
+    #     Y1,
+    #     Y2,
+    #     trace_name1=trace_name1,
+    #     trace_name2=trace_name2,
+    #     xaxes_title_text=lcia_text,
+    # )
+    # fig.update_layout(
+    #     width=800,
+    #     height=600,
+    # )
+    # fig.show()
 
     fig = plot_correlation_Y1_Y2(
         Y1,
@@ -105,4 +112,18 @@ if __name__ == "__main__":
         xaxes2_title_text=lcia_text,
         yaxes2_title_text=lcia_text,
     )
-    fig.show()
+    fig.update_layout(
+        height=300,
+        legend=dict(
+            yanchor="top",
+            y=-0.7,
+            xanchor="center",
+            x=0.5,
+            orientation='v',
+            font=dict(size=13),
+            borderwidth=1,
+        ),
+        # margin=dict(t=100, b=10, l=10, r=0),
+    )
+    fig.write_image(write_figs / f"mc.{option}.{iterations}.{seed}.pdf")
+    # fig.show()

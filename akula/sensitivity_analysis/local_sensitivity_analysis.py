@@ -110,7 +110,7 @@ class LocalSAInterface:
     def get_uncertainty_bool(distributions):
         try:
             arr = distributions['uncertainty_type'] >= 2
-        except KeyError:
+        except (KeyError, IndexError):
             arr = distributions > 0
         return arr
 
@@ -265,6 +265,7 @@ def run_local_sa_from_samples_technosphere(
         indices,
         directory,
 ):
+    print(f"Running local SA for {name} technosphere")
     tag = name.replace("-", "_")
     for i, factor in enumerate(factors):
         fp_factor = directory / f"local_sa.{tag}.factor_{factor:.0e}.pickle"

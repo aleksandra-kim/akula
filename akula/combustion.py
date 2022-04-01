@@ -250,6 +250,7 @@ def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0, seed=42
         name="local-sa-liquid-fuels",
         # set seed to have reproducible (though not sequential) sampling
         seed=seed,
+        sequential=True,
     )
 
     for candidate in tqdm(candidates):

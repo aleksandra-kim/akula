@@ -255,6 +255,7 @@ def get_parameterized_values(input_data, num_samples=25000):
     # return sorted(tech_data), sorted(bio_data)
     return tech_data, bio_data
 
+
 def get_dp_arrays(dict_):
     indices, sample, flip, static, positions = [], [], [], [], []
     i, j, k = 0, 0, 0
@@ -346,8 +347,8 @@ def remove_unused_parameters(params_dict):
     formulas_str = "|".join(formulas)
     for param in params:
         unct = params_dict[param].get("uncertainty type", 0)
-        if ((param not in formulas_str) or (unct < 2)) and ("__exchange_" not in param):
         # if (param not in formulas_str) and ("__exchange_" not in param):
+        if ((param not in formulas_str) or (unct < 2)) and ("__exchange_" not in param):
             params_dict.pop(param)
     return params_dict
 

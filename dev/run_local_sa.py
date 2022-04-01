@@ -1,3 +1,4 @@
+import numpy as np
 from pathlib import Path
 from fs.zipfs import ZipFS
 import bw2data as bd
@@ -11,6 +12,7 @@ from akula.sensitivity_analysis.local_sensitivity_analysis import (
     run_local_sa, run_local_sa_technosphere, run_local_sa_from_samples_technosphere,
     get_mask, get_tindices_wo_noninf, get_bindices_wo_noninf, get_cindices_wo_noninf,
 )
+from akula.parameterized_exchanges import get_parameters, get_lookup_cache
 from akula.markets import DATA_DIR
 
 project = 'GSA for archetypes'
@@ -144,24 +146,24 @@ else:
 #     write_pickle(glocal_sa, fp_glocal_sa)
 
 # 2.1.3 Combustion, 1403 iterations
-dp_name = "liquid-fuels-kilogram"
-fp_flocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
-if fp_flocal_sa.exists():
-    flocal_sa = read_pickle(fp_flocal_sa)
-else:
-    flocal_sa = run_local_sa_from_samples_technosphere(
-        dp_name,
-        fu_mapped,
-        pkgs,
-        const_factors,
-        None,
-        write_dir,
-    )
-    write_pickle(flocal_sa, fp_flocal_sa)
-
-# 2.1.4, 2.2.2 Parameterization for tech and bio exchanges
+# dp_name = "liquid-fuels-kilogram"
+# fp_flocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
+# if fp_flocal_sa.exists():
+#     flocal_sa = read_pickle(fp_flocal_sa)
+# else:
+#     flocal_sa = run_local_sa_from_samples_technosphere(
+#         dp_name,
+#         fu_mapped,
+#         pkgs,
+#         const_factors,
+#         None,
+#         write_dir,
+#     )
+#     write_pickle(flocal_sa, fp_flocal_sa)
+#
+# # 2.1.4, 2.2.2 Parameterization for tech and bio exchanges
 # dp_name = "ecoinvent-parameterization"
-# fp_plocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
+# fp_plocal_sa = write_dir / f"local_sa.{dp_name.replace("-", "_")}.pickle"
 # lookup_cache = get_lookup_cache()
 # parameters = get_parameters()
 # activities = [lookup_cache[(param['activity']["database"], param['activity']["code"])] for param in parameters]
@@ -181,9 +183,38 @@ else:
 
 # 2.1.5
 dp_name = "entso-average"
+resource_group = 'average ENTSO electricity values'
 dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{dp_name}.zip")))
-indices = dp.get_resource(f"{dp_name}.indices")[0]
-data = dp.get_resource(f"{dp_name}.data")[0]
+eindices = dp.get_resource(f"{resource_group}.indices")[0]
+emask = get_mask(tindices_ei, eindices)
+
+fp_elocal_sa = write_dir / f"local_sa.{dp_name.replace('-', '_')}.pickle"
+if fp_elocal_sa.exists():
+    elocal_sa = read_pickle(fp_elocal_sa)
+else:
+    elocal_sa = run_local_sa_technosphere(
+        fu_mapped,
+        pkgs,
+        emask,
+        emask,
+        const_factors,
+        write_dir,
+        dp_name.replace("-", "_"),
+    )
+    write_pickle(elocal_sa, fp_elocal_sa)
+
+
+# ei_indices = ei.get_resource('ecoinvent_3.8_cutoff_technosphere_matrix.indices')[0]
+# ei_data = ei.get_resource('ecoinvent_3.8_cutoff_technosphere_matrix.data')[0]
+# ei_distributions = ei.get_resource('ecoinvent_3.8_cutoff_technosphere_matrix.distributions')[0]
+#
+# where = []
+# for ind in eindices:
+#     w = np.where(ei_indices == ind)
+#     if len(w[0]) != 1:
+#         print(ind)
+#     where.append(w[0])
+
 
 # --> 2.2.1 Biosphere, 12480 exchanges
 fp_blocal_sa = write_dir / f"local_sa.bio.pickle"
@@ -223,20 +254,22 @@ else:
 
 # 2.4 Remove lowly influential based on variance
 # Add static score
-# local_sa_list = [
-#     tlocal_sa,
-#     blocal_sa,
-#     clocal_sa,
-#     glocal_sa,
-#     flocal_sa,
-# ]
-# for dict_ in local_sa_list:
-#     values = np.vstack(list(dict_.values()))
-#     values = np.hstack([values, np.ones((len(values), 1))*static_score])
-#     variances = np.var(values, axis=1)
-#     for i, k in enumerate(dict_.keys()):
-#         #         dict_.update({k: values[i,:]})
-#         dict_[k] = {
-#             "arr": values[i, :],
-#             "var": variances[i],
-#         }
+local_sa_list = [
+    tlocal_sa,
+    blocal_sa,
+    clocal_sa,
+    # glocal_sa,
+    # flocal_sa,
+]
+for dict_ in local_sa_list:
+    values = np.vstack(list(dict_.values()))
+    values = np.hstack([values, np.ones((len(values), 1))*static_score])
+    variances = np.var(values, axis=1)
+    for i, k in enumerate(dict_.keys()):
+        #         dict_.update({k: values[i,:]})
+        dict_[k] = {
+            "arr": values[i, :],
+            "var": variances[i],
+        }
+
+print("")

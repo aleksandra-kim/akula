@@ -2,14 +2,14 @@ import bw2data as bd
 import pandas as pd
 import numpy as np
 from collections import defaultdict
-import bentso
+# import bentso
 from bentso import CachingDataClient as CDC
 from bentso.constants import ENTSO_COUNTRIES, TRADE_PAIRS
 from pathlib import Path
 from .config import ENTSO_MAPPING
 
 assert bd.__version__ >= (4, 0, "DEV11")
-assert bentso.__version__ >= (0, 4)
+# assert bentso.__version__ >= (0, 4)
 
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
