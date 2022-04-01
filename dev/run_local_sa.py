@@ -146,20 +146,20 @@ else:
 #     write_pickle(glocal_sa, fp_glocal_sa)
 
 # 2.1.3 Combustion, 1403 iterations
-# dp_name = "liquid-fuels-kilogram"
-# fp_flocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
-# if fp_flocal_sa.exists():
-#     flocal_sa = read_pickle(fp_flocal_sa)
-# else:
-#     flocal_sa = run_local_sa_from_samples_technosphere(
-#         dp_name,
-#         fu_mapped,
-#         pkgs,
-#         const_factors,
-#         None,
-#         write_dir,
-#     )
-#     write_pickle(flocal_sa, fp_flocal_sa)
+dp_name = "liquid-fuels-kilogram"
+fp_flocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
+if fp_flocal_sa.exists():
+    flocal_sa = read_pickle(fp_flocal_sa)
+else:
+    flocal_sa = run_local_sa_from_samples_technosphere(
+        dp_name,
+        fu_mapped,
+        pkgs,
+        const_factors,
+        None,
+        write_dir,
+    )
+    write_pickle(flocal_sa, fp_flocal_sa)
 #
 # # 2.1.4, 2.2.2 Parameterization for tech and bio exchanges
 # dp_name = "ecoinvent-parameterization"
@@ -182,38 +182,26 @@ else:
 #     write_pickle(plocal_sa, fp_plocal_sa)
 
 # 2.1.5
-dp_name = "entso-average"
-resource_group = 'average ENTSO electricity values'
-dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{dp_name}.zip")))
-eindices = dp.get_resource(f"{resource_group}.indices")[0]
-emask = get_mask(tindices_ei, eindices)
-
-fp_elocal_sa = write_dir / f"local_sa.{dp_name.replace('-', '_')}.pickle"
-if fp_elocal_sa.exists():
-    elocal_sa = read_pickle(fp_elocal_sa)
-else:
-    elocal_sa = run_local_sa_technosphere(
-        fu_mapped,
-        pkgs,
-        emask,
-        emask,
-        const_factors,
-        write_dir,
-        dp_name.replace("-", "_"),
-    )
-    write_pickle(elocal_sa, fp_elocal_sa)
-
-
-# ei_indices = ei.get_resource('ecoinvent_3.8_cutoff_technosphere_matrix.indices')[0]
-# ei_data = ei.get_resource('ecoinvent_3.8_cutoff_technosphere_matrix.data')[0]
-# ei_distributions = ei.get_resource('ecoinvent_3.8_cutoff_technosphere_matrix.distributions')[0]
+# dp_name = "entso-average"
+# resource_group = 'average ENTSO electricity values'
+# dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{dp_name}.zip")))
+# eindices = dp.get_resource(f"{resource_group}.indices")[0]
+# emask = get_mask(tindices_ei, eindices)
 #
-# where = []
-# for ind in eindices:
-#     w = np.where(ei_indices == ind)
-#     if len(w[0]) != 1:
-#         print(ind)
-#     where.append(w[0])
+# fp_elocal_sa = write_dir / f"local_sa.{dp_name.replace('-', '_')}.pickle"
+# if fp_elocal_sa.exists():
+#     elocal_sa = read_pickle(fp_elocal_sa)
+# else:
+#     elocal_sa = run_local_sa_technosphere(
+#         fu_mapped,
+#         pkgs,
+#         emask,
+#         emask,
+#         const_factors,
+#         write_dir,
+#         dp_name.replace("-", "_"),
+#     )
+#     write_pickle(elocal_sa, fp_elocal_sa)
 
 
 # --> 2.2.1 Biosphere, 12480 exchanges
