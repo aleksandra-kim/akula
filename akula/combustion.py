@@ -56,7 +56,7 @@ def get_samples_and_scaling_vector(activity, fuels, size=10, seed=None):
     return indices, flip, sample, carbon_total_per_sample / static_total
 
 
-def get_static_samples_and_scaling_vector(activity, fuels, const_factor=10):
+def get_static_samples_and_scaling_vector(activity, fuels, const_factor=10.0):
     exchanges = [exc for exc in activity.technosphere() if exc.input in fuels]
     static_total = sum(exc['amount'] * exc['properties']['carbon content']['amount'] for exc in exchanges)
     static = np.array([exc['amount'] for exc in activity.technosphere() if exc.input in fuels])
@@ -200,7 +200,8 @@ def create_technosphere_dp(indices_tech, static_tech, const_factor):
     np.fill_diagonal(tdata, tstatic*const_factor)
     targsort = np.argsort(tindices)
     assert len(tindices) == len(tstatic)
-    return tindices[targsort], tdata[targsort]
+    # return tindices[targsort], tdata[targsort]
+    return tindices, tdata
 
 
 def create_biosphere_dp(indices_tech, indices_bio, sample_bio, static_bio):
@@ -230,7 +231,8 @@ def create_biosphere_dp(indices_tech, indices_bio, sample_bio, static_bio):
 
     bargsort = np.argsort(bindices)
 
-    return bindices[bargsort], bdata[bargsort]
+    # return bindices[bargsort], bdata[bargsort]
+    return bindices, bdata
 
 
 def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0, seed=42):
@@ -251,6 +253,8 @@ def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0, seed=42
         # set seed to have reproducible (though not sequential) sampling
         seed=seed,
         sequential=True,
+        sum_inter_duplicates=False,
+        sum_intra_duplicates=False,
     )
 
     for candidate in tqdm(candidates):
@@ -271,6 +275,8 @@ def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0, seed=42
         except KeyError:
             pass
 
+        print("")
+
     assert len(indices_tech) == len(indices_bio)
 
     tindices, tdata = create_technosphere_dp(indices_tech, static_tech, const_factor)
@@ -281,7 +287,7 @@ def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0, seed=42
 
     dp.add_persistent_array(
         matrix="technosphere_matrix",
-        data_array=tdata,
+        data_array=tdata.T,
         # Resource group name that will show up in provenance
         name=f"local-sa-{name}-tech",
         indices_array=tindices,

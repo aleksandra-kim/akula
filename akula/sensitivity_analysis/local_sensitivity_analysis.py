@@ -219,7 +219,6 @@ def run_local_sa_from_samples(
         packages,
         factor,
         indices=None,
-        seed=42,
 ):
     fp = DATA_DIR / f"local-sa-{factor:.0e}-{name}.zip"
     dp = bwp.load_datapackage(ZipFS(fp))
@@ -228,7 +227,7 @@ def run_local_sa_from_samples(
         demand=func_unit_mapped,
         data_objs=packages + [dp],
         use_arrays=True,
-        seed_override=seed,
+        # seed_override=seed,  # do NOT specify seed with sequential, because seed will cause random selection of data
         use_distributions=False,
     )
     lca_local_sa.lci()
@@ -246,10 +245,11 @@ def run_local_sa_from_samples(
             indices_local_sa_scores[tuple(indices[count])] = np.array([lca_local_sa.score])
 
             next(lca_local_sa)
-            count += 1
 
+            count += 1
             if count % 200 == 0:
                 print(count)
+
     except (StopIteration, IndexError) as e:
         pass
 
