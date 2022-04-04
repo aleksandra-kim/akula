@@ -21,6 +21,17 @@ def get_mask(all_indices, use_indices):
     return mask
 
 
+def get_mask_parameters(all_indices, use_indices):
+    """Creates a `mask` such that `all_indices[mask]=use_indices`."""
+    all_indices = np.array(all_indices, dtype=[('row', '<i4'), ('col', '<U20')])
+    use_indices = np.array(use_indices, dtype=[('row', '<i4'), ('col', '<U20')])
+    mask = np.zeros(len(all_indices), dtype=bool)
+    for inds in tqdm(use_indices):
+        mask_current = all_indices == inds
+        mask = mask | mask_current
+    return mask
+
+
 def get_tindices_wo_noninf(lca, cutoff, max_calc=1e4):
     """Find datapackage indices with lowest contribution scores obtained with Supply chain traversal"""
     res = bc.GraphTraversal().calculate(

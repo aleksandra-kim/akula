@@ -10,7 +10,11 @@ from gsa_framework.visualization.plotting import plot_histogram_Y1_Y2, plot_corr
 from akula.markets import DATA_DIR
 
 
-option = "liquid-fuels-kilogram"
+option = "implicit-markets"
+# option = "generic-markets"
+# option = "liquid-fuels-kilogram"
+# option = "ecoinvent-parameterization"
+# option = "entso-timeseries"
 
 if __name__ == "__main__":
     project = "GSA for archetypes"
@@ -45,7 +49,7 @@ if __name__ == "__main__":
     lca.lcia()
     print(lca.score)
 
-    iterations = 500
+    iterations = 30
     seed = 11111000
     dict_for_lca = dict(
         use_distributions=True,

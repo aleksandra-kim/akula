@@ -10,7 +10,10 @@ from gsa_framework.utils import read_pickle, write_pickle
 # Local files
 from akula.sensitivity_analysis.local_sensitivity_analysis import (
     run_local_sa, run_local_sa_technosphere, run_local_sa_from_samples_technosphere,
-    get_mask, get_tindices_wo_noninf, get_bindices_wo_noninf, get_cindices_wo_noninf,
+    get_mask, get_tindices_wo_noninf, get_bindices_wo_noninf, get_cindices_wo_noninf, get_mask_parameters,
+)
+from akula.sensitivity_analysis.remove_non_influential import (
+    get_variance_threshold, add_variances, get_indices_high_variance
 )
 from akula.parameterized_exchanges import get_parameters, get_lookup_cache
 from akula.markets import DATA_DIR
@@ -110,20 +113,20 @@ else:
 
 const_factors = [1/const_factor, const_factor]
 # 2.1.1 Ecoinvent
-fp_tlocal_sa = write_dir / f"local_sa.tech.cutoff_{ctff:.0e}.maxcalc_{mclc:.0e}.pickle"
-if fp_tlocal_sa.exists():
-    tlocal_sa = read_pickle(fp_tlocal_sa)
-else:
-    tlocal_sa = run_local_sa_technosphere(
-        fu_mapped,
-        pkgs,
-        tdistributions_ei,
-        tmask_wo_noninf,
-        const_factors,
-        write_dir,
-        f"tech.cutoff_{ctff:.0e}.maxcalc_{mclc:.0e}",
-    )
-    write_pickle(tlocal_sa, fp_tlocal_sa)
+# fp_tlocal_sa = write_dir / f"local_sa.tech.cutoff_{ctff:.0e}.maxcalc_{mclc:.0e}.pickle"
+# if fp_tlocal_sa.exists():
+#     tlocal_sa = read_pickle(fp_tlocal_sa)
+# else:
+#     tlocal_sa = run_local_sa_technosphere(
+#         fu_mapped,
+#         pkgs,
+#         tdistributions_ei,
+#         tmask_wo_noninf,
+#         const_factors,
+#         write_dir,
+#         f"tech.cutoff_{ctff:.0e}.maxcalc_{mclc:.0e}",
+#     )
+#     write_pickle(tlocal_sa, fp_tlocal_sa)
 
 # 2.1.2 Generic markets, 13586 exchanges
 # fp_generic_markets = DATA_DIR / "generic-markets.zip"
@@ -160,48 +163,55 @@ else:
         write_dir,
     )
     write_pickle(flocal_sa, fp_flocal_sa)
-#
-# # 2.1.4, 2.2.2 Parameterization for tech and bio exchanges
-# dp_name = "ecoinvent-parameterization"
-# fp_plocal_sa = write_dir / f"local_sa.{dp_name.replace("-", "_")}.pickle"
-# lookup_cache = get_lookup_cache()
-# parameters = get_parameters()
-# activities = [lookup_cache[(param['activity']["database"], param['activity']["code"])] for param in parameters]
-# pindices = [(activities[i], p) for i, param in enumerate(parameters) for p in param['parameters']]
-# if fp_plocal_sa.exists():
-#     plocal_sa = read_pickle(fp_plocal_sa)
-# else:
-#     plocal_sa = run_local_sa_from_samples_technosphere(
-#         dp_name,
-#         fu_mapped,
-#         pkgs,
-#         const_factors,
-#         pindices,
-#         write_dir,
-#     )
-#     write_pickle(plocal_sa, fp_plocal_sa)
 
-# 2.1.5
-# dp_name = "entso-average"
-# resource_group = 'average ENTSO electricity values'
-# dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{dp_name}.zip")))
-# eindices = dp.get_resource(f"{resource_group}.indices")[0]
-# emask = get_mask(tindices_ei, eindices)
-#
-# fp_elocal_sa = write_dir / f"local_sa.{dp_name.replace('-', '_')}.pickle"
-# if fp_elocal_sa.exists():
-#     elocal_sa = read_pickle(fp_elocal_sa)
-# else:
-#     elocal_sa = run_local_sa_technosphere(
-#         fu_mapped,
-#         pkgs,
-#         emask,
-#         emask,
-#         const_factors,
-#         write_dir,
-#         dp_name.replace("-", "_"),
-#     )
-#     write_pickle(elocal_sa, fp_elocal_sa)
+# 2.1.4, 2.2.2 Parameterization for tech and bio exchanges, 821 parameters
+dp_name = "ecoinvent-parameterization"
+fp_plocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
+lookup_cache = get_lookup_cache()
+parameters = get_parameters()
+activities = [lookup_cache[(param['activity']["database"], param['activity']["code"])] for param in parameters]
+pindices = [(activities[i], p) for i, param in enumerate(parameters) for p in param['parameters']]
+if fp_plocal_sa.exists():
+    plocal_sa = read_pickle(fp_plocal_sa)
+else:
+    plocal_sa = run_local_sa_from_samples_technosphere(
+        dp_name,
+        fu_mapped,
+        pkgs,
+        const_factors,
+        pindices,
+        write_dir,
+    )
+    # Correct values
+    for val in plocal_sa.values():
+        if len(set(val)) == 1:
+            pstatic_score = val[0]
+            break
+    correction = static_score - pstatic_score
+    plocal_sa_corrected = {key: val+correction for key, val in plocal_sa.items()}
+    write_pickle(plocal_sa_corrected, fp_plocal_sa)
+
+# 2.1.5, 821 exchange??
+dp_name = "entso-average"
+resource_group = 'average ENTSO electricity values'
+dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{dp_name}.zip")))
+eindices = dp.get_resource(f"{resource_group}.indices")[0]
+emask = get_mask(tindices_ei, eindices)
+
+fp_elocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
+if fp_elocal_sa.exists():
+    elocal_sa = read_pickle(fp_elocal_sa)
+else:
+    elocal_sa = run_local_sa_technosphere(
+        fu_mapped,
+        pkgs,
+        emask,
+        emask,
+        const_factors,
+        write_dir,
+        dp_name.replace("-", "_"),
+    )
+    write_pickle(elocal_sa, fp_elocal_sa)
 
 
 # --> 2.2.1 Biosphere, 12480 exchanges
@@ -240,24 +250,76 @@ else:
     )
     write_pickle(clocal_sa, fp_clocal_sa)
 
-# 2.4 Remove lowly influential based on variance
-# Add static score
+
+# 2.4 --> Remove lowly influential based on variance
 local_sa_list = [
-    tlocal_sa,
+    # tlocal_sa,
     blocal_sa,
     clocal_sa,
-    # glocal_sa,
-    # flocal_sa,
+    flocal_sa,
+    plocal_sa,
+    elocal_sa,
 ]
-for dict_ in local_sa_list:
-    values = np.vstack(list(dict_.values()))
-    values = np.hstack([values, np.ones((len(values), 1))*static_score])
-    variances = np.var(values, axis=1)
-    for i, k in enumerate(dict_.keys()):
-        #         dict_.update({k: values[i,:]})
-        dict_[k] = {
-            "arr": values[i, :],
-            "var": variances[i],
-        }
+num_parameters = 10000
 
-print("")
+add_variances(local_sa_list, static_score)
+# tlocal_sa_all = {**tlocal_sa, **flocal_sa, **elocal_sa}  # To exclude repetitive keys
+tlocal_sa_all = {**flocal_sa, **elocal_sa}  # To exclude repetitive keys
+
+local_sa_list = [tlocal_sa_all, blocal_sa, clocal_sa, plocal_sa]
+var_threshold = get_variance_threshold(local_sa_list, num_parameters)
+
+tindices_wo_lowinf = get_indices_high_variance(tlocal_sa_all, var_threshold)
+tmask_wo_lowinf = get_mask(tindices_ei, tindices_wo_lowinf)
+
+bindices_wo_lowinf = get_indices_high_variance(blocal_sa, var_threshold)
+bmask_wo_lowinf = get_mask(bindices, bindices_wo_lowinf)
+
+cindices_wo_lowinf = get_indices_high_variance(clocal_sa, var_threshold)
+cmask_wo_lowinf = get_mask(cindices, cindices_wo_lowinf)
+
+pindices_wo_lowinf = get_indices_high_variance(plocal_sa, var_threshold)
+pmask_wo_lowinf = get_mask_parameters(pindices, pindices_wo_lowinf)
+
+assert tmask_wo_lowinf.sum() + bmask_wo_lowinf.sum() + cmask_wo_lowinf.sum() + pmask_wo_lowinf.sum() == num_parameters
+
+print(f"Selected {tmask_wo_lowinf.sum()} tech, {bmask_wo_lowinf.sum()} bio, {cmask_wo_lowinf.sum()} cf exchanges, "
+      f"and {pmask_wo_lowinf.sum()} parameters")
+
+
+# 2.5 --> Validation of results
+viterations = 20
+vseed = 22222000
+
+fp_monte_carlo = write_dir
+write_figs = Path("/Users/akim/PycharmProjects/akula/dev/write_files/paper3")
+
+# Run when everything varies
+fps = ["implicit-markets.zip", "liquid-fuels-kilogram.zip",  "ecoinvent-parameterization.zip", "entso-timeseries.zip"]
+dps = [bwp.load_datapackage(ZipFS(fp)) for fp in fps]
+
+
+
+fp_option = DATA_DIR / f"{option}.zip"
+
+hh_average = [act for act in co if "ch hh average consumption aggregated, years 151617" == act['name']]
+assert len(hh_average) == 1
+demand_act = hh_average[0]
+demand = {demand_act: 1}
+demand_id = {demand_act.id: 1}
+
+lca = bc.LCA(demand, method)
+lca.lci()
+lca.lcia()
+print(lca.score)
+
+iterations = 30
+seed = 11111000
+dict_for_lca = dict(
+    use_distributions=True,
+    use_arrays=True,
+    seed_override=seed,
+)
+fp_monte_carlo_base = fp_monte_carlo / f"base.{iterations}.{seed}.pickle"
+fp_monte_carlo_option = fp_monte_carlo / f"{option}.{iterations}.{seed}.pickle"
+

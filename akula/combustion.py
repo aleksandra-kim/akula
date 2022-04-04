@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 
 DATA_DIR = Path(__file__).parent.resolve() / "data"
+SAMPLES = 25000
 
 
 def carbon_fuel_emissions_balanced(activity, fuels, co2):
@@ -253,8 +254,8 @@ def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0, seed=42
         # set seed to have reproducible (though not sequential) sampling
         seed=seed,
         sequential=True,
-        sum_inter_duplicates=False,
-        sum_intra_duplicates=False,
+        # sum_inter_duplicates=False,
+        # sum_intra_duplicates=False,
     )
 
     for candidate in tqdm(candidates):
@@ -308,4 +309,4 @@ def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0, seed=42
 if __name__ == "__main__":
     generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0)
     generate_liquid_fuels_combustion_local_sa_samples(const_factor=0.1)
-    # generate_liquid_fuels_combustion_correlated_samples()
+    generate_liquid_fuels_combustion_correlated_samples(SAMPLES)

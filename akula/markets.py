@@ -11,19 +11,24 @@ from tqdm import tqdm
 from sklearn.linear_model import LinearRegression
 from gsa_framework.utils import read_pickle, write_pickle
 
+from utils import setup_bw_project
+
 DATA_DIR = Path(__file__).parent.resolve() / "data"
 SAMPLES = 25000
 
 
-def similar_im(a, b):
-    return fuzz.partial_ratio(a, b) > 90 or fuzz.ratio(a, b) > 40
-
-
-def similar_gm(a, b):
+def similar_exact(a, b):
+    """Exact comparison between `a` and `b` strings."""
     return a == b
 
 
+def similar_fuzzy(a, b):
+    """Fuzzy comparison between `a` and `b` strings using partial ratio."""
+    return fuzz.partial_ratio(a, b) > 90 or fuzz.ratio(a, b) > 40
+
+
 def find_markets(database, similarity_func, check_uncertainty):
+    """Find markets based on similar reference product names based on exact or fuzzy string comparison."""
 
     db = bd.Database(database)
 
@@ -38,11 +43,14 @@ def find_markets(database, similarity_func, check_uncertainty):
         for exc in act.technosphere():
             if exc.input == exc.output:
                 continue
-            elif check_uncertainty and exc["uncertainty type"] < 2:
+            elif check_uncertainty and exc.get("uncertainty type", 0) < 2:
+                continue
+            elif exc.input.get("reference product", None) is None:
                 continue
             inpts[exc.input["reference product"]].append(exc)
 
         for key, lst in inpts.items():
+            # print(key[:50], sum([exc["amount"] for exc in lst]))
             if (
                 len(lst) > 1
                 and similarity_func(rp, key)
@@ -50,34 +58,87 @@ def find_markets(database, similarity_func, check_uncertainty):
             ):
                 found[act] = lst
 
+        # print(rp, len(found))
+
     return found
 
 
 def get_beta_variance(a, b):
+    """Compute variance of beta distribution based on shape parameters `a` and `b`."""
     return a*b/(a+b)**2/(a+b+1)
 
 
 def get_beta_skewness(a, b):
+    """Compute skewness of beta distribution based on shape parameters `a` and `b`."""
     return 2*(b-a)*((a+b+1)**0.5) / (a+b+2) / (a*b)**0.5
 
 
 def get_lognormal_variance(loc, scale):
+    """Compute variance of lognormal distribution based on parameters `loc` and `scale`."""
     return (np.exp(scale**2)-1) * np.exp(2*loc+scale**2)
 
 
 def get_lognormal_skewness(scale):
+    """Compute skewness of lognormal distribution based on parameters `loc` and `scale`."""
     return (np.exp(scale**2)+2) * ((np.exp(scale**2)-1)**0.5)
 
 
-def get_dirichlet_scale(alpha_exchanges, fit_variance=True):
-    alphas = list(alpha_exchanges.keys())
+def select_contributing_exchanges(amounts_exchanges, return_scores=False):
+    """Select exchanges in the given market that have contribution scores higher than average."""
+
+    bd.projects.set_current("GSA for archetypes")
+    lca = setup_bw_project()
+
+    scores = {}
+    for amount, exc in amounts_exchanges.items():
+        lca.redo_lci({exc.input.id: amount})
+        lca.redo_lcia()
+        scores[exc.input] = lca.score
+
+    threshold = np.mean(list(scores.values()))
+
+    exchanges = {}
+    for amount, exc in amounts_exchanges.items():
+        if scores[exc.input] >= threshold:
+            if exc['uncertainty type'] != 2:
+                print(exc['uncertainty type'])
+            exchanges[amount] = exc
+    if return_scores:
+        return exchanges, scores
+    else:
+        return exchanges
+
+
+def select_higher_amount_exchanges(amounts_exchanges):
+    """Select exchanges in the given market that have amounts higher than average."""
+
+    alphas = list(amounts_exchanges.keys())
+    threshold = np.mean(alphas)
+
+    exchanges = {}
+
+    for amount, exc in amounts_exchanges.items():
+        if amount >= threshold:
+            if exc['uncertainty type'] != 2:
+                print(exc['uncertainty type'])
+            exchanges[amount] = exc
+
+    return exchanges
+
+
+def get_dirichlet_scale(amounts_exchanges, fit_variance, based_on_contributions):
+    """Compute dirichlet scale for exchanges, where the Dirichlet parameter `alpha` is set to exchange amounts."""
+    alphas = list(amounts_exchanges.keys())
     beta = sum(alphas)
-    alpha_threshold = np.mean(alphas)
+
     scaling_factors = []
-    for ialpha, iexc in alpha_exchanges.items():
-        if ialpha >= alpha_threshold:
-            if iexc['uncertainty type'] != 2:
-                print(iexc['uncertainty type'])
+
+    if based_on_contributions:
+        selected_exchanges = select_contributing_exchanges(amounts_exchanges)
+    else:
+        selected_exchanges = select_higher_amount_exchanges(amounts_exchanges)
+
+    for ialpha, iexc in selected_exchanges.items():
             loc = iexc['loc']
             scale = iexc['scale']
             if fit_variance:
@@ -88,30 +149,33 @@ def get_dirichlet_scale(alpha_exchanges, fit_variance=True):
                 beta_skewness = get_beta_skewness(ialpha, beta)
                 lognormal_skewness = get_lognormal_skewness(scale)
                 scaling_factors.append(beta_skewness / lognormal_skewness)
+
     scaling_factor = np.mean(scaling_factors)
+
     return scaling_factor
 
 
-def get_dirichlet_scales(implicit_markets):
+def get_dirichlet_scales(implicit_markets, fit_variance, based_on_contributions):
+    """Get Diriechlet scales for all implicit markets."""
     dirichlet_scales = []
     for exchanges in implicit_markets.values():
         x = np.array([exc['amount'] for exc in exchanges])
-        alpha = x.copy()
-        alpha_exchanges_dict = {alpha[i]: exchanges[i] for i in range(len(alpha))}
-        dirichlet_scales.append(get_dirichlet_scale(alpha_exchanges_dict))
+        amounts = x.copy()
+        amounts_exchanges_dict = {amounts[i]: exchanges[i] for i in range(len(amounts))}
+        dirichlet_scales.append(get_dirichlet_scale(amounts_exchanges_dict, fit_variance, based_on_contributions))
     return dirichlet_scales
 
 
-def predict_dirichlet_scales_generic_markets(generic_markets):
-    """Get dirichlet scores for generic markets from implicit ones."""
+def predict_dirichlet_scales_generic_markets(generic_markets, fit_variance, based_on_contributions):
+    """Predict Dirichlet scales for all generic markets from implicit ones."""
     fp_implicit_markets = DATA_DIR / "implicit-markets.pickle"
     if fp_implicit_markets.exists():
         implicit_markets = read_pickle(fp_implicit_markets)
     else:
-        implicit_markets = find_markets("ecoinvent 3.8 cutoff", similar_im, True)
+        implicit_markets = find_markets("ecoinvent 3.8 cutoff", similar_fuzzy, True)
         write_pickle(implicit_markets, fp_implicit_markets)
     Xtrain = get_market_lmeans(implicit_markets)
-    ytrain = get_dirichlet_scales(implicit_markets)
+    ytrain = get_dirichlet_scales(implicit_markets, fit_variance, based_on_contributions)
     Xtest = get_market_lmeans(generic_markets)
     reg = LinearRegression().fit(Xtrain, ytrain)
     ytest = Xtest * reg.coef_
@@ -123,7 +187,9 @@ def generate_markets_datapackage(
         similarity_func,
         get_dirichlet_scales_func,
         markets_type,
-        num_samples=25000
+        fit_variance,
+        based_on_contributions,
+        num_samples=25000,
 ):
     bd.projects.set_current("GSA for archetypes")
 
@@ -138,7 +204,7 @@ def generate_markets_datapackage(
     else:
         markets = find_markets("ecoinvent 3.8 cutoff", similarity_func, check_uncertainty)
         write_pickle(markets, fp_markets)
-    dirichlet_scales = get_dirichlet_scales_func(markets)
+    dirichlet_scales = get_dirichlet_scales_func(markets, fit_variance, based_on_contributions)
 
     dp = bwp.create_datapackage(
         fs=ZipFS(str(DATA_DIR / f"{markets_type}-markets.zip"), write=True),
@@ -186,15 +252,21 @@ def get_market_lmeans(markets):
 
 
 if __name__ == "__main__":
+    fit_var = True
+    based_on_contr = True
     generate_markets_datapackage(
-        similar_im,
+        similar_fuzzy,
         get_dirichlet_scales,
         "implicit",
+        fit_var,
+        based_on_contr,
         SAMPLES,
     )
-    generate_markets_datapackage(
-        similar_gm,
-        predict_dirichlet_scales_generic_markets,
-        "generic",
-        SAMPLES,
-    )
+    # generate_markets_datapackage(
+    #     similar_exact,
+    #     predict_dirichlet_scales_generic_markets,
+    #     "generic",
+    #     fit_var,
+    #     based_on_contr,
+    #     SAMPLES,
+    # )

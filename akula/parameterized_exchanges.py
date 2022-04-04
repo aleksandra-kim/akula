@@ -432,6 +432,7 @@ def generate_local_sa_datapackage(input_data, const_factor=10.0):
         fs=ZipFS(str(DATA_DIR / f"{name}.zip"), write=True),
         name=f"{name}",
         seed=42,
+        sequential=True,
     )
 
     dp.add_persistent_array(
@@ -547,50 +548,15 @@ def get_parameterized_values2(input_data, num_samples=25000):
     return tech_data, bio_data
 
 
-# def generate_parameters_datapackage(input_data):
-#     parameters = get_parameters(input_data)
-#     dp = bwp.create_datapackage(
-#         fs=ZipFS(str(FILEPATH_PARAMETERS), write=True),
-#         name="ecoinvent-parameters",
-#         seed=42,
-#     )
-#     num_parameters = sum(len(p['parameters']) for p in parameters)
-#     data = np.array([v['amount'] for element in parameters for v in element['parameters'].values()])
-#     indices = np.empty(num_parameters, dtype=bwp.INDICES_DTYPE)
-#     indices[:] = [(x, 0) for x in np.arange(1e6, 1e6+num_parameters)]
-#     flip = np.ones(num_parameters, dtype=bool)
-#     dp.add_persistent_vector(
-#         matrix="technosphere_matrix",
-#         data_array=data,
-#         name="ecoinvent-parameters",
-#         indices_array=indices,
-#         flip_array=flip,
-#     )
-#     max_index = indices[-1][0]
-#     data = np.array([(p['activity']["code"], len(p['parameters'])) for p in parameters])
-#     num_activities = len(data)
-#     indices = np.empty(num_activities, dtype=bwp.INDICES_DTYPE)
-#     indices[:] = [(x, 0) for x in np.arange(max_index, max_index+num_activities)]
-#     flip = np.ones(num_activities, dtype=bool)
-#     dp.add_persistent_array(
-#         matrix="technosphere_matrix",
-#         data_array=data,
-#         name="ecoinvent-parameterized-activities",
-#         indices_array=indices,
-#         flip_array=flip,
-#     )
-#     dp.finalize_serialization()
-
-
 if __name__ == "__main__":
     bd.projects.set_current("GSA for archetypes")
 
     print("Importing ecoinvent to get exchange parameterization data")
     ei_raw_data = get_ecoinvent_raw_data(FILEPATH)
 
-    print("Generating local SA datapackage")
-    generate_local_sa_datapackage(ei_raw_data, const_factor=10.0)
-    generate_local_sa_datapackage(ei_raw_data, const_factor=0.1)
+    # print("Generating local SA datapackage")
+    # generate_local_sa_datapackage(ei_raw_data, const_factor=10.0)
+    # generate_local_sa_datapackage(ei_raw_data, const_factor=0.1)
 
     print("Generating parameterized values")
     td, bd = get_parameterized_values(ei_raw_data, num_samples=SAMPLES)
