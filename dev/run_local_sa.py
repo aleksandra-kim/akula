@@ -21,8 +21,8 @@ from akula.markets import DATA_DIR
 project = 'GSA for archetypes'
 bd.projects.set_current(project)
 const_factor = 10
-ctff = 1e-6  # Cutoff for contribution analysis
-mclc = 1e16  # Maximum number of computations for supply chain traversal
+ctff = 1e-5  # Cutoff for contribution analysis
+mclc = 1e10  # Maximum number of computations for supply chain traversal
 
 
 # Setups
@@ -109,24 +109,24 @@ else:
 # STEP 2: Run local SA
 ######################
 
-# --> 2.1.1 Technosphere, 25867 exchanges
+# --> 2.1.1 Technosphere, 7'000 exchanges
 
 const_factors = [1/const_factor, const_factor]
 # 2.1.1 Ecoinvent
-# fp_tlocal_sa = write_dir / f"local_sa.tech.cutoff_{ctff:.0e}.maxcalc_{mclc:.0e}.pickle"
-# if fp_tlocal_sa.exists():
-#     tlocal_sa = read_pickle(fp_tlocal_sa)
-# else:
-#     tlocal_sa = run_local_sa_technosphere(
-#         fu_mapped,
-#         pkgs,
-#         tdistributions_ei,
-#         tmask_wo_noninf,
-#         const_factors,
-#         write_dir,
-#         f"tech.cutoff_{ctff:.0e}.maxcalc_{mclc:.0e}",
-#     )
-#     write_pickle(tlocal_sa, fp_tlocal_sa)
+fp_tlocal_sa = write_dir / f"local_sa.tech.cutoff_{ctff:.0e}.maxcalc_{mclc:.0e}.pickle"
+if fp_tlocal_sa.exists():
+    tlocal_sa = read_pickle(fp_tlocal_sa)
+else:
+    tlocal_sa = run_local_sa_technosphere(
+        fu_mapped,
+        pkgs,
+        tdistributions_ei,
+        tmask_wo_noninf,
+        const_factors,
+        write_dir,
+        f"tech.cutoff_{ctff:.0e}.maxcalc_{mclc:.0e}",
+    )
+    write_pickle(tlocal_sa, fp_tlocal_sa)
 
 # 2.1.2 Generic markets, 13586 exchanges
 # fp_generic_markets = DATA_DIR / "generic-markets.zip"
@@ -297,7 +297,6 @@ write_figs = Path("/Users/akim/PycharmProjects/akula/dev/write_files/paper3")
 # Run when everything varies
 fps = ["implicit-markets.zip", "liquid-fuels-kilogram.zip",  "ecoinvent-parameterization.zip", "entso-timeseries.zip"]
 dps = [bwp.load_datapackage(ZipFS(fp)) for fp in fps]
-
 
 
 fp_option = DATA_DIR / f"{option}.zip"

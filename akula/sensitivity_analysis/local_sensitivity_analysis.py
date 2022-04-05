@@ -166,16 +166,21 @@ def run_local_sa(
 
     interface.index = None  # there should be a better way to discount the first __next__
     indices_local_sa_scores = {}
+    # current_chunk = {}
 
     count = 0
+    # ichunk = 0
     try:
         while True:
             next(lca_local_sa)
             count += 1
             if count % 500 == 0:
                 print(count)
+                # write_pickle(current_chunk, f"{ichunk}.pickle")
+                # ichunk += 1
             # print(lca_local_sa.score)
             indices_local_sa_scores[tuple(interface.coordinates)] = np.array([lca_local_sa.score])
+            # current_chunk[tuple(interface.coordinates)] = np.array([lca_local_sa.score])
     except StopIteration:
         pass
 

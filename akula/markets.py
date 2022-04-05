@@ -83,7 +83,7 @@ def get_lognormal_skewness(scale):
     return (np.exp(scale**2)+2) * ((np.exp(scale**2)-1)**0.5)
 
 
-def select_contributing_exchanges(amounts_exchanges, return_scores=False):
+def select_contributing_exchanges(amounts_exchanges, use_threshold, return_scores=False):
     """Select exchanges in the given market that have contribution scores higher than average."""
 
     bd.projects.set_current("GSA for archetypes")
@@ -99,7 +99,7 @@ def select_contributing_exchanges(amounts_exchanges, return_scores=False):
 
     exchanges = {}
     for amount, exc in amounts_exchanges.items():
-        if scores[exc.input] >= threshold:
+        if scores[exc.input] >= threshold or use_threshold:
             if exc['uncertainty type'] != 2:
                 print(exc['uncertainty type'])
             exchanges[amount] = exc
@@ -109,7 +109,7 @@ def select_contributing_exchanges(amounts_exchanges, return_scores=False):
         return exchanges
 
 
-def select_higher_amount_exchanges(amounts_exchanges):
+def select_higher_amount_exchanges(amounts_exchanges, use_average=True):
     """Select exchanges in the given market that have amounts higher than average."""
 
     alphas = list(amounts_exchanges.keys())
@@ -118,15 +118,15 @@ def select_higher_amount_exchanges(amounts_exchanges):
     exchanges = {}
 
     for amount, exc in amounts_exchanges.items():
-        if amount >= threshold:
+        if amount >= threshold or use_average:
             if exc['uncertainty type'] != 2:
                 print(exc['uncertainty type'])
-            exchanges[amount] = exc
+        exchanges[amount] = exc
 
     return exchanges
 
 
-def get_dirichlet_scale(amounts_exchanges, fit_variance, based_on_contributions):
+def get_dirichlet_scale(amounts_exchanges, fit_variance, based_on_contributions, use_threshold):
     """Compute dirichlet scale for exchanges, where the Dirichlet parameter `alpha` is set to exchange amounts."""
     alphas = list(amounts_exchanges.keys())
     beta = sum(alphas)
@@ -134,9 +134,9 @@ def get_dirichlet_scale(amounts_exchanges, fit_variance, based_on_contributions)
     scaling_factors = []
 
     if based_on_contributions:
-        selected_exchanges = select_contributing_exchanges(amounts_exchanges)
+        selected_exchanges = select_contributing_exchanges(amounts_exchanges, use_threshold)
     else:
-        selected_exchanges = select_higher_amount_exchanges(amounts_exchanges)
+        selected_exchanges = select_higher_amount_exchanges(amounts_exchanges, use_threshold)
 
     for ialpha, iexc in selected_exchanges.items():
             loc = iexc['loc']
@@ -155,14 +155,15 @@ def get_dirichlet_scale(amounts_exchanges, fit_variance, based_on_contributions)
     return scaling_factor
 
 
-def get_dirichlet_scales(implicit_markets, fit_variance, based_on_contributions):
+def get_dirichlet_scales(implicit_markets, fit_variance, based_on_contributions, use_threshold):
     """Get Diriechlet scales for all implicit markets."""
     dirichlet_scales = []
     for exchanges in implicit_markets.values():
         x = np.array([exc['amount'] for exc in exchanges])
         amounts = x.copy()
         amounts_exchanges_dict = {amounts[i]: exchanges[i] for i in range(len(amounts))}
-        dirichlet_scales.append(get_dirichlet_scale(amounts_exchanges_dict, fit_variance, based_on_contributions))
+        ds = get_dirichlet_scale(amounts_exchanges_dict, fit_variance, based_on_contributions, use_threshold)
+        dirichlet_scales.append(ds)
     return dirichlet_scales
 
 
@@ -204,7 +205,7 @@ def generate_markets_datapackage(
     else:
         markets = find_markets("ecoinvent 3.8 cutoff", similarity_func, check_uncertainty)
         write_pickle(markets, fp_markets)
-    dirichlet_scales = get_dirichlet_scales_func(markets, fit_variance, based_on_contributions)
+    dirichlet_scales = get_dirichlet_scales_func(markets, fit_variance, based_on_contributions, use_threshold=True)
 
     dp = bwp.create_datapackage(
         fs=ZipFS(str(DATA_DIR / f"{markets_type}-markets.zip"), write=True),
