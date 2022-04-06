@@ -21,8 +21,8 @@ from akula.markets import DATA_DIR
 project = 'GSA for archetypes'
 bd.projects.set_current(project)
 const_factor = 10
-ctff = 1e-5  # Cutoff for contribution analysis
-mclc = 1e10  # Maximum number of computations for supply chain traversal
+ctff = 1e-6  # Cutoff for contribution analysis
+mclc = 1e16  # Maximum number of computations for supply chain traversal
 
 
 # Setups
@@ -191,7 +191,7 @@ else:
     plocal_sa_corrected = {key: val+correction for key, val in plocal_sa.items()}
     write_pickle(plocal_sa_corrected, fp_plocal_sa)
 
-# 2.1.5, 821 exchange??
+# 2.1.5, 821 exchange (?)
 dp_name = "entso-average"
 resource_group = 'average ENTSO electricity values'
 dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{dp_name}.zip")))

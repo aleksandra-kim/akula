@@ -188,8 +188,6 @@ def generate_markets_datapackage(
         similarity_func,
         get_dirichlet_scales_func,
         markets_type,
-        fit_variance,
-        based_on_contributions,
         num_samples=25000,
 ):
     bd.projects.set_current("GSA for archetypes")
@@ -205,38 +203,17 @@ def generate_markets_datapackage(
     else:
         markets = find_markets("ecoinvent 3.8 cutoff", similarity_func, check_uncertainty)
         write_pickle(markets, fp_markets)
-    dirichlet_scales = get_dirichlet_scales_func(markets, fit_variance, based_on_contributions, use_threshold=True)
 
-    dp = bwp.create_datapackage(
-        fs=ZipFS(str(DATA_DIR / f"{markets_type}-markets.zip"), write=True),
-        name=f"{markets_type} markets",
-        # set seed to have reproducible (though not sequential) sampling
-        seed=42,
-    )
+    name = f"{markets_type}-markets"
 
-    data_array = np.hstack(
-        [
-            dirichlet.rvs(
-                np.array([exc["amount"] for exc in lst]) * dirichlet_scales[i],
-                size=num_samples,
-            )
-            for i, lst in enumerate(markets.values())
-        ]
-    ).T
     indices_array = np.array(
         [(exc.input.id, exc.output.id) for lst in markets.values() for exc in lst],
         dtype=bwp.INDICES_DTYPE,
     )
-    # All inputs -> all True
-    flip_array = np.ones(len(indices_array), dtype=bool)
-    dp.add_persistent_array(
-        matrix="technosphere_matrix",
-        data_array=data_array,
-        # Resource group name that will show up in provenance
-        name=f"{markets_type} markets",
-        indices_array=indices_array,
-        flip_array=flip_array,
+    dp = create_dynamic_datapackage(
+        markets_type, name, indices_array, get_dirichlet_scales_func, num_samples
     )
+
     dp.finalize_serialization()
 
 
@@ -252,22 +229,147 @@ def get_market_lmeans(markets):
     return X.reshape((-1, 1))
 
 
-if __name__ == "__main__":
-    fit_var = True
-    based_on_contr = True
-    generate_markets_datapackage(
-        similar_fuzzy,
-        get_dirichlet_scales,
-        "implicit",
-        fit_var,
-        based_on_contr,
-        SAMPLES,
+def get_markets_from_indices(indices):
+
+    bd.projects.set_current("GSA for archetypes")
+    markets = {}
+
+    cols = sorted(set(indices['col']))
+    for col in cols:
+
+        rows = sorted(indices[indices['col'] == col]['row'])
+        act = bd.get_activity(int(col))
+
+        exchanges = []
+        for exc in act.exchanges():
+            if exc.input.id in rows:
+                exchanges.append(exc)
+
+        if len(exchanges) > 0:
+            markets[act] = exchanges
+
+    return markets
+
+
+def create_static_datapackage(markets_type, name, selected_indices):
+
+    markets = get_markets_from_indices(selected_indices)
+
+    dp = bwp.create_datapackage(
+        fs=ZipFS(str(DATA_DIR / f"{name}.zip"), write=True),
+        name=f"{markets_type} markets",
+        # set seed to have reproducible (though not sequential) sampling
+        seed=42,
     )
+
+    data_array = np.array([exc['amount'] for lst in markets.values() for exc in lst])
+    indices_array = np.array(
+        [(exc.input.id, exc.output.id) for lst in markets.values() for exc in lst],
+        dtype=bwp.INDICES_DTYPE,
+    )
+    flip_array = np.array(
+        [exc['type'] != "production" for lst in markets.values() for exc in lst],
+        dtype=bool,
+    )
+
+    dp.add_persistent_vector(
+        matrix="technosphere_matrix",
+        data_array=data_array,
+        # Resource group name that will show up in provenance
+        name=f"{markets_type} markets",
+        indices_array=indices_array,
+        flip_array=flip_array,
+    )
+
+    return dp
+
+
+def create_dynamic_datapackage(markets_type, name, selected_indices, get_dirichlet_scales_func, num_samples=SAMPLES):
+
+    markets = get_markets_from_indices(selected_indices)
+    amounts = [sum([exc['amount'] for exc in lst]) for lst in markets.values()]
+
+    dirichlet_scales = get_dirichlet_scales_func(
+        markets,
+        fit_variance=True,
+        based_on_contributions=True,
+        use_threshold=True,
+    )
+
+    dp = bwp.create_datapackage(
+        fs=ZipFS(str(DATA_DIR / f"{name}.zip"), write=True),
+        name=f"{markets_type} markets",
+        # set seed to have reproducible (though not sequential) sampling
+        seed=42,
+    )
+
+    data_array = np.hstack(
+        [
+            dirichlet.rvs(
+                np.array([exc["amount"] for exc in lst]) * dirichlet_scales[i],
+                size=num_samples,
+            ) * amounts[i]
+            for i, lst in enumerate(markets.values())
+        ]
+    ).T
+    indices_array = np.array(
+        [(exc.input.id, exc.output.id) for lst in markets.values() for exc in lst],
+        dtype=bwp.INDICES_DTYPE,
+    )
+    flip_array = np.array(
+        [exc['type'] != "production" for lst in markets.values() for exc in lst],
+        dtype=bool,
+    )
+
+    dp.add_persistent_array(
+        matrix="technosphere_matrix",
+        data_array=data_array,
+        # Resource group name that will show up in provenance
+        name=f"{markets_type} markets",
+        indices_array=indices_array,
+        flip_array=flip_array,
+    )
+
+    return dp
+
+
+def generate_validation_datapackage(markets_type, mask, num_samples=SAMPLES):
+
+    dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{markets_type}-markets.zip")))  # TODO this dp might not exist yet
+    indices = dp.get_resource(f'{markets_type} markets.indices')[0]
+
+    assert len(indices) == len(mask)
+    static_indices = indices[~mask]
+    dynamic_indices = indices[mask]
+
+    num_params = mask.sum()
+
+    dp_name = f"validation.mask-{num_params}.{markets_type}-markets"
+    dp_static = create_static_datapackage(markets_type, dp_name, static_indices)
+    dp_dynamic = create_dynamic_datapackage(
+        markets_type, dp_name, dynamic_indices, get_dirichlet_scales, num_samples,
+    )
+
+    return dp_static, dp_dynamic
+
+
+if __name__ == "__main__":
+    # generate_markets_datapackage(
+    #     similar_fuzzy,
+    #     get_dirichlet_scales,
+    #     "implicit",
+    #     SAMPLES,
+    # )
+
     # generate_markets_datapackage(
     #     similar_exact,
     #     predict_dirichlet_scales_generic_markets,
     #     "generic",
-    #     fit_var,
-    #     based_on_contr,
     #     SAMPLES,
     # )
+
+    # mask_random = np.random.choice([True, False], size=517, p=[0.1, 0.9])
+    mask_random = np.ones(517, dtype=bool)
+    dps, dpd = generate_validation_datapackage("implicit", mask_random, num_samples=2000)
+
+    print("sd")
