@@ -19,6 +19,7 @@ from gsa_framework.utils import read_pickle, write_pickle
 assert bi.__version__ >= (0, 9, "DEV7")
 
 SAMPLES = 25000
+PARAMS_DTYPE = [('row', '<i4'), ('col', '<U40')]
 
 DATA_DIR = Path(__file__).parent.resolve() / "data"
 # FILEPATH = "/Users/cmutel/Documents/lca/Ecoinvent/3.8/cutoff/datasets"

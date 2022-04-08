@@ -8,6 +8,9 @@ import numpy as np
 import stats_arrays as sa
 from tqdm import tqdm
 
+# Local files
+from utils import create_static_datapackage
+
 
 DATA_DIR = Path(__file__).parent.resolve() / "data"
 SAMPLES = 25000
@@ -68,6 +71,10 @@ def get_static_samples_and_scaling_vector(activity, fuels, const_factor=10.0):
     carbon_total_per_sample = (sample * carbon_fraction).sum(axis=0).ravel()
     assert carbon_total_per_sample.shape == (len(static),)
     return indices, static, carbon_total_per_sample / static_total
+
+
+def get_static_samples_validation():
+    return
 
 
 def rescale_biosphere_exchanges_by_factors(activity, factors, flows):
@@ -147,7 +154,7 @@ def generate_liquid_fuels_combustion_correlated_samples(size=25000, seed=42):
 
         try:
             tindices, tflip, tsample, factors = get_samples_and_scaling_vector(candidate, fuels, size=size, seed=seed)
-            if tindices.shape == (0,):
+            if tindices.shape == (0, ):
                 continue
 
             bindices, bsample, _ = rescale_biosphere_exchanges_by_factors(candidate, factors, co2)
@@ -201,8 +208,8 @@ def create_technosphere_dp(indices_tech, static_tech, const_factor):
     np.fill_diagonal(tdata, tstatic*const_factor)
     targsort = np.argsort(tindices)
     assert len(tindices) == len(tstatic)
-    # return tindices[targsort], tdata[targsort]
-    return tindices, tdata
+    return tindices[targsort], tdata[targsort]
+    # return tindices, tdata
 
 
 def create_biosphere_dp(indices_tech, indices_bio, sample_bio, static_bio):
@@ -232,8 +239,8 @@ def create_biosphere_dp(indices_tech, indices_bio, sample_bio, static_bio):
 
     bargsort = np.argsort(bindices)
 
-    # return bindices[bargsort], bdata[bargsort]
-    return bindices, bdata
+    return bindices[bargsort], bdata[bargsort]
+    # return bindices, bdata
 
 
 def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0, seed=42):
@@ -306,7 +313,59 @@ def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0, seed=42
     dp.finalize_serialization()
 
 
+def create_static_data(indices_tech, indices_bio):
+
+    cols = list(set(indices_tech['cols']))
+
+    for col in cols:
+        activity = bd.get_activity(int(col))
+        tindices, tstatic, factors = get_static_samples_and_scaling_vector(activity, fuels)
+        if tindices.shape == (0,):
+            continue
+
+        bindices, bsample, bstatic = rescale_biosphere_exchanges_by_factors(candidate, factors, co2)
+    return
+
+
+
+def create_dynamic_datapackage(name, indices_tech, indices_bio, num_samples):
+    dp = []
+    return dp
+
+
+def generate_validation_datapackage(mask_tech, mask_bio, num_samples=SAMPLES):
+
+    name = "liquid-fuels-kilogram"
+    dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{name}.zip")))  # TODO this dp might not exist yet
+
+    tindices = dp.get_resource('liquid-fuels-tech.indices')[0]
+    assert len(tindices) == len(mask_tech)
+    static_tindices = tindices[~mask_tech]
+    dynamic_tindices = tindices[mask_tech]
+
+    bindices = dp.get_resource('liquid-fuels-bio.indices')[0]
+    assert len(bindices) == len(mask_bio)
+    static_bindices = bindices[~mask_bio]
+    dynamic_bindices = bindices[mask_bio]
+
+    indices_tech, data_tech, flip_tech, indices_bio, data_bio = create_static_data(static_tindices, static_bindices)
+
+    dp_static = create_static_datapackage(
+        name, indices_tech=None, data_tech=None, flip_tech=None, indices_bio=None, data_bio=None
+    )
+
+    dp_dynamic = create_dynamic_datapackage(name, dynamic_tindices, dynamic_bindices, num_samples)
+
+    return dp_static, dp_dynamic
+
+
 if __name__ == "__main__":
-    generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0)
-    generate_liquid_fuels_combustion_local_sa_samples(const_factor=0.1)
-    generate_liquid_fuels_combustion_correlated_samples(SAMPLES)
+    # generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0)
+    # generate_liquid_fuels_combustion_local_sa_samples(const_factor=0.1)
+    # generate_liquid_fuels_combustion_correlated_samples(SAMPLES)
+
+    tmask = np.random.choice([True, False], size=1403, p=[0.1, 0.9])
+    bmask = np.random.choice([True, False], size=407, p=[0.1, 0.9])
+    dps, dpd = generate_validation_datapackage(tmask, bmask, SAMPLES)
+
+    print("")

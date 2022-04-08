@@ -8,12 +8,17 @@ from copy import deepcopy
 from pathlib import Path
 from gsa_framework.utils import read_pickle, write_pickle
 
+from parameterized_exchanges import PARAMS_DTYPE
+
 DATA_DIR = Path(__file__).parents[1].resolve() / "data"
 
 
-def get_mask(all_indices, use_indices):
+def get_mask(all_indices, use_indices, is_params=False):
     """Creates a `mask` such that `all_indices[mask]=use_indices`."""
-    use_indices = np.array(use_indices, dtype=[('row', '<i4'), ('col', '<i4')])
+    if is_params:
+        use_indices = np.array(use_indices, dtype=PARAMS_DTYPE)
+    else:
+        use_indices = np.array(use_indices, dtype=bwp.INDICES_DTYPE)
     mask = np.zeros(len(all_indices), dtype=bool)
     for inds in tqdm(use_indices):
         mask_current = all_indices == inds
@@ -23,8 +28,8 @@ def get_mask(all_indices, use_indices):
 
 def get_mask_parameters(all_indices, use_indices):
     """Creates a `mask` such that `all_indices[mask]=use_indices`."""
-    all_indices = np.array(all_indices, dtype=[('row', '<i4'), ('col', '<U20')])
-    use_indices = np.array(use_indices, dtype=[('row', '<i4'), ('col', '<U20')])
+    all_indices = np.array(all_indices, dtype=bwp.INDICES_DTYPE)
+    use_indices = np.array(use_indices, dtype=bwp.INDICES_DTYPE)
     mask = np.zeros(len(all_indices), dtype=bool)
     for inds in tqdm(use_indices):
         mask_current = all_indices == inds

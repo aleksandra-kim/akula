@@ -1,3 +1,4 @@
+import bw_processing
 import numpy as np
 from pathlib import Path
 from fs.zipfs import ZipFS
@@ -15,8 +16,9 @@ from akula.sensitivity_analysis.local_sensitivity_analysis import (
 from akula.sensitivity_analysis.remove_non_influential import (
     get_variance_threshold, add_variances, get_indices_high_variance
 )
-from akula.parameterized_exchanges import get_parameters, get_lookup_cache
+from akula.parameterized_exchanges import get_parameters, get_lookup_cache, PARAMS_DTYPE
 from akula.markets import DATA_DIR
+from akula.utils import pop_indices_from_dict, get_mask_wrt_dp
 
 project = 'GSA for archetypes'
 bd.projects.set_current(project)
@@ -109,7 +111,7 @@ else:
 # STEP 2: Run local SA
 ######################
 
-# --> 2.1.1 Technosphere, 7'000 exchanges
+# --> 2.1.1 Technosphere
 
 const_factors = [1/const_factor, const_factor]
 # 2.1.1 Ecoinvent
@@ -128,25 +130,25 @@ else:
     )
     write_pickle(tlocal_sa, fp_tlocal_sa)
 
-# 2.1.2 Generic markets, 13586 exchanges
-# fp_generic_markets = DATA_DIR / "generic-markets.zip"
-# gms = bwp.load_datapackage(ZipFS(fp_generic_markets))
-# gindices = gms.get_resource("generic markets.indices")[0]
-# gmask = get_mask(tindices_ei, gindices)
-# fp_glocal_sa = write_dir / f"local_sa.generic_markets.pickle"
-# if fp_glocal_sa.exists():
-#     glocal_sa = read_pickle(fp_glocal_sa)
-# else:
-#     glocal_sa = run_local_sa_technosphere(
-#         fu_mapped,
-#         pkgs,
-#         gmask,
-#         gmask,
-#         const_factors,
-#         write_dir,
-#         "generic_markets",
-#     )
-#     write_pickle(glocal_sa, fp_glocal_sa)
+# 2.1.2 Implicit markets, 13586 exchanges
+dp_name = "implicit-markets"
+dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{dp_name}.zip")))
+mindices = dp.get_resource(f"{dp_name}.indices")[0]
+mmask = get_mask(tindices_ei, mindices)
+fp_mlocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
+if fp_mlocal_sa.exists():
+    mlocal_sa = read_pickle(fp_mlocal_sa)
+else:
+    mlocal_sa = run_local_sa_technosphere(
+        fu_mapped,
+        pkgs,
+        mmask,
+        mmask,
+        const_factors,
+        write_dir,
+        dp_name.replace("-", "_"),
+    )
+    write_pickle(mlocal_sa, fp_mlocal_sa)
 
 # 2.1.3 Combustion, 1403 iterations
 dp_name = "liquid-fuels-kilogram"
@@ -170,7 +172,8 @@ fp_plocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
 lookup_cache = get_lookup_cache()
 parameters = get_parameters()
 activities = [lookup_cache[(param['activity']["database"], param['activity']["code"])] for param in parameters]
-pindices = [(activities[i], p) for i, param in enumerate(parameters) for p in param['parameters']]
+pindices_params = [(activities[i], p) for i, param in enumerate(parameters) for p in param['parameters']]
+pindices_params = np.array(pindices_params, dtype=PARAMS_DTYPE)
 if fp_plocal_sa.exists():
     plocal_sa = read_pickle(fp_plocal_sa)
 else:
@@ -179,7 +182,7 @@ else:
         fu_mapped,
         pkgs,
         const_factors,
-        pindices,
+        pindices_params,
         write_dir,
     )
     # Correct values
@@ -191,7 +194,7 @@ else:
     plocal_sa_corrected = {key: val+correction for key, val in plocal_sa.items()}
     write_pickle(plocal_sa_corrected, fp_plocal_sa)
 
-# 2.1.5, 821 exchange (?)
+# 2.1.5, 821 exchanges (?)
 dp_name = "entso-average"
 resource_group = 'average ENTSO electricity values'
 dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{dp_name}.zip")))
@@ -252,34 +255,100 @@ else:
 
 
 # 2.4 --> Remove lowly influential based on variance
+# 2.4.1 Remove tech exchanges that are modified by datapackages
+
+datapackages = {
+    "implicit-markets": {
+        "tech": "implicit-markets",
+    },
+    "liquid-fuels-kilogram": {
+        "tech": "liquid-fuels-tech",
+        "bio": "liquid-fuels-bio",
+    },
+    "ecoinvent-parameterization": {
+        "tech": "ecoinvent-parameterization-tech",
+        "bio": "ecoinvent-parameterization-bio",
+    },
+    "entso-average": {
+        "tech": "average ENTSO electricity values",
+    }
+}
+
+for dp_name, resource_groups in datapackages.items():
+    dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{dp_name}.zip")))
+    for type_, rg_name in resource_groups.items():
+        indices = dp.get_resource(f'{rg_name}.indices')[0]
+        if type_ == "tech":
+            pop_indices_from_dict(indices, tlocal_sa)
+        elif type_ == "bio":
+            pop_indices_from_dict(indices, blocal_sa)
+
+# # 2.4.1 Remove tech and bio exchanges that are modified by carbon
+# fdp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "liquid-fuels-kilogram.zip")))
+# findices_tech = fdp.get_resource('liquid-fuels-tech.indices')[0]
+# findices_bio = fdp.get_resource('liquid-fuels-bio.indices')[0]
+# pop_indices_from_dict(findices_tech, tlocal_sa)
+# pop_indices_from_dict(findices_bio, blocal_sa)
+#
+# # 2.4.2 Remove tech and bio exchanges that are modified by parameterization
+# pdp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "ecoinvent-parameterization.zip")))
+# pindices_tech = pdp.get_resource('ecoinvent-parameterization-tech.indices')[0]
+# pindices_bio = pdp.get_resource('ecoinvent-parameterization-bio.indices')[0]
+# pop_indices_from_dict(pindices_tech, tlocal_sa)
+# pop_indices_from_dict(pindices_bio, blocal_sa)
+#
+# # 2.4.3 Remove tech exchanges that are overwritten by the entso datapackage
+# edp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entso-average.zip")))
+# eindices_tech = edp.get_resource('average ENTSO electricity values.indices')[0]
+# pop_indices_from_dict(eindices_tech, tlocal_sa)
+
 local_sa_list = [
-    # tlocal_sa,
+    tlocal_sa,
     blocal_sa,
     clocal_sa,
-    flocal_sa,
+    mlocal_sa,
     plocal_sa,
+    flocal_sa,
     elocal_sa,
 ]
-num_parameters = 10000
+num_parameters = 20000
 
 add_variances(local_sa_list, static_score)
-# tlocal_sa_all = {**tlocal_sa, **flocal_sa, **elocal_sa}  # To exclude repetitive keys
-tlocal_sa_all = {**flocal_sa, **elocal_sa}  # To exclude repetitive keys
+tlocal_sa_all = {**tlocal_sa, **mlocal_sa, **flocal_sa, **elocal_sa}
+assert len(tlocal_sa) + len(mlocal_sa) + len(flocal_sa) + len(elocal_sa) == len(tlocal_sa_all)
 
 local_sa_list = [tlocal_sa_all, blocal_sa, clocal_sa, plocal_sa]
 var_threshold = get_variance_threshold(local_sa_list, num_parameters)
 
+# 2.5 --> Validation of results
+# 2.5.1 Construct masks
+# a) Markets
+mindices_wo_lowinf = get_indices_high_variance(mlocal_sa, var_threshold)
+mmask_wo_lowinf = get_mask(mindices_tech, mindices_wo_lowinf)
+
+# b) Carbon
+findices_wo_lowinf = get_indices_high_variance(flocal_sa, var_threshold)
+fmask_wo_lowinf = get_mask(findices_tech, findices_wo_lowinf)
+
+# c) Parameters
+pindices_wo_lowinf = get_indices_high_variance(plocal_sa, var_threshold)
+pmask_wo_lowinf = get_mask(pindices_params, pindices_wo_lowinf, is_params=True)
+
+# d) Electricity
+eindices_wo_lowinf = get_indices_high_variance(elocal_sa, var_threshold)
+emask_wo_lowinf = get_mask(eindices_tech, eindices_wo_lowinf)
+
+# e) Technosphere
 tindices_wo_lowinf = get_indices_high_variance(tlocal_sa_all, var_threshold)
 tmask_wo_lowinf = get_mask(tindices_ei, tindices_wo_lowinf)
 
+# f) Biosphere
 bindices_wo_lowinf = get_indices_high_variance(blocal_sa, var_threshold)
 bmask_wo_lowinf = get_mask(bindices, bindices_wo_lowinf)
 
+# g) Characterization
 cindices_wo_lowinf = get_indices_high_variance(clocal_sa, var_threshold)
 cmask_wo_lowinf = get_mask(cindices, cindices_wo_lowinf)
-
-pindices_wo_lowinf = get_indices_high_variance(plocal_sa, var_threshold)
-pmask_wo_lowinf = get_mask_parameters(pindices, pindices_wo_lowinf)
 
 assert tmask_wo_lowinf.sum() + bmask_wo_lowinf.sum() + cmask_wo_lowinf.sum() + pmask_wo_lowinf.sum() == num_parameters
 
@@ -287,7 +356,7 @@ print(f"Selected {tmask_wo_lowinf.sum()} tech, {bmask_wo_lowinf.sum()} bio, {cma
       f"and {pmask_wo_lowinf.sum()} parameters")
 
 
-# 2.5 --> Validation of results
+
 viterations = 20
 vseed = 22222000
 

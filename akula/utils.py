@@ -1,5 +1,8 @@
 import bw2data as bd
 import bw2calc as bc
+import bw_processing as bwp
+
+from sensitivity_analysis import get_mask
 
 color_gray_hex = "#b2bcc0"
 color_darkgray_hex = "#485063"
@@ -55,3 +58,75 @@ def setup_bw_project(years="151617"):
     lca.lcia()
 
     return lca
+
+
+def get_activities_from_indices(indices):
+
+    bd.projects.set_current("GSA for archetypes")
+    activities = {}
+
+    if indices is not None:
+
+        cols = sorted(set(indices['col']))
+        for col in cols:
+
+            rows = sorted(indices[indices['col'] == col]['row'])
+            act = bd.get_activity(int(col))
+
+            exchanges = []
+            for exc in act.exchanges():
+                if exc.input.id in rows:
+                    exchanges.append(exc)
+
+            if len(exchanges) > 0:
+                activities[act] = exchanges
+
+    return activities
+
+
+def create_static_datapackage(name, indices_tech=None, data_tech=None, flip_tech=None, indices_bio=None, data_bio=None):
+
+    dp = bwp.create_datapackage(
+        name=f"validation.{name}.static",
+        seed=42,
+    )
+
+    if indices_tech is not None:
+        dp.add_persistent_vector(
+            matrix="technosphere_matrix",
+            data_array=data_tech,
+            # Resource group name that will show up in provenance
+            name=f"{name}-tech",
+            indices_array=indices_tech,
+            flip_array=flip_tech,
+        )
+
+    if indices_bio is not None:
+        dp.add_persistent_vector(
+            matrix="biosphere_matrix",
+            data_array=data_bio,
+            # Resource group name that will show up in provenance (?)
+            name=f"{name}-bio",
+            indices_array=indices_bio,
+        )
+
+    return dp
+
+
+def pop_indices_from_dict(indices, dict_):
+    count = 0
+    for key in indices:
+        try:
+            dict_.pop(tuple(key))
+            count += 1
+        except KeyError:
+            pass
+    # print(f"Removed {count:4d} elements from dictionary")
+
+
+def get_mask_wrt_dp(indices_all, indices_dp, mask_screening):
+    """Get screening mask wrt indices of a datapackage."""
+    mask_dp_and_screening_wrt_all = get_mask(indices_all, indices_dp) & mask_screening
+    indices_dp_and_screening = indices_all[mask_dp_and_screening_wrt_all]
+    mask_screening_wrt_dp = get_mask(indices_dp, indices_dp_and_screening)
+    return mask_screening_wrt_dp
