@@ -255,53 +255,40 @@ else:
 
 
 # 2.4 --> Remove lowly influential based on variance
-# 2.4.1 Remove tech exchanges that are modified by datapackages
-
 datapackages = {
     "implicit-markets": {
         "tech": "implicit-markets",
+        "local_sa": mlocal_sa,
     },
     "liquid-fuels-kilogram": {
         "tech": "liquid-fuels-tech",
         "bio": "liquid-fuels-bio",
+        "local_sa": flocal_sa,
     },
     "ecoinvent-parameterization": {
         "tech": "ecoinvent-parameterization-tech",
         "bio": "ecoinvent-parameterization-bio",
+        "local_sa": plocal_sa,
     },
     "entso-average": {
         "tech": "average ENTSO electricity values",
-    }
+        "local_sa": elocal_sa
+    },
 }
 
-for dp_name, resource_groups in datapackages.items():
-    dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{dp_name}.zip")))
-    for type_, rg_name in resource_groups.items():
+# 2.4.1 Remove tech and bio exchanges that are modified by datapackages
+for name, data in datapackages.items():
+    dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{name}.zip")))
+    for type_, rg_name in data.items():
+        if type_ == "local_sa":
+            continue
         indices = dp.get_resource(f'{rg_name}.indices')[0]
         if type_ == "tech":
             pop_indices_from_dict(indices, tlocal_sa)
         elif type_ == "bio":
             pop_indices_from_dict(indices, blocal_sa)
 
-# # 2.4.1 Remove tech and bio exchanges that are modified by carbon
-# fdp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "liquid-fuels-kilogram.zip")))
-# findices_tech = fdp.get_resource('liquid-fuels-tech.indices')[0]
-# findices_bio = fdp.get_resource('liquid-fuels-bio.indices')[0]
-# pop_indices_from_dict(findices_tech, tlocal_sa)
-# pop_indices_from_dict(findices_bio, blocal_sa)
-#
-# # 2.4.2 Remove tech and bio exchanges that are modified by parameterization
-# pdp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "ecoinvent-parameterization.zip")))
-# pindices_tech = pdp.get_resource('ecoinvent-parameterization-tech.indices')[0]
-# pindices_bio = pdp.get_resource('ecoinvent-parameterization-bio.indices')[0]
-# pop_indices_from_dict(pindices_tech, tlocal_sa)
-# pop_indices_from_dict(pindices_bio, blocal_sa)
-#
-# # 2.4.3 Remove tech exchanges that are overwritten by the entso datapackage
-# edp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entso-average.zip")))
-# eindices_tech = edp.get_resource('average ENTSO electricity values.indices')[0]
-# pop_indices_from_dict(eindices_tech, tlocal_sa)
-
+# 2.4.2 Determine variance threshold
 local_sa_list = [
     tlocal_sa,
     blocal_sa,
@@ -311,32 +298,34 @@ local_sa_list = [
     flocal_sa,
     elocal_sa,
 ]
-num_parameters = 20000
 
 add_variances(local_sa_list, static_score)
 tlocal_sa_all = {**tlocal_sa, **mlocal_sa, **flocal_sa, **elocal_sa}
 assert len(tlocal_sa) + len(mlocal_sa) + len(flocal_sa) + len(elocal_sa) == len(tlocal_sa_all)
 
+num_parameters = 20000
 local_sa_list = [tlocal_sa_all, blocal_sa, clocal_sa, plocal_sa]
 var_threshold = get_variance_threshold(local_sa_list, num_parameters)
 
-# 2.5 --> Validation of results
-# 2.5.1 Construct masks
-# a) Markets
-mindices_wo_lowinf = get_indices_high_variance(mlocal_sa, var_threshold)
-mmask_wo_lowinf = get_mask(mindices_tech, mindices_wo_lowinf)
+datapackages.update(
+    {
+        # "biosphere":
+    }
+)
 
-# b) Carbon
-findices_wo_lowinf = get_indices_high_variance(flocal_sa, var_threshold)
-fmask_wo_lowinf = get_mask(findices_tech, findices_wo_lowinf)
-
-# c) Parameters
-pindices_wo_lowinf = get_indices_high_variance(plocal_sa, var_threshold)
-pmask_wo_lowinf = get_mask(pindices_params, pindices_wo_lowinf, is_params=True)
-
-# d) Electricity
-eindices_wo_lowinf = get_indices_high_variance(elocal_sa, var_threshold)
-emask_wo_lowinf = get_mask(eindices_tech, eindices_wo_lowinf)
+# 2.4.3 Construct masks after local SA for markets, carbon, parameters and electricity
+for name, data in datapackages.items():
+    if "parameterization" not in name:
+        dtype = bwp.INDICES_DTYPE
+        is_params = False
+    else:
+        dtype = PARAMS_DTYPE
+        is_params = True
+    local_sa = data["local_sa"]
+    indices = np.array(list(local_sa.keys()), dtype=dtype)
+    indices_wo_lowinf = get_indices_high_variance(local_sa, var_threshold)
+    mask_wo_lowinf = get_mask(indices, indices_wo_lowinf, is_params)
+    data['mask_wo_lowinf'] = mask_wo_lowinf
 
 # e) Technosphere
 tindices_wo_lowinf = get_indices_high_variance(tlocal_sa_all, var_threshold)
@@ -356,7 +345,7 @@ print(f"Selected {tmask_wo_lowinf.sum()} tech, {bmask_wo_lowinf.sum()} bio, {cma
       f"and {pmask_wo_lowinf.sum()} parameters")
 
 
-
+# 2.5 --> Validation of results
 viterations = 20
 vseed = 22222000
 

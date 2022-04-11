@@ -142,7 +142,7 @@ def get_dirichlet_scale(amounts_exchanges, fit_variance, based_on_contributions,
         loc = iexc['loc']
         scale = iexc['scale']
         if fit_variance:
-            beta_variance = get_beta_variance(ialpha, beta)
+            beta_variance = get_beta_variance(ialpha, beta-ialpha)
             lognormal_variance = get_lognormal_variance(loc, scale)
             scaling_factors.append(beta_variance / lognormal_variance * 2)
         else:
