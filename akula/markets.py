@@ -236,7 +236,7 @@ def create_dynamic_datapackage(name, selected_indices, get_dirichlet_scales_func
         markets,
         fit_variance=True,
         based_on_contributions=True,
-        use_threshold=True,
+        use_threshold=False,
     )
 
     dp = bwp.create_datapackage(

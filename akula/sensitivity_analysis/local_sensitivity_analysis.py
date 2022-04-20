@@ -20,7 +20,7 @@ def get_mask(all_indices, use_indices, is_params=False):
     else:
         use_indices = np.array(use_indices, dtype=bwp.INDICES_DTYPE)
     mask = np.zeros(len(all_indices), dtype=bool)
-    for inds in tqdm(use_indices):
+    for inds in use_indices:
         mask_current = all_indices == inds
         mask = mask | mask_current
     return mask

@@ -556,7 +556,7 @@ if __name__ == "__main__":
     ei_raw_data = get_ecoinvent_raw_data(FILEPATH)
 
     # print("Generating local SA datapackage")
-    # generate_local_sa_datapackage(ei_raw_data, const_factor=10.0)
+    generate_local_sa_datapackage(ei_raw_data, const_factor=10.0)
     # generate_local_sa_datapackage(ei_raw_data, const_factor=0.1)
 
     print("Generating parameterized values")

@@ -309,11 +309,20 @@ var_threshold = get_variance_threshold(local_sa_list, num_parameters)
 
 datapackages.update(
     {
-        # "biosphere":
+        "technosphere": {"local_sa": tlocal_sa},
+        "biosphere": {"local_sa": blocal_sa},
+        "characterization": {"local_sa": clocal_sa},
+        "implicit-markets": {"local_sa": mlocal_sa},
+        "ecoinvent-parameterization": {"local_sa": plocal_sa},
+        "liquid-fuels-kilogram": {"local_sa": flocal_sa},
+        "entso-average": {"local_sa": elocal_sa},
     }
 )
 
-# 2.4.3 Construct masks after local SA for markets, carbon, parameters and electricity
+# 2.4.3 Construct masks for all inputs after local SA
+inds = []
+count = 0
+print(f"Selected {num_parameters} exchanges after local SA:")
 for name, data in datapackages.items():
     if "parameterization" not in name:
         dtype = bwp.INDICES_DTYPE
@@ -321,31 +330,19 @@ for name, data in datapackages.items():
     else:
         dtype = PARAMS_DTYPE
         is_params = True
-    local_sa = data["local_sa"]
+    local_sa = data['local_sa']
     indices = np.array(list(local_sa.keys()), dtype=dtype)
     indices_wo_lowinf = get_indices_high_variance(local_sa, var_threshold)
     mask_wo_lowinf = get_mask(indices, indices_wo_lowinf, is_params)
     data['mask_wo_lowinf'] = mask_wo_lowinf
+    print(f"    {mask_wo_lowinf.sum():5d} from {name}")
+    count += mask_wo_lowinf.sum()
+    if "parameterization" not in name:
+        inds.append(np.array(indices_wo_lowinf, dtype=bwp.INDICES_DTYPE))
 
-# e) Technosphere
-tindices_wo_lowinf = get_indices_high_variance(tlocal_sa_all, var_threshold)
-tmask_wo_lowinf = get_mask(tindices_ei, tindices_wo_lowinf)
+assert count == num_parameters
 
-# f) Biosphere
-bindices_wo_lowinf = get_indices_high_variance(blocal_sa, var_threshold)
-bmask_wo_lowinf = get_mask(bindices, bindices_wo_lowinf)
-
-# g) Characterization
-cindices_wo_lowinf = get_indices_high_variance(clocal_sa, var_threshold)
-cmask_wo_lowinf = get_mask(cindices, cindices_wo_lowinf)
-
-assert tmask_wo_lowinf.sum() + bmask_wo_lowinf.sum() + cmask_wo_lowinf.sum() + pmask_wo_lowinf.sum() == num_parameters
-
-print(f"Selected {tmask_wo_lowinf.sum()} tech, {bmask_wo_lowinf.sum()} bio, {cmask_wo_lowinf.sum()} cf exchanges, "
-      f"and {pmask_wo_lowinf.sum()} parameters")
-
-
-# 2.5 --> Validation of results
+# 2.5 --> Validation of results after local SA
 viterations = 20
 vseed = 22222000
 

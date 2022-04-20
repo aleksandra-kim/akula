@@ -35,7 +35,7 @@ if __name__ == "__main__":
 
     bd.projects.set_current("GSA for archetypes")
     iterations = 2000
-    write_figs = Path("write_files/paper3")
+    write_figs = Path("/Users/akim/PycharmProjects/akula/dev/write_files/paper3")
 
     lookup_cache = get_lookup_cache()
 
@@ -240,6 +240,6 @@ if __name__ == "__main__":
             plot_bgcolor="rgba(255,255,255,1)",
         )
 
-        # fig.write_image(write_figs / f"{p}_id{id_}_{activity['name'][:40]}_{activity['location'][:3]}.eps")
+        fig.write_image(write_figs / f"{p}_id{id_}_{activity['name'][:40]}_{activity['location'][:3]}.pdf")
 
         fig.show()
