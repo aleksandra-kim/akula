@@ -10,11 +10,11 @@ from gsa_framework.visualization.plotting import plot_histogram_Y1_Y2, plot_corr
 from akula.markets import DATA_DIR
 
 
-# option = "implicit-markets"
+option = "implicit-markets"
 # option = "generic-markets"
 # option = "liquid-fuels-kilogram"
 # option = "ecoinvent-parameterization"
-option = "entso-timeseries"
+# option = "entso-timeseries"
 
 if __name__ == "__main__":
     project = "GSA for archetypes"
@@ -129,5 +129,5 @@ if __name__ == "__main__":
         ),
         # margin=dict(t=100, b=10, l=10, r=0),
     )
-    fig.write_image(write_figs / f"mc.{option}.{iterations}.{seed}.pdf")
-    # fig.show()
+    # fig.write_image(write_figs / f"mc.{option}.{iterations}.{seed}.pdf")
+    fig.show()

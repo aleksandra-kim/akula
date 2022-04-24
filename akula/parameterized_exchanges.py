@@ -555,13 +555,13 @@ if __name__ == "__main__":
     print("Importing ecoinvent to get exchange parameterization data")
     ei_raw_data = get_ecoinvent_raw_data(FILEPATH)
 
-    # print("Generating local SA datapackage")
-    generate_local_sa_datapackage(ei_raw_data, const_factor=10.0)
-    # generate_local_sa_datapackage(ei_raw_data, const_factor=0.1)
+    # print("Generating parameterized values")
+    # td, bd = get_parameterized_values(ei_raw_data, num_samples=SAMPLES)
+    # print("Writing datapackage")
+    # generate_parameterized_exchanges_datapackage(td, bd)
 
-    print("Generating parameterized values")
-    td, bd = get_parameterized_values(ei_raw_data, num_samples=SAMPLES)
-    print("Writing datapackage")
-    generate_parameterized_exchanges_datapackage(td, bd)
+    print("Generating local SA datapackage")
+    generate_local_sa_datapackage(ei_raw_data, const_factor=10.0)
+    generate_local_sa_datapackage(ei_raw_data, const_factor=0.1)
 
     print("")

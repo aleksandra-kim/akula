@@ -360,12 +360,13 @@ def generate_validation_datapackage(mask_tech, mask_bio, num_samples=SAMPLES):
 
 
 if __name__ == "__main__":
-    # generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0)
-    # generate_liquid_fuels_combustion_local_sa_samples(const_factor=0.1)
-    # generate_liquid_fuels_combustion_correlated_samples(SAMPLES)
+    generate_liquid_fuels_combustion_correlated_samples(SAMPLES)
 
-    tmask = np.random.choice([True, False], size=1403, p=[0.1, 0.9])
-    bmask = np.random.choice([True, False], size=407, p=[0.1, 0.9])
-    dps, dpd = generate_validation_datapackage(tmask, bmask, SAMPLES)
+    generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0)
+    generate_liquid_fuels_combustion_local_sa_samples(const_factor=0.1)
+
+    # tmask = np.random.choice([True, False], size=1403, p=[0.1, 0.9])
+    # bmask = np.random.choice([True, False], size=407, p=[0.1, 0.9])
+    # dps, dpd = generate_validation_datapackage(tmask, bmask, SAMPLES)
 
     print("")
