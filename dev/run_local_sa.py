@@ -17,8 +17,9 @@ from akula.sensitivity_analysis.remove_non_influential import (
     get_variance_threshold, add_variances, get_indices_high_variance
 )
 from akula.parameterized_exchanges import get_parameters, get_lookup_cache, PARAMS_DTYPE
-from akula.markets import DATA_DIR, generate_validation_datapackages
 from akula.utils import pop_indices_from_dict
+from akula.markets import DATA_DIR
+
 
 if __name__ == "__main__":
 
@@ -305,24 +306,44 @@ if __name__ == "__main__":
     tlocal_sa_all = {**tlocal_sa, **mlocal_sa, **flocal_sa, **elocal_sa}
     assert len(tlocal_sa) + len(mlocal_sa) + len(flocal_sa) + len(elocal_sa) == len(tlocal_sa_all)
 
-    num_parameters = 2000
+    num_parameters = 50000
     local_sa_list = [tlocal_sa_all, blocal_sa, clocal_sa, plocal_sa]
     var_threshold = get_variance_threshold(local_sa_list, num_parameters)
 
     datapackages.update(
         {
-            "technosphere": {"local_sa": tlocal_sa},
-            "biosphere": {"local_sa": blocal_sa},
-            "characterization": {"local_sa": clocal_sa},
-            "implicit-markets": {"local_sa": mlocal_sa},
-            "ecoinvent-parameterization": {"local_sa": plocal_sa},
-            "liquid-fuels-kilogram": {"local_sa": flocal_sa},
-            "entso-average": {"local_sa": elocal_sa},
+            "technosphere": {
+                "local_sa": tlocal_sa,
+                "indices": tindices_ei,
+            },
+            "biosphere": {
+                "local_sa": blocal_sa,
+                "indices": bindices,
+            },
+            "characterization": {
+                "local_sa": clocal_sa,
+                "indices": cindices
+            },
+            "implicit-markets": {
+                "local_sa": mlocal_sa,
+                "indices": mindices,
+            },
+            "ecoinvent-parameterization": {
+                "local_sa": plocal_sa,
+                "indices": pindices_params,
+            },
+            "liquid-fuels-kilogram": {
+                "local_sa": flocal_sa,
+                "indices": np.array(list(flocal_sa), dtype=bwp.INDICES_DTYPE)
+            },
+            "entso-average": {
+                "local_sa": elocal_sa,
+                "indices": np.array(list(elocal_sa), dtype=bwp.INDICES_DTYPE)
+            },
         }
     )
 
     # 2.4.3 Construct masks for all inputs after local SA
-    inds = []
     count = 0
     print(f"Selected {num_parameters} exchanges after local SA:")
     for name, data in datapackages.items():
@@ -332,37 +353,63 @@ if __name__ == "__main__":
         else:
             dtype = PARAMS_DTYPE
             is_params = True
-        local_sa = data['local_sa']
-        indices = np.array(list(local_sa), dtype=dtype)
-        indices_wo_lowinf = get_indices_high_variance(local_sa, var_threshold)
-        mask_wo_lowinf = get_mask(indices, indices_wo_lowinf, is_params)
+        indices_wo_lowinf = get_indices_high_variance(data['local_sa'], var_threshold)
+        mask_wo_lowinf = get_mask(data["indices"], indices_wo_lowinf, is_params)
+        data['indices_wo_lowinf'] = indices_wo_lowinf
         data['mask_wo_lowinf'] = mask_wo_lowinf
         print(f"    {mask_wo_lowinf.sum():5d} from {name}")
         count += mask_wo_lowinf.sum()
-        if "parameterization" not in name:
-            inds.append(np.array(indices_wo_lowinf, dtype=bwp.INDICES_DTYPE))
-            data['indices_wo_lowinf'] = np.array(indices_wo_lowinf, dtype=bwp.INDICES_DTYPE)
 
-    assert count == num_parameters
+    assert count <= num_parameters
 
     # 2.5 --> Validation of results after local SA
 
     viterations = 20
     vseed = 22222000
 
-    # 2.5.1 Markets
-    mname = "implicit-markets"
-    mmask = datapackages[mname]["mask_wo_lowinf"]
+    # 2.5.1 Technosphere
+    from akula.background import generate_validation_datapackages
+    tname = "technosphere"
+    tmask = datapackages[tname]["mask_wo_lowinf"]
+    tdp_vall, tdp_vinf = generate_validation_datapackages(
+        tname, tindices_ei, tmask, num_samples=viterations, seed=vseed
+    )
+    datapackages[tname]['local_sa.validation_all'] = tdp_vall
+    datapackages[tname]['local_sa.validation_inf'] = tdp_vinf
 
-    # mmask = np.ones(517, dtype=bool)
-    im_indices = np.array(list(mlocal_sa), dtype=bwp.INDICES_DTYPE)
-    mdp_vall, mdp_vinf = generate_validation_datapackages(im_indices, mmask, num_samples=viterations, seed=vseed)
+    # 2.5.2 Biosphere
+    bname = "biosphere"
+    bmask = datapackages[bname]["mask_wo_lowinf"]
+    bdp_vall, bdp_vinf = generate_validation_datapackages(
+        bname, bindices, bmask, num_samples=viterations, seed=vseed
+    )
+    # bdp_vall.metadata.update(dict(sum_intra_duplicates=False))
+    # bdp_vinf.metadata.update(dict(sum_intra_duplicates=False))
+    bdp_vall.metadata.update(dict(sequential=True))
+    bdp_vinf.metadata.update(dict(sequential=True))
+    datapackages[bname]['local_sa.validation_all'] = bdp_vall
+    datapackages[bname]['local_sa.validation_inf'] = bdp_vinf
 
-    datapackages[mname]['local_sa.validation_all'] = mdp_vall
-    datapackages[mname]['local_sa.validation_inf'] = mdp_vinf
+    # 2.5.3 Characterization
+    cname = "characterization"
+    cmask = datapackages[cname]["mask_wo_lowinf"]
+    cdp_vall, cdp_vinf = generate_validation_datapackages(
+        cname, cindices, cmask, num_samples=viterations, seed=vseed
+    )
+    datapackages[cname]['local_sa.validation_all'] = cdp_vall
+    datapackages[cname]['local_sa.validation_inf'] = cdp_vinf
+
+    # 2.5.4 Markets
+    # from akula.markets import generate_validation_datapackages
+    # mname = "implicit-markets"
+    # mmask = datapackages[mname]["mask_wo_lowinf"]
+    # im_indices = np.array(list(mlocal_sa), dtype=bwp.INDICES_DTYPE)
+    # mdp_vall, mdp_vinf = generate_validation_datapackages(im_indices, mmask, num_samples=viterations, seed=vseed)
+    # datapackages[mname]['local_sa.validation_all'] = mdp_vall
+    # datapackages[mname]['local_sa.validation_inf'] = mdp_vinf
 
     # 2.6 MC simulations to check validation modules
-    option = "implicit-markets"
+    option = cname
 
     # 2.6.1 All inputs vary
     print("computing all scores")
@@ -371,6 +418,7 @@ if __name__ == "__main__":
         data_objs=pkgs + [datapackages[option]["local_sa.validation_all"]],
         use_distributions=False,
         use_arrays=True,
+        seed_override=vseed,
     )
     lca_all.lci()
     lca_all.lcia()
@@ -383,6 +431,7 @@ if __name__ == "__main__":
         data_objs=pkgs + [datapackages[option]["local_sa.validation_inf"]],
         use_distributions=False,
         use_arrays=True,
+        seed_override=vseed,
     )
     lca_inf.lci()
     lca_inf.lcia()
@@ -399,14 +448,12 @@ if __name__ == "__main__":
     )
     fig.show()
 
-
     fp_monte_carlo = write_dir
     write_figs = Path("/Users/akim/PycharmProjects/akula/dev/write_files/paper3")
 
     # Run when everything varies
     fps = ["implicit-markets.zip", "liquid-fuels-kilogram.zip",  "ecoinvent-parameterization.zip", "entso-timeseries.zip"]
     dps = [bwp.load_datapackage(ZipFS(fp)) for fp in fps]
-
 
     fp_option = DATA_DIR / f"{option}.zip"
 

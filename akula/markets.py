@@ -11,9 +11,8 @@ from thefuzz import fuzz
 from tqdm import tqdm
 from sklearn.linear_model import LinearRegression
 from gsa_framework.utils import read_pickle, write_pickle
-from bw_processing.merging import merge_datapackages_with_mask
 
-from utils import setup_bw_project, get_activities_from_indices, create_static_datapackage
+from utils import setup_bw_project, get_activities_from_indices
 
 DATA_DIR = Path(__file__).parent.resolve() / "data"
 SAMPLES = 25000
@@ -408,7 +407,7 @@ def create_validation_all_datapackage(name, dp_varying, mask, num_samples=SAMPLE
     dp_all = bwp.create_datapackage(
         fs=ZipFS(str(DATA_DIR / f"{name}.zip"), write=True),
         name=name,
-        seed=42,
+        seed=seed,
     )
     dp_all.add_persistent_array(
         matrix="technosphere_matrix",
