@@ -1,6 +1,8 @@
 import bw2data as bd
 import bw2calc as bc
 import bw_processing as bwp
+from copy import deepcopy
+
 
 from sensitivity_analysis import get_mask
 

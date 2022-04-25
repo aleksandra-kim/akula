@@ -19,6 +19,7 @@ from akula.sensitivity_analysis.remove_non_influential import (
 from akula.parameterized_exchanges import get_parameters, get_lookup_cache, PARAMS_DTYPE
 from akula.utils import pop_indices_from_dict
 from akula.markets import DATA_DIR
+from akula.background import get_lca_score_shift
 
 
 if __name__ == "__main__":
@@ -377,7 +378,7 @@ if __name__ == "__main__":
     datapackages[tname]['local_sa.validation_all'] = tdp_vall
     datapackages[tname]['local_sa.validation_inf'] = tdp_vinf
 
-    # 2.5.2 Biosphere
+    # # 2.5.2 Biosphere
     bname = "biosphere"
     bmask = datapackages[bname]["mask_wo_lowinf"]
     bdp_vall, bdp_vinf = generate_validation_datapackages(
@@ -385,19 +386,19 @@ if __name__ == "__main__":
     )
     # bdp_vall.metadata.update(dict(sum_intra_duplicates=False))
     # bdp_vinf.metadata.update(dict(sum_intra_duplicates=False))
-    bdp_vall.metadata.update(dict(sequential=True))
-    bdp_vinf.metadata.update(dict(sequential=True))
+    # bdp_vall.metadata.update(dict(sequential=True))
+    # bdp_vinf.metadata.update(dict(sequential=True))
     datapackages[bname]['local_sa.validation_all'] = bdp_vall
     datapackages[bname]['local_sa.validation_inf'] = bdp_vinf
-
-    # 2.5.3 Characterization
-    cname = "characterization"
-    cmask = datapackages[cname]["mask_wo_lowinf"]
-    cdp_vall, cdp_vinf = generate_validation_datapackages(
-        cname, cindices, cmask, num_samples=viterations, seed=vseed
-    )
-    datapackages[cname]['local_sa.validation_all'] = cdp_vall
-    datapackages[cname]['local_sa.validation_inf'] = cdp_vinf
+    #
+    # # 2.5.3 Characterization
+    # cname = "characterization"
+    # cmask = datapackages[cname]["mask_wo_lowinf"]
+    # cdp_vall, cdp_vinf = generate_validation_datapackages(
+    #     cname, cindices, cmask, num_samples=viterations, seed=vseed
+    # )
+    # datapackages[cname]['local_sa.validation_all'] = cdp_vall
+    # datapackages[cname]['local_sa.validation_inf'] = cdp_vinf
 
     # 2.5.4 Markets
     # from akula.markets import generate_validation_datapackages
@@ -409,7 +410,7 @@ if __name__ == "__main__":
     # datapackages[mname]['local_sa.validation_inf'] = mdp_vinf
 
     # 2.6 MC simulations to check validation modules
-    option = cname
+    option = bname
 
     # 2.6.1 All inputs vary
     print("computing all scores")
@@ -426,6 +427,11 @@ if __name__ == "__main__":
 
     # 2.6.1 Only influential inputs vary
     print("computing inf scores")
+    masks_dict = {
+        option: datapackages[option]["mask_wo_lowinf"],
+    }
+    offset = get_lca_score_shift(masks_dict)
+
     lca_inf = bc.LCA(
         fu_mapped,
         data_objs=pkgs + [datapackages[option]["local_sa.validation_inf"]],
@@ -435,7 +441,7 @@ if __name__ == "__main__":
     )
     lca_inf.lci()
     lca_inf.lcia()
-    scores_inf = [lca_inf.score for _, _ in zip(lca_inf, range(viterations))]
+    scores_inf = [lca_inf.score + offset for _, _ in zip(lca_inf, range(viterations))]
 
     Y1 = np.array(scores_all)
     Y2 = np.array(scores_inf)
