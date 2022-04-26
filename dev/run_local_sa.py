@@ -27,8 +27,8 @@ if __name__ == "__main__":
     project = 'GSA for archetypes'
     bd.projects.set_current(project)
     const_factor = 10
-    ctff = 1e-6  # Cutoff for contribution analysis
-    mclc = 1e16  # Maximum number of computations for supply chain traversal
+    ctff = 1e-8  # Cutoff for contribution analysis
+    mclc = 1e18  # Maximum number of computations for supply chain traversal
 
 
     # Setups
@@ -119,20 +119,20 @@ if __name__ == "__main__":
 
     const_factors = [1/const_factor, const_factor]
     # 2.1.1 Ecoinvent
-    fp_tlocal_sa = write_dir / f"local_sa.tech.cutoff_{ctff:.0e}.maxcalc_{mclc:.0e}.pickle"
-    if fp_tlocal_sa.exists():
-        tlocal_sa = read_pickle(fp_tlocal_sa)
-    else:
-        tlocal_sa = run_local_sa_technosphere(
-            fu_mapped,
-            pkgs,
-            tdistributions_ei,
-            tmask_wo_noninf,
-            const_factors,
-            write_dir,
-            f"tech.cutoff_{ctff:.0e}.maxcalc_{mclc:.0e}",
-        )
-        write_pickle(tlocal_sa, fp_tlocal_sa)
+    # fp_tlocal_sa = write_dir / f"local_sa.tech.cutoff_{ctff:.0e}.maxcalc_{mclc:.0e}.pickle"
+    # if fp_tlocal_sa.exists():
+    #     tlocal_sa = read_pickle(fp_tlocal_sa)
+    # else:
+    #     tlocal_sa = run_local_sa_technosphere(
+    #         fu_mapped,
+    #         pkgs,
+    #         tdistributions_ei,
+    #         tmask_wo_noninf,
+    #         const_factors,
+    #         write_dir,
+    #         f"tech.cutoff_{ctff:.0e}.maxcalc_{mclc:.0e}",
+    #     )
+    #     write_pickle(tlocal_sa, fp_tlocal_sa)
 
     # 2.1.2 Implicit markets, 13586 exchanges
     dp_name = "implicit-markets"
@@ -220,8 +220,7 @@ if __name__ == "__main__":
         )
         write_pickle(elocal_sa, fp_elocal_sa)
 
-
-    # --> 2.2.1 Biosphere, 12480 exchanges
+    # --> 2.2.1 Biosphere, 12'400 exchanges
     fp_blocal_sa = write_dir / f"local_sa.bio.pickle"
     if fp_blocal_sa.exists():
         blocal_sa = read_pickle(fp_blocal_sa)
@@ -287,34 +286,35 @@ if __name__ == "__main__":
             if type_ == "local_sa":
                 continue
             indices = dp.get_resource(f'{rg_name}.indices')[0]
-            if type_ == "tech":
-                pop_indices_from_dict(indices, tlocal_sa)
-            elif type_ == "bio":
-                pop_indices_from_dict(indices, blocal_sa)
+            # if type_ == "tech":
+            #     pop_indices_from_dict(indices, tlocal_sa)
+            # elif type_ == "bio":
+            #     pop_indices_from_dict(indices, blocal_sa)
 
     # 2.4.2 Determine variance threshold
-    local_sa_list = [
-        tlocal_sa,
-        blocal_sa,
-        clocal_sa,
-        mlocal_sa,
-        plocal_sa,
-        flocal_sa,
-        elocal_sa,
-    ]
+    # local_sa_list = [
+    #     tlocal_sa,
+    #     blocal_sa,
+    #     clocal_sa,
+    #     mlocal_sa,
+    #     plocal_sa,
+    #     flocal_sa,
+    #     elocal_sa,
+    # ]
+    #
+    # add_variances(local_sa_list, static_score)
+    # tlocal_sa_all = {**tlocal_sa, **mlocal_sa, **flocal_sa, **elocal_sa}
+    # assert len(tlocal_sa) + len(mlocal_sa) + len(flocal_sa) + len(elocal_sa) == len(tlocal_sa_all)
 
-    add_variances(local_sa_list, static_score)
-    tlocal_sa_all = {**tlocal_sa, **mlocal_sa, **flocal_sa, **elocal_sa}
-    assert len(tlocal_sa) + len(mlocal_sa) + len(flocal_sa) + len(elocal_sa) == len(tlocal_sa_all)
-
-    num_parameters = 50000
-    local_sa_list = [tlocal_sa_all, blocal_sa, clocal_sa, plocal_sa]
-    var_threshold = get_variance_threshold(local_sa_list, num_parameters)
+    num_parameters = 90000
+    # local_sa_list = [tlocal_sa_all, blocal_sa, clocal_sa, plocal_sa]
+    # var_threshold = get_variance_threshold(local_sa_list, num_parameters)
+    var_threshold = 1e-10
 
     datapackages.update(
         {
             "technosphere": {
-                "local_sa": tlocal_sa,
+                "local_sa": None,  # tlocal_sa, TODO change this back
                 "indices": tindices_ei,
             },
             "biosphere": {
@@ -361,7 +361,7 @@ if __name__ == "__main__":
         print(f"    {mask_wo_lowinf.sum():5d} from {name}")
         count += mask_wo_lowinf.sum()
 
-    assert count <= num_parameters
+    # assert count <= num_parameters
 
     # 2.5 --> Validation of results after local SA
 
@@ -373,7 +373,7 @@ if __name__ == "__main__":
     tname = "technosphere"
     tmask = datapackages[tname]["mask_wo_lowinf"]
     tdp_vall, tdp_vinf = generate_validation_datapackages(
-        tname, tindices_ei, tmask, num_samples=viterations, seed=vseed
+        tname, tindices_ei, tmask_wo_noninf, num_samples=viterations, seed=vseed
     )
     datapackages[tname]['local_sa.validation_all'] = tdp_vall
     datapackages[tname]['local_sa.validation_inf'] = tdp_vinf
@@ -392,13 +392,13 @@ if __name__ == "__main__":
     datapackages[bname]['local_sa.validation_inf'] = bdp_vinf
     #
     # # 2.5.3 Characterization
-    # cname = "characterization"
-    # cmask = datapackages[cname]["mask_wo_lowinf"]
-    # cdp_vall, cdp_vinf = generate_validation_datapackages(
-    #     cname, cindices, cmask, num_samples=viterations, seed=vseed
-    # )
-    # datapackages[cname]['local_sa.validation_all'] = cdp_vall
-    # datapackages[cname]['local_sa.validation_inf'] = cdp_vinf
+    cname = "characterization"
+    cmask = datapackages[cname]["mask_wo_lowinf"]
+    cdp_vall, cdp_vinf = generate_validation_datapackages(
+        cname, cindices, cmask, num_samples=viterations, seed=vseed
+    )
+    datapackages[cname]['local_sa.validation_all'] = cdp_vall
+    datapackages[cname]['local_sa.validation_inf'] = cdp_vinf
 
     # 2.5.4 Markets
     # from akula.markets import generate_validation_datapackages
@@ -410,7 +410,7 @@ if __name__ == "__main__":
     # datapackages[mname]['local_sa.validation_inf'] = mdp_vinf
 
     # 2.6 MC simulations to check validation modules
-    option = bname
+    option = tname
 
     # 2.6.1 All inputs vary
     print("computing all scores")
@@ -427,11 +427,6 @@ if __name__ == "__main__":
 
     # 2.6.1 Only influential inputs vary
     print("computing inf scores")
-    masks_dict = {
-        option: datapackages[option]["mask_wo_lowinf"],
-    }
-    offset = get_lca_score_shift(masks_dict)
-
     lca_inf = bc.LCA(
         fu_mapped,
         data_objs=pkgs + [datapackages[option]["local_sa.validation_inf"]],
@@ -441,16 +436,26 @@ if __name__ == "__main__":
     )
     lca_inf.lci()
     lca_inf.lcia()
-    scores_inf = [lca_inf.score + offset for _, _ in zip(lca_inf, range(viterations))]
+    scores_inf = [lca_inf.score for _, _ in zip(lca_inf, range(viterations))]
+
+    masks_dict = {
+        # option: datapackages[option]["mask_wo_lowinf"],
+        option: tmask_wo_noninf,
+    }
+    offset = get_lca_score_shift(masks_dict)
+    print(offset)
+    offset = 0
 
     Y1 = np.array(scores_all)
-    Y2 = np.array(scores_inf)
+    Y2 = np.array(scores_inf) + offset
 
     fig = plot_correlation_Y1_Y2(
         Y1,
         Y2,
         start=0,
         end=50,
+        trace_name1="All vary",
+        trace_name2="Only inf vary"
     )
     fig.show()
 

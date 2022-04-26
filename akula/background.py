@@ -97,6 +97,10 @@ def create_background_datapackage(matrix_type, name, indices, num_samples=SAMPLE
             name=name,
             indices_array=indices_array,
         )
+    [
+        d.update({"global_index": 1}) for d in dp.metadata['resources']
+        if d['matrix'] == "characterization_matrix"
+    ]  # TODO Chris, is this correct?
     return dp
 
 
@@ -140,7 +144,7 @@ def generate_validation_datapackages(matrix_type, indices, mask, num_samples=SAM
     )
 
     data_array = deepcopy(dp_validation_all.data[1])
-    data_array[mask] = np.tile(dp_static.data[1][mask], (num_samples,  1)).T
+    data_array[~mask] = np.tile(dp_static.data[1][~mask], (num_samples,  1)).T
 
     if matrix_type == "technosphere":
         flip_array = dp_validation_all.data[2]
@@ -161,10 +165,10 @@ def generate_validation_datapackages(matrix_type, indices, mask, num_samples=SAM
             indices_array=indices_array,
         )
 
-    [
-        d.update({"global_index": 1}) for d in dp_validation_all.metadata['resources']
-        if d['matrix'] == "characterization_matrix"
-    ]  # TODO Chris, is this correct?
+    # [
+    #     d.update({"global_index": 1}) for d in dp_validation_all.metadata['resources']
+    #     if d['matrix'] == "characterization_matrix"
+    # ]  # TODO Chris, is this correct?
     [
         d.update({"global_index": 1}) for d in dp_validation_inf.metadata['resources']
         if d['matrix'] == "characterization_matrix"
@@ -238,16 +242,14 @@ def get_amounts_shift(lca, shift_median=True):
         amounts = deepcopy(group.package.data[1])
         if shift_median:
             amounts[lognormal_where] = lognormal_median
-            amounts[normal_where] = normal_median
-            amounts[uniform_where] = uniform_median
+            # amounts[normal_where] = normal_median
+            # amounts[uniform_where] = uniform_median
             amounts[triangular_where] = triangular_median
         else:
             amounts[lognormal_where] = lognormal_mean
-            amounts[normal_where] = normal_mean
-            amounts[uniform_where] = uniform_mean
+            # amounts[normal_where] = normal_mean
+            # amounts[uniform_where] = uniform_mean
             amounts[triangular_where] = triangular_mean
-        # amounts = np.sign(params["loc"]) * np.abs(amounts)
-        # assert np.all(np.sign(params["loc"]) == np.sign(amounts))
 
         dict_[matrix_type] = amounts
 
@@ -293,11 +295,15 @@ def get_lca_score_shift(masks_dict):
                 indices_array=group.package.data[0],
             )
 
+    [
+        d.update({"global_index": 1}) for d in dp.metadata['resources']
+        if d['matrix'] == "characterization_matrix"
+    ]  # TODO Chris, is this correct?
+
     lca2 = bc.LCA(
         demand=lca.demand, data_objs=lca.packages + [dp], use_distributions=False,
     )
     lca2.lci()
     lca2.lcia()
-    print(lca2.score)
 
     return static_score - lca2.score
