@@ -36,8 +36,8 @@ dirichlet_scales = {
     8310: 21.75257995687919,   # high voltage
 }
 
-plot_lognormal = True
-plot_dirichlet = True
+plot_lognormal = False
+plot_dirichlet = False
 plot_zoomed = False
 
 dirichlet_scales = {
@@ -60,6 +60,7 @@ if __name__ == "__main__":
     ei = bd.Database("ecoinvent 3.8 cutoff")
     # dk = [act for act in ei if 'market for electricity' in act['name'] and 'DK' in act['location']]
     cols = [6555, 15739, 8310]
+    cols = [8310]
 
     titles_dict = {
         'electricity production, photovoltaic, 3kWp slanted-roof installation, single-Si, panel, mounted':
@@ -123,8 +124,8 @@ if __name__ == "__main__":
             size=iterations,
             )
 
-        titles = [bd.get_activity(int(row))['name'] for row in use_rows]
-        titles_str = [titles_dict.get(t, t) for t in titles]
+        titles = [bd.get_activity(int(row)) for row in use_rows]
+        titles_str = [f"{titles_dict.get(t['name'], t['name'])}, {t['location']}" for t in titles]
 
         fig = make_subplots(
             rows=len(use_rows) // num_cols + 1, cols=min(num_cols, len(use_rows)),

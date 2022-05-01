@@ -141,6 +141,7 @@ def generate_validation_datapackages(matrix_type, indices, mask, num_samples=SAM
         fs=ZipFS(str(DATA_DIR / f"{name_inf}.zip"), write=True),
         name=name_inf,
         seed=seed,
+        sequential=True,
     )
 
     data_array = deepcopy(dp_validation_all.data[1])
@@ -256,13 +257,13 @@ def get_amounts_shift(lca, shift_median=True):
     return dict_
 
 
-def get_lca_score_shift(masks_dict):
+def get_lca_score_shift(masks_dict, shift_median=True):
 
     lca = create_lca(use_distributions=False)
 
     static_score = deepcopy(lca.score)
 
-    modified_amounts = get_amounts_shift(lca)
+    modified_amounts = get_amounts_shift(lca, shift_median)
 
     dp = bwp.create_datapackage()
 
@@ -306,4 +307,4 @@ def get_lca_score_shift(masks_dict):
     lca2.lci()
     lca2.lcia()
 
-    return static_score - lca2.score
+    return lca2.score - static_score

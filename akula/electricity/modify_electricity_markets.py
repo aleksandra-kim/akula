@@ -28,6 +28,7 @@ def replace_ei_with_entso():
         if len(exchange) == 1:
             exchange = exchange[0]
             exchange['amount'] = data[i]
+            exchange['loc'] = data[i]
             exchange.save()
             activity.save()
 
