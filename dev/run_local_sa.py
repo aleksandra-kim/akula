@@ -6,8 +6,7 @@ import bw2calc as bc
 import bw_processing as bwp
 from copy import deepcopy
 from gsa_framework.utils import read_pickle, write_pickle
-from gsa_framework.visualization.plotting import plot_correlation_Y1_Y2, plot_histogram_Y1_Y2
-import plotly.graph_objects as go
+from gsa_framework.visualization.plotting import plot_correlation_Y1_Y2
 
 # Local files
 from akula.sensitivity_analysis.local_sensitivity_analysis import (
@@ -28,9 +27,8 @@ if __name__ == "__main__":
     project = 'GSA for archetypes'
     bd.projects.set_current(project)
     const_factor = 10
-    ctff = 1e-6  # Cutoff for contribution analysis
-    mclc = 1e16   # Maximum number of computations for supply chain traversal
-
+    ctff = 1e-9  # Cutoff for contribution analysis
+    mclc = 1e20   # Maximum number of computations for supply chain traversal
 
     # Setups
     ########
@@ -42,7 +40,7 @@ if __name__ == "__main__":
     # fu = {act: 1/3 for act in ei if "market group for electricity" in act['name'] and "RER" in act['location']}
 
     write_dir = Path("write_files") / project.lower().replace(" ", "_") \
-                / fu['name'].lower().replace(" ", "_").replace(",", "")
+        / fu['name'].lower().replace(" ", "_").replace(",", "")
     # write_dir = Path("write_files") / project.lower().replace(" ", "_") / "eu_electricity"
     write_dir_sct = write_dir / "supply_chain_traversal"
     write_dir_sct.mkdir(exist_ok=True, parents=True)
@@ -80,7 +78,6 @@ if __name__ == "__main__":
     cdata = cf.get_resource('IPCC_2013_climate_change_GWP_100a_uncertain_matrix_data.data')[0]
     cdistributions = cf.get_resource('IPCC_2013_climate_change_GWP_100a_uncertain_matrix_data.distributions')[0]
 
-
     # STEP 1: Remove non influential with contribution analysis
     ############################################################
 
@@ -116,7 +113,6 @@ if __name__ == "__main__":
     else:
         cmask_wo_noninf = get_mask(cindices, cindices_wo_noninf)
         write_pickle(cmask_wo_noninf, fp_cmask_wo_noninf)
-
 
     # STEP 2: Run local SA
     ######################
@@ -160,22 +156,22 @@ if __name__ == "__main__":
         )
         write_pickle(mlocal_sa, fp_mlocal_sa)
 
-    # 2.1.3 Combustion, 1403 iterations
-    dp_name = "liquid-fuels-kilogram"
-    fp_flocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
-    if fp_flocal_sa.exists():
-        flocal_sa = read_pickle(fp_flocal_sa)
-    else:
-        flocal_sa = run_local_sa_from_samples_technosphere(
-            dp_name,
-            fu_mapped,
-            pkgs,
-            const_factors,
-            None,
-            write_dir,
-        )
-        write_pickle(flocal_sa, fp_flocal_sa)
-
+    # # 2.1.3 Combustion, 1403 iterations
+    # dp_name = "liquid-fuels-kilogram"
+    # fp_flocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
+    # if fp_flocal_sa.exists():
+    #     flocal_sa = read_pickle(fp_flocal_sa)
+    # else:
+    #     flocal_sa = run_local_sa_from_samples_technosphere(
+    #         dp_name,
+    #         fu_mapped,
+    #         pkgs,
+    #         const_factors,
+    #         None,
+    #         write_dir,
+    #     )
+    #     write_pickle(flocal_sa, fp_flocal_sa)
+    #
     # 2.1.4, 2.2.2 Parameterization for tech and bio exchanges, 821 parameters
     dp_name = "ecoinvent-parameterization"
     fp_plocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
@@ -203,28 +199,28 @@ if __name__ == "__main__":
         correction = static_score - pstatic_score
         plocal_sa_corrected = {key: val+correction for key, val in plocal_sa.items()}
         write_pickle(plocal_sa_corrected, fp_plocal_sa)
-
-    # 2.1.5, 821 exchanges (?)
-    dp_name = "entso-average"
-    resource_group = 'average ENTSO electricity values'
-    dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{dp_name}.zip")))
-    eindices = dp.get_resource(f"{resource_group}.indices")[0]
-    emask = get_mask(tindices_ei, eindices)
-
-    fp_elocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
-    if fp_elocal_sa.exists():
-        elocal_sa = read_pickle(fp_elocal_sa)
-    else:
-        elocal_sa = run_local_sa_technosphere(
-            fu_mapped,
-            pkgs,
-            emask,
-            emask,
-            const_factors,
-            write_dir,
-            dp_name.replace("-", "_"),
-        )
-        write_pickle(elocal_sa, fp_elocal_sa)
+    #
+    # # 2.1.5, 821 exchanges (?)
+    # dp_name = "entso-average"
+    # resource_group = 'average ENTSO electricity values'
+    # dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{dp_name}.zip")))
+    # eindices = dp.get_resource(f"{resource_group}.indices")[0]
+    # emask = get_mask(tindices_ei, eindices)
+    #
+    # fp_elocal_sa = write_dir / f"local_sa.{dp_name}.pickle"
+    # if fp_elocal_sa.exists():
+    #     elocal_sa = read_pickle(fp_elocal_sa)
+    # else:
+    #     elocal_sa = run_local_sa_technosphere(
+    #         fu_mapped,
+    #         pkgs,
+    #         emask,
+    #         emask,
+    #         const_factors,
+    #         write_dir,
+    #         dp_name.replace("-", "_"),
+    #     )
+    #     write_pickle(elocal_sa, fp_elocal_sa)
 
     # --> 2.2.1 Biosphere, 12'400 exchanges
     fp_blocal_sa = write_dir / f"local_sa.bio.pickle"
@@ -262,27 +258,26 @@ if __name__ == "__main__":
         )
         write_pickle(clocal_sa, fp_clocal_sa)
 
-
     # 2.4 --> Remove lowly influential based on variance
     datapackages = {
         "implicit-markets": {
             "tech": "implicit-markets",
             "local_sa": mlocal_sa,
         },
-        "liquid-fuels-kilogram": {
-            "tech": "liquid-fuels-tech",
-            "bio": "liquid-fuels-bio",
-            "local_sa": flocal_sa,
-        },
         "ecoinvent-parameterization": {
             "tech": "ecoinvent-parameterization-tech",
             "bio": "ecoinvent-parameterization-bio",
             "local_sa": plocal_sa,
         },
-        "entso-average": {
-            "tech": "average ENTSO electricity values",
-            "local_sa": elocal_sa
-        },
+        # "liquid-fuels-kilogram": {
+        #     "tech": "liquid-fuels-tech",
+        #     "bio": "liquid-fuels-bio",
+        #     "local_sa": flocal_sa,
+        # },
+        # "entso-average": {
+        #     "tech": "average ENTSO electricity values",
+        #     "local_sa": elocal_sa
+        # },
     }
 
     # 2.4.1 Remove tech and bio exchanges that are modified by datapackages
@@ -292,10 +287,10 @@ if __name__ == "__main__":
             if type_ == "local_sa":
                 continue
             indices = dp.get_resource(f'{rg_name}.indices')[0]
-            # if type_ == "tech":  # TODO uncomment!
-            #     pop_indices_from_dict(indices, tlocal_sa)
-            # elif type_ == "bio":
-            #     pop_indices_from_dict(indices, blocal_sa)
+            if type_ == "tech":
+                pop_indices_from_dict(indices, tlocal_sa)
+            elif type_ == "bio":
+                pop_indices_from_dict(indices, blocal_sa)
 
     # 2.4.2 Determine variance threshold
     local_sa_list = [
@@ -304,16 +299,17 @@ if __name__ == "__main__":
         clocal_sa,
         mlocal_sa,
         plocal_sa,
-        flocal_sa,
-        elocal_sa,
+        # flocal_sa,
+        # elocal_sa,
     ]
 
     add_variances(local_sa_list, static_score)
-    tlocal_sa_all = {**tlocal_sa, **mlocal_sa, **flocal_sa, **elocal_sa}
+    # tlocal_sa_all = {**tlocal_sa, **mlocal_sa, **flocal_sa, **elocal_sa}
+    tlocal_sa_all = {**tlocal_sa, **mlocal_sa}  # TODO change!!
     # assert len(tlocal_sa) + len(mlocal_sa) + len(flocal_sa) + len(elocal_sa) == len(tlocal_sa_all)
     #
-    num_parameters = 20000
-    local_sa_list = [tlocal_sa_all, blocal_sa, clocal_sa, plocal_sa]
+    num_parameters = 25000
+    local_sa_list = [tlocal_sa_all, blocal_sa, clocal_sa]
     var_threshold = get_variance_threshold(local_sa_list, num_parameters)
 
     datapackages.update(
@@ -338,14 +334,14 @@ if __name__ == "__main__":
                 "local_sa": plocal_sa,
                 "indices": pindices_params,
             },
-            "liquid-fuels-kilogram": {
-                "local_sa": flocal_sa,
-                "indices": np.array(list(flocal_sa), dtype=bwp.INDICES_DTYPE)
-            },
-            "entso-average": {
-                "local_sa": elocal_sa,
-                "indices": np.array(list(elocal_sa), dtype=bwp.INDICES_DTYPE)
-            },
+            # "liquid-fuels-kilogram": {
+            #     "local_sa": flocal_sa,
+            #     "indices": np.array(list(flocal_sa), dtype=bwp.INDICES_DTYPE)
+            # },
+            # "entso-average": {
+            #     "local_sa": elocal_sa,
+            #     "indices": np.array(list(elocal_sa), dtype=bwp.INDICES_DTYPE)
+            # },
         }
     )
 
@@ -361,7 +357,7 @@ if __name__ == "__main__":
             is_params = True
         indices_wo_lowinf = get_indices_high_variance(data['local_sa'], var_threshold)
         mask_wo_lowinf = get_mask(data["indices"], indices_wo_lowinf, is_params)
-        data['indices_wo_lowinf'] = indices_wo_lowinf
+        data['indices_wo_lowinf'] = np.array(indices_wo_lowinf, dtype=dtype)
         data['mask_wo_lowinf'] = mask_wo_lowinf
         print(f"    {mask_wo_lowinf.sum():5d} from {name}")
         count += mask_wo_lowinf.sum()
@@ -373,51 +369,59 @@ if __name__ == "__main__":
     viterations = 30
     vseed = 22222000
 
-    # 2.5.1 Technosphere
-    from akula.background import generate_validation_datapackages
-    tname = "technosphere"
-    tmask = datapackages[tname]["mask_wo_lowinf"]
-    tdp_vall, tdp_vinf = generate_validation_datapackages(
-        tname, tindices_ei, tmask, num_samples=viterations, seed=vseed
-    )
-    datapackages[tname]['local_sa.validation_all'] = tdp_vall
-    datapackages[tname]['local_sa.validation_inf'] = tdp_vinf
-
-    # 2.5.2 Biosphere
-    bname = "biosphere"
-    bmask = datapackages[bname]["mask_wo_lowinf"]
-    bdp_vall, bdp_vinf = generate_validation_datapackages(
-        bname, bindices, bmask, num_samples=viterations, seed=vseed
-    )
-    datapackages[bname]['local_sa.validation_all'] = bdp_vall
-    datapackages[bname]['local_sa.validation_inf'] = bdp_vinf
+    # # 2.5.1 Technosphere
+    # from akula.background import generate_validation_datapackages
+    # tname = "technosphere"
+    # tmask = datapackages[tname]["mask_wo_lowinf"]
+    # tdp_vall, tdp_vinf = generate_validation_datapackages(
+    #     tname, tindices_ei, tmask, num_samples=viterations, seed=vseed
+    # )
+    # datapackages[tname]['local_sa.validation_all'] = tdp_vall
+    # datapackages[tname]['local_sa.validation_inf'] = tdp_vinf
     #
-    # # 2.5.3 Characterization
-    cname = "characterization"
-    cmask = datapackages[cname]["mask_wo_lowinf"]
-    cdp_vall, cdp_vinf = generate_validation_datapackages(
-        cname, cindices, cmask, num_samples=viterations, seed=vseed
-    )
-    datapackages[cname]['local_sa.validation_all'] = cdp_vall
-    datapackages[cname]['local_sa.validation_inf'] = cdp_vinf
+    # # 2.5.2 Biosphere
+    # bname = "biosphere"
+    # bmask = datapackages[bname]["mask_wo_lowinf"]
+    # bdp_vall, bdp_vinf = generate_validation_datapackages(
+    #     bname, bindices, bmask, num_samples=viterations, seed=vseed
+    # )
+    # datapackages[bname]['local_sa.validation_all'] = bdp_vall
+    # datapackages[bname]['local_sa.validation_inf'] = bdp_vinf
+    # #
+    # # # 2.5.3 Characterization
+    # cname = "characterization"
+    # cmask = datapackages[cname]["mask_wo_lowinf"]
+    # cdp_vall, cdp_vinf = generate_validation_datapackages(
+    #     cname, cindices, cmask, num_samples=viterations, seed=vseed
+    # )
+    # datapackages[cname]['local_sa.validation_all'] = cdp_vall
+    # datapackages[cname]['local_sa.validation_inf'] = cdp_vinf
 
-    # 2.5.4 Markets
-    from akula.markets import generate_validation_datapackages
-    mname = "implicit-markets"
-    mmask = datapackages[mname]["mask_wo_lowinf"]
-    im_indices = np.array(list(mlocal_sa), dtype=bwp.INDICES_DTYPE)
-    mdp_vall, mdp_vinf = generate_validation_datapackages(im_indices, mmask, num_samples=viterations, seed=vseed)
-    datapackages[mname]['local_sa.validation_all'] = mdp_vall
-    datapackages[mname]['local_sa.validation_inf'] = mdp_vinf
+    # # 2.5.4 Markets
+    # from akula.markets import generate_validation_datapackages
+    # mname = "implicit-markets"
+    # mmask = datapackages[mname]["mask_wo_lowinf"]
+    # im_indices = np.array(list(mlocal_sa), dtype=bwp.INDICES_DTYPE)
+    # mdp_vall, mdp_vinf = generate_validation_datapackages(im_indices, mmask, num_samples=viterations, seed=vseed)
+    # datapackages[mname]['local_sa.validation_all'] = mdp_vall
+    # datapackages[mname]['local_sa.validation_inf'] = mdp_vinf
+
+    # 2.5.5 Parameters
+    from akula.parameterized_exchanges import generate_validation_datapackages
+    pname = "ecoinvent-parameterization"
+    pmask = datapackages[pname]["mask_wo_lowinf"]
+    pindices = np.array(list(plocal_sa), dtype=PARAMS_DTYPE)
+    pdp_vall, pdp_vinf = generate_validation_datapackages(pindices, pmask, num_samples=viterations, seed=vseed)
+    datapackages[pname]['local_sa.validation_all'] = pdp_vall
+    datapackages[pname]['local_sa.validation_inf'] = pdp_vinf
 
     # 2.6 MC simulations to check validation modules
-    option = tname
 
     # 2.6.1 All inputs vary
     print("computing all scores")
     lca_all = bc.LCA(
         fu_mapped,
-        data_objs=pkgs + [datapackages[option]["local_sa.validation_all"]],
+        data_objs=pkgs + [pdp_vall],
         use_distributions=False,
         use_arrays=True,
         seed_override=vseed,
@@ -430,7 +434,7 @@ if __name__ == "__main__":
     print("computing inf scores")
     lca_inf = bc.LCA(
         fu_mapped,
-        data_objs=pkgs + [datapackages[option]["local_sa.validation_inf"]],
+        data_objs=pkgs + [pdp_vinf],
         use_distributions=False,
         use_arrays=True,
         seed_override=vseed,
@@ -440,10 +444,14 @@ if __name__ == "__main__":
     scores_inf = [lca_inf.score for _, _ in zip(lca_inf, range(viterations))]
 
     masks_dict_all = {
-        option: np.ones(len(datapackages[option]["mask_wo_lowinf"]), dtype=bool),
+        tname: np.ones(len(datapackages[tname]["mask_wo_lowinf"]), dtype=bool),
+        bname: np.ones(len(datapackages[bname]["mask_wo_lowinf"]), dtype=bool),
+        cname: np.ones(len(datapackages[cname]["mask_wo_lowinf"]), dtype=bool),
     }
     masks_dict_inf = {
-        option: datapackages[option]["mask_wo_lowinf"],
+        tname: datapackages[tname]["mask_wo_lowinf"],
+        bname: datapackages[bname]["mask_wo_lowinf"],
+        cname: datapackages[cname]["mask_wo_lowinf"],
     }
 
     offset_all = get_lca_score_shift(masks_dict_all, shift_median=False)
@@ -461,43 +469,14 @@ if __name__ == "__main__":
         trace_name1="All vary",
         trace_name2="Only inf vary"
     )
-    fig.add_trace(
-        go.Scatter(
-            x=[0],
-            y=[static_score],
-            mode='markers',
-            marker=dict(color='black', symbol='x')
-        )
-    )
+    # fig.add_trace(
+    #     go.Scatter(
+    #         x=[0],
+    #         y=[static_score],
+    #         mode='markers',
+    #         marker=dict(color='black', symbol='x')
+    #     )
+    # )
     fig.show()
 
-    fp_monte_carlo = write_dir
-    write_figs = Path("/Users/akim/PycharmProjects/akula/dev/write_files/paper3")
-
-    # Run when everything varies
-    fps = ["implicit-markets.zip", "liquid-fuels-kilogramnp.mean(tdp_vall.data[1][11985]), .zip",  "ecoinvent-parameterization.zip", "entso-timeseries.zip"]
-    dps = [bwp.load_datapackage(ZipFS(fp)) for fp in fps]
-
-    fp_option = DATA_DIR / f"{option}.zip"
-
-    hh_average = [act for act in co if "ch hh average consumption aggregated, years 151617" == act['name']]
-    assert len(hh_average) == 1
-    demand_act = hh_average[0]
-    demand = {demand_act: 1}
-    demand_id = {demand_act.id: 1}
-
-    lca = bc.LCA(demand, method)
-    lca.lci()
-    lca.lcia()
-    print(lca.score)
-
-    iterations = 30
-    seed = 11111000
-    dict_for_lca = dict(
-        use_distributions=True,
-        use_arrays=True,
-        seed_override=seed,
-    )
-    fp_monte_carlo_base = fp_monte_carlo / f"base.{iterations}.{seed}.pickle"
-    fp_monte_carlo_option = fp_monte_carlo / f"{option}.{iterations}.{seed}.pickle"
-
+    print("")

@@ -7,6 +7,7 @@ import bw2data as bd
 import bw2io as bi
 import bw2parameters as bwpa
 import bw_processing as bwp
+from bw_processing.merging import merge_datapackages_with_mask
 import numpy as np
 from asteval import Interpreter
 from bw2data.backends.schema import ActivityDataset as AD
@@ -17,6 +18,7 @@ from tqdm import tqdm
 from gsa_framework.utils import read_pickle, write_pickle
 
 assert bi.__version__ >= (0, 9, "DEV7")
+
 
 SAMPLES = 25000
 PARAMS_DTYPE = [('row', '<i4'), ('col', '<U40')]
@@ -40,7 +42,7 @@ substitutions = {
 
 
 class PatchedParameterSet(bwpa.ParameterSet):
-    def evaluate_monte_carlo(self, iterations=1000, stochastic=True):
+    def evaluate_monte_carlo(self, iterations=SAMPLES, stochastic=True, seed=42):
         """Evaluate each formula using Monte Carlo and variable uncertainty data, if present.
         Formulas **must** return a one-dimensional array, or ``BroadcastingError`` is raised.
         Returns dictionary of ``{parameter name: numpy array}``."""
@@ -49,7 +51,9 @@ class PatchedParameterSet(bwpa.ParameterSet):
         for key in self.order:
             if key in self.global_params:
                 if stochastic:
-                    interpreter.symtable[key] = result[key] = self.get_rng_sample(self.global_params[key], iterations)
+                    interpreter.symtable[key] = result[key] = self.get_rng_sample(
+                        self.global_params[key], iterations, seed,
+                    )
                 else:
                     interpreter.symtable[key] = result[key] = self.get_static_sample(self.global_params[key])
             elif self.params[key].get("formula"):
@@ -66,13 +70,13 @@ class PatchedParameterSet(bwpa.ParameterSet):
                 interpreter.symtable[key] = result[key] = sample
             else:
                 if stochastic:
-                    interpreter.symtable[key] = result[key] = self.get_rng_sample(self.params[key], iterations)
+                    interpreter.symtable[key] = result[key] = self.get_rng_sample(self.params[key], iterations, seed)
                 else:
                     interpreter.symtable[key] = result[key] = self.get_static_sample(self.params[key])
         return result
 
     @staticmethod
-    def get_rng_sample(obj, iterations):
+    def get_rng_sample(obj, iterations, seed=42):
         if isinstance(obj, np.ndarray):
             # Already a Monte Carlo sample
             return obj
@@ -84,7 +88,9 @@ class PatchedParameterSet(bwpa.ParameterSet):
             else:
                 obj["uncertainty_type"] = obj["uncertainty type"]
         kls = uncertainty_choices[obj["uncertainty_type"]]
-        return kls.bounded_random_variables(kls.from_dicts(obj), iterations).ravel()
+        np.random.seed(seed)
+        seeded_random = np.random
+        return kls.bounded_random_variables(kls.from_dicts(obj), iterations, seeded_random=seeded_random).ravel()
 
     @staticmethod
     def get_static_sample(obj):
@@ -155,9 +161,9 @@ def reformat_parameters(act):
     return parameters
 
 
-def parameter_set_for_activity(act, iterations=250, stochastic=True,):
+def parameter_set_for_activity(act, iterations=250, stochastic=True, seed=42):
     ps = PatchedParameterSet(reformat_parameters(act))
-    return ps.evaluate_monte_carlo(iterations=iterations, stochastic=stochastic)
+    return ps.evaluate_monte_carlo(iterations=iterations, stochastic=stochastic, seed=seed)
 
 
 def check_that_parameters_are_reasonable(act, results, rtol=0.1):
@@ -225,12 +231,14 @@ def add_tech_bio_data(
     return technosphere_data, biosphere_data
 
 
-def get_parameterized_values(input_data, num_samples=25000):
+def get_parameterized_values(input_data, mask=None, num_samples=SAMPLES, seed=42):
     tech_data, bio_data = [], []
 
     lookup_cache = get_lookup_cache()
 
     parameters_list = get_parameters(input_data)
+    if mask is not None:
+        parameters_list = parameters_list[mask]
 
     for element in tqdm(parameters_list):
 
@@ -244,7 +252,7 @@ def get_parameterized_values(input_data, num_samples=25000):
 
         # tech_dict, bio_dict = {}, {}
 
-        params = parameter_set_for_activity(act, iterations=num_samples, stochastic=True)
+        params = parameter_set_for_activity(act, iterations=num_samples, stochastic=True, seed=seed)
 
         for iexc in use_exchanges:
             exc = act['exchanges'][iexc]
@@ -432,7 +440,6 @@ def generate_local_sa_datapackage(input_data, const_factor=10.0):
     dp = bwp.create_datapackage(
         fs=ZipFS(str(DATA_DIR / f"{name}.zip"), write=True),
         name=f"{name}",
-        seed=42,
         sequential=True,
     )
 
@@ -455,12 +462,16 @@ def generate_local_sa_datapackage(input_data, const_factor=10.0):
     dp.finalize_serialization()
 
 
-def generate_parameterized_exchanges_datapackage(tech_data, bio_data):
-    name = "ecoinvent-parameterization"
+def generate_parameterized_exchanges_datapackage(name, num_samples=SAMPLES, seed=42):
+
+    ei_raw_data = get_ecoinvent_raw_data(FILEPATH)
+    tech_data, bio_data = get_parameterized_values(ei_raw_data, num_samples=num_samples, seed=seed)
+
     dp = bwp.create_datapackage(
-        fs=ZipFS(str(DATA_DIR / f"{name}.zip"), write=True),
+        fs=ZipFS(str(DATA_DIR / f"{name}-{seed}.zip"), write=True),
         name=f"{name}",
-        seed=42,
+        seed=seed,
+        sequential=True,
     )
 
     indices = np.empty(len(tech_data), dtype=bwp.INDICES_DTYPE)
@@ -485,83 +496,225 @@ def generate_parameterized_exchanges_datapackage(tech_data, bio_data):
         flip_array=np.hstack([z for x, y, z, _ in bio_data]),
     )
 
-    dp.finalize_serialization()
+    return dp
 
 
-def get_parameterized_values2(input_data, num_samples=25000):
-    tech_data, bio_data = [], []
-    found, errors, unreasonable, missing = 0, 0, 0, 0
+# def get_parameterized_values2(input_data, num_samples=SAMPLES, seed=42):
+#     tech_data, bio_data = [], []
+#     found, errors, unreasonable, missing = 0, 0, 0, 0
+#
+#     lookup_cache = get_lookup_cache()
+#
+#     error_log = open("error.log", "w")
+#     missing_reference_log = open("undefined_reference.log", "w")
+#
+#     parameters_list = get_parameters(input_data)
+#
+#     for element in tqdm(parameters_list):
+#         act = element['activity']
+#         if any(exc.get("formula") for exc in act["exchanges"]):
+#             try:
+#                 params = parameter_set_for_activity(act, iterations=num_samples, stochastic=True, seed=seed)
+#                 if check_that_parameters_are_reasonable(act, params):
+#                     found += 1
+#
+#                     for exc in act["exchanges"]:
+#                         if not exc.get("formula"):
+#                             continue
+#                         tech_data, bio_data = add_tech_bio_data(
+#                             tech_data, bio_data, lookup_cache, exc, act, params,
+#                         )
+#
+#                 else:
+#                     unreasonable += 1
+#             except (ValueError, SyntaxError, bwpa.errors.DuplicateName):
+#                 error_log.write(act["filename"] + "\n")
+#                 traceback.print_exc(file=error_log)
+#                 errors += 1
+#             except bwpa.errors.ParameterError:
+#                 missing_reference_log.write(act["filename"] + "\n")
+#                 traceback.print_exc(file=missing_reference_log)
+#                 missing += 1
+#
+#     error_log.close()
+#     missing_reference_log.close()
+#
+#     tech_data = [t for t in tech_data if t[0] is not None]
+#     bio_data = [b for b in bio_data if b[0] is not None]
+#
+#     print(
+#         f"""Activity statistics:
+#     Parameterized activities: {found}
+#     Activities whose formulas we can't parse: {errors}
+#     Activities whose formulas produce unreasonable values: {unreasonable}
+#     Activities whose formulas contain missing references: {missing}"""
+#     )
+#
+#     print(
+#         f"""Parameterized exchanges statistics:
+#     {len(tech_data)} technosphere exchanges
+#     {len(bio_data)} biosphere exchanges"""
+#     )
+#
+#     # return sorted(tech_data), sorted(bio_data)
+#     return tech_data, bio_data
 
-    lookup_cache = get_lookup_cache()
 
-    error_log = open("error.log", "w")
-    missing_reference_log = open("undefined_reference.log", "w")
+def create_static_datapackage(
+        name, indices_tech=None, data_tech=None, flip_tech=None, indices_bio=None, data_bio=None, seed=42,
+):
 
-    parameters_list = get_parameters(input_data)
-
-    for element in tqdm(parameters_list):
-        act = element['activity']
-        if any(exc.get("formula") for exc in act["exchanges"]):
-            try:
-                params = parameter_set_for_activity(act, iterations=num_samples, stochastic=True)
-                if check_that_parameters_are_reasonable(act, params):
-                    found += 1
-
-                    for exc in act["exchanges"]:
-                        if not exc.get("formula"):
-                            continue
-                        tech_data, bio_data = add_tech_bio_data(
-                            tech_data, bio_data, lookup_cache, exc, act, params,
-                        )
-
-                else:
-                    unreasonable += 1
-            except (ValueError, SyntaxError, bwpa.errors.DuplicateName):
-                error_log.write(act["filename"] + "\n")
-                traceback.print_exc(file=error_log)
-                errors += 1
-            except bwpa.errors.ParameterError:
-                missing_reference_log.write(act["filename"] + "\n")
-                traceback.print_exc(file=missing_reference_log)
-                missing += 1
-
-    error_log.close()
-    missing_reference_log.close()
-
-    tech_data = [t for t in tech_data if t[0] is not None]
-    bio_data = [b for b in bio_data if b[0] is not None]
-
-    print(
-        f"""Activity statistics:
-    Parameterized activities: {found}
-    Activities whose formulas we can't parse: {errors}
-    Activities whose formulas produce unreasonable values: {unreasonable}
-    Activities whose formulas contain missing references: {missing}"""
+    dp = bwp.create_datapackage(
+        name=f"validation.{name}.static",
+        seed=seed,
+        sequential=True
     )
 
-    print(
-        f"""Parameterized exchanges statistics:
-    {len(tech_data)} technosphere exchanges
-    {len(bio_data)} biosphere exchanges"""
+    if indices_tech is not None:
+        dp.add_persistent_vector(
+            matrix="technosphere_matrix",
+            data_array=data_tech,
+            # Resource group name that will show up in provenance
+            name=f"{name}-tech",
+            indices_array=indices_tech,
+            flip_array=flip_tech,
+        )
+
+    if indices_bio is not None:
+        dp.add_persistent_vector(
+            matrix="biosphere_matrix",
+            data_array=data_bio,
+            # Resource group name that will show up in provenance (?)
+            name=f"{name}-bio",
+            indices_array=indices_bio,
+        )
+
+    return dp
+
+
+def collect_tech_and_bio_datapackages(dp_tech, dp_bio):
+    return ""
+
+
+def create_static_data(indices):
+
+    acts = get_activities_from_indices(indices)
+
+    data = []
+    for i, inds in enumerate(indices):
+        act = bd.get_activity(int(inds['col']))
+        row = inds['row']
+        for exc in acts[act]:
+            if exc.input.id == row:
+                # TODO remove hardcoded values from here
+                # problem: these two activities have
+                if not ((exc.output.id == exc.input.id in [8127, 19669]) and exc['type'] == 'production'):
+                    data.append(exc.amount)
+                    continue
+    data = np.array(data)
+    assert len(data) == len(indices)
+    return data
+
+
+def get_activities_from_indices(indices):
+
+    bd.projects.set_current("GSA for archetypes")
+    activities = {}
+
+    if indices is not None:
+
+        cols = sorted(set(indices['col']))
+        for col in cols:
+
+            rows = sorted(indices[indices['col'] == col]['row'])
+            act = bd.get_activity(int(col))
+
+            exchanges = []
+            for exc in act.exchanges():
+                if exc.input.id in rows:
+                    exchanges.append(exc)
+
+            if len(exchanges) > 0:
+                activities[act] = exchanges
+
+    return activities
+
+
+def get_exchanges_mask_from_parameters(indices, mask, indices_tech, indices_bio):
+    use_indices = indices[mask]
+    act_ids = use_indices['row']
+    mask_tech = np.ones(len(indices_tech))
+    mask_bio = np.ones(len(indices_bio))
+    for col in act_ids:
+        mtech = indices_tech['col'] != col
+        mask_tech = mask_tech & mtech
+        mbio = indices_bio['col'] != col
+        mask_bio = mask_bio & mbio
+    return mask_tech, mask_bio
+
+
+def generate_validation_datapackages(indices, mask, num_samples, seed=42):
+
+    name = "ecoinvent-parameterization"
+
+    bd.projects.set_current("GSA for archetypes")
+
+    dp_validation_all = generate_parameterized_exchanges_datapackage(
+        name=f"validation.{name}.all", num_samples=num_samples, seed=seed,
     )
 
-    # return sorted(tech_data), sorted(bio_data)
-    return tech_data, bio_data
+    dp_dynamic_tech = dp_validation_all.groups[f'validation.{name}.all-tech']
+    dp_dynamic_bio = dp_validation_all.groups[f'validation.{name}.all-bio']
+
+    indices_tech = dp_dynamic_tech.data[0]
+    indices_bio = dp_dynamic_bio.data[0]
+
+    data_tech = create_static_data(indices_tech)
+    data_bio = create_static_data(indices_bio)
+
+    mask_tech, mask_bio = get_exchanges_mask_from_parameters(indices, mask, indices_tech, indices_bio)
+
+    dp_static = create_static_datapackage(
+        name=name,
+        indices_tech=indices_tech,
+        data_tech=data_tech,
+        flip_tech=dp_dynamic_tech.data[2],
+        indices_bio=dp_dynamic_bio.data[0],
+        data_bio=data_bio,
+    )
+
+    dp_validation_inf_tech = merge_datapackages_with_mask(
+        first_dp=dp_dynamic_tech,
+        first_resource_group_label=f'{name}-tech',
+        second_dp=dp_static,
+        second_resource_group_label=f'validation-{name}-static',
+        mask_array=mask_tech,
+    )
+
+    dp_validation_inf_bio = merge_datapackages_with_mask(
+        first_dp=dp_dynamic_bio,
+        first_resource_group_label=f'{name}-bio',
+        second_dp=dp_static,
+        second_resource_group_label=f'validation-{name}-static',
+        mask_array=mask_bio,
+    )
+
+    dp_validation_inf = collect_tech_and_bio_datapackages(dp_validation_inf_tech, dp_validation_inf_bio)
+
+    return dp_validation_all, dp_validation_inf
 
 
 if __name__ == "__main__":
     bd.projects.set_current("GSA for archetypes")
 
-    print("Importing ecoinvent to get exchange parameterization data")
-    ei_raw_data = get_ecoinvent_raw_data(FILEPATH)
+    random_seeds = [43, 44, 45, 46]
+    for random_seed in random_seeds:
+        print(f"Random seed {random_seed}")
+        pdp = generate_parameterized_exchanges_datapackage("ecoinvent-parameterization", SAMPLES, random_seed)
+        pdp.finalize_serialization()
 
-    # print("Generating parameterized values")
-    # td, bd = get_parameterized_values(ei_raw_data, num_samples=SAMPLES)
-    # print("Writing datapackage")
-    # generate_parameterized_exchanges_datapackage(td, bd)
-
-    print("Generating local SA datapackage")
-    generate_local_sa_datapackage(ei_raw_data, const_factor=10.0)
-    generate_local_sa_datapackage(ei_raw_data, const_factor=0.1)
+    # print("Generating local SA datapackage")
+    # generate_local_sa_datapackage(ei_raw_data, const_factor=10.0)
+    # generate_local_sa_datapackage(ei_raw_data, const_factor=0.1)
 
     print("")

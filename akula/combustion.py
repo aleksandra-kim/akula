@@ -37,7 +37,7 @@ def carbon_fuel_emissions_balanced(activity, fuels, co2):
     return math.isclose(total_carbon, total_carbon_in_co2, rel_tol=1e-06, abs_tol=1e-3)
 
 
-def get_samples_and_scaling_vector(activity, fuels, size=10, seed=None):
+def get_samples_and_scaling_vector(activity, fuels, size=10, seed=42):
     """Draw ``size`` samples from technosphere exchanges for ``activity`` whose inputs are in ``fuels``.
 
     Returns:
@@ -142,10 +142,10 @@ def generate_liquid_fuels_combustion_correlated_samples(size=25000, seed=42):
     indices_bio, data_bio = [], []
 
     dp = bwp.create_datapackage(
-        fs=ZipFS(str(DATA_DIR / "liquid-fuels-kilogram.zip"), write=True),
+        fs=ZipFS(str(DATA_DIR / f"liquid-fuels-kilogram-{seed}.zip"), write=True),
         name="liquid-fuels",
-        # set seed to have reproducible (though not sequential) sampling
         seed=seed,
+        sequential=True,
     )
 
     for candidate in tqdm(candidates):
@@ -258,11 +258,8 @@ def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0, seed=42
     dp = bwp.create_datapackage(
         fs=ZipFS(str(DATA_DIR / f"local-sa-{const_factor:.0e}-{name}.zip"), write=True),
         name="local-sa-liquid-fuels",
-        # set seed to have reproducible (though not sequential) sampling
         seed=seed,
         sequential=True,
-        # sum_inter_duplicates=False,
-        # sum_intra_duplicates=False,
     )
 
     for candidate in tqdm(candidates):
@@ -333,10 +330,10 @@ def create_dynamic_datapackage(name, indices_tech, indices_bio, num_samples):
     return dp
 
 
-def generate_validation_datapackage(mask_tech, mask_bio, num_samples=SAMPLES):
+def generate_validation_datapackage(mask_tech, mask_bio, num_samples=SAMPLES, seed=42):
 
     name = "liquid-fuels-kilogram"
-    dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{name}.zip")))  # TODO this dp might not exist yet
+    dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"validation-{name}-{seed}.zip")))  # TODO this dp might not exist yet
 
     tindices = dp.get_resource('liquid-fuels-tech.indices')[0]
     assert len(tindices) == len(mask_tech)
@@ -360,10 +357,23 @@ def generate_validation_datapackage(mask_tech, mask_bio, num_samples=SAMPLES):
 
 
 if __name__ == "__main__":
-    generate_liquid_fuels_combustion_correlated_samples(SAMPLES)
+    random_seeds = [43, 44, 45, 46]
+    num_samples = SAMPLES
+    for random_seed in random_seeds:
+        print(f"Random seed {random_seed}")
+        generate_liquid_fuels_combustion_correlated_samples(num_samples, random_seed)
 
-    generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0)
-    generate_liquid_fuels_combustion_local_sa_samples(const_factor=0.1)
+    # dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "liquid-fuels-kilogram-43.zip")))
+    # dp_data_tech = dp.get_resource('liquid-fuels-tech.data')[0]
+    # dp_indices_tech = dp.get_resource('liquid-fuels-tech.indices')[0]
+    # dp_data_bio = dp.get_resource('liquid-fuels-bio.data')[0]
+    # dp_indices_bio = dp.get_resource('liquid-fuels-bio.indices')[0]
+    #
+    # print(dp_data_tech)
+    # print(dp_data_bio)
+
+    # generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0)
+    # generate_liquid_fuels_combustion_local_sa_samples(const_factor=0.1)
 
     # tmask = np.random.choice([True, False], size=1403, p=[0.1, 0.9])
     # bmask = np.random.choice([True, False], size=407, p=[0.1, 0.9])

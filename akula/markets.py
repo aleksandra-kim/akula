@@ -165,10 +165,6 @@ def get_dirichlet_scales(implicit_markets, fit_variance, based_on_contributions,
 
     """
 
-    # fp = DATA_DIR / "implicit-markets-dscales.pickle"
-    # if fp.exists():
-    #     dirichlet_scales = read_pickle(fp)
-    # else:
     dirichlet_scales = {}
     for market, exchanges in implicit_markets.items():
         x = np.array([exc['amount'] for exc in exchanges])
@@ -176,7 +172,6 @@ def get_dirichlet_scales(implicit_markets, fit_variance, based_on_contributions,
         amounts_exchanges_dict = {amounts[i]: exchanges[i] for i in range(len(amounts))}
         ds = get_dirichlet_scale(amounts_exchanges_dict, fit_variance, based_on_contributions, use_threshold)
         dirichlet_scales[market] = ds
-        # write_pickle(dirichlet_scales, fp)
     return dirichlet_scales
 
 
@@ -201,7 +196,7 @@ def generate_markets_datapackage(
         similarity_func,
         get_dirichlet_scales_func,
         name,
-        num_samples=25000,
+        num_samples=SAMPLES,
         seed=42
 ):
     bd.projects.set_current("GSA for archetypes")
@@ -267,9 +262,10 @@ def create_dynamic_datapackage(name, indices, mask, get_dirichlet_scales_func, n
     )
 
     dp = bwp.create_datapackage(
-        fs=ZipFS(str(DATA_DIR / f"{name}.zip"), write=True),
+        fs=ZipFS(str(DATA_DIR / f"{name}-{seed}.zip"), write=True),
         name=name,
-        seed=42,
+        seed=seed,
+        sequential=True,
     )
 
     data = []
@@ -324,79 +320,11 @@ def create_dynamic_datapackage(name, indices, mask, get_dirichlet_scales_func, n
     return dp
 
 
-# def get_validation_data(mask, num_samples, name="implicit-markets"):
-#     """Mask selects inputs that should vary."""
-#
-#     bd.projects.set_current("GSA for archetypes")
-#
-#     dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{name}.zip")))  # TODO this dp might not exist yet
-#     indices = dp.get_resource(f'{name}.indices')[0]
-#
-#     assert len(indices) == len(mask)
-#
-#     activities = get_activities_from_indices(indices)
-#     exc_data = {
-#         (exc.input.id, exc.output.id): (exc.amount, exc['type'] != "production")
-#         for lst in activities.values() for exc in lst
-#     }
-#
-#     # Generate static datapackage
-#     data_static = np.array([exc_data[(int(inds['row']), int(inds['col']))][0] for inds in indices])
-#     flip_static = np.array([exc_data[(int(inds['row']), int(inds['col']))][1] for inds in indices], dtype=bool)
-#     name_static = f"validation.{name}.static"
-#     dp_static = create_static_datapackage(name_static, indices, data_static, flip_static)
-#
-#     # Generate dynamic datapackage
-#     name_dynamic = f"validation.{name}.dynamic"
-#     dp_dynamic = create_dynamic_datapackage(
-#         name_dynamic, indices, mask, get_dirichlet_scales, num_samples,
-#     )
-#
-#     return dp_static, dp_dynamic
-
-
-# def create_validation_inf_datapackage(dp_varying, mask):
-#
-#     # Generate static datapackage
-#     indices = dp_varying.data[0]
-#     activities = get_activities_from_indices(indices)
-#     exc_data = {
-#         (exc.input.id, exc.output.id): (exc.amount, exc['type'] != "production")
-#         for lst in activities.values() for exc in lst
-#     }
-#
-#     data_static = np.array([exc_data[(int(inds['row']), int(inds['col']))][0] for inds in indices])
-#     flip_static = np.array([exc_data[(int(inds['row']), int(inds['col']))][1] for inds in indices], dtype=bool)
-#     label = "implicit-markets"
-#     dp_static = create_static_datapackage(label, indices, data_static, flip_static)
-#
-#     dp = merge_datapackages_with_mask(
-#         first_dp=dp_varying,
-#         first_resource_group_label=dp_varying.metadata['name'],
-#         second_dp=dp_static,
-#         second_resource_group_label=dp_static.metadata['name'],
-#         mask_array=mask,
-#     )
-#
-#     return dp
-
-
 def create_validation_all_datapackage(name, dp_varying, mask, num_samples=SAMPLES, seed=42):
 
-    # Generate static datapackage
     indices = dp_varying.data[0]
     data = deepcopy(dp_varying.data[1])
     flip = dp_varying.data[2]
-    # activities = get_activities_from_indices(indices)
-    # exc_data = {
-    #     (exc.input.id, exc.output.id): (exc.amount, exc['type'] != "production")
-    #     for lst in activities.values() for exc in lst
-    # }
-    #
-    # data_static = np.array([exc_data[(int(inds['row']), int(inds['col']))][0] for inds in indices])
-    # flip_static = np.array([exc_data[(int(inds['row']), int(inds['col']))][1] for inds in indices], dtype=bool)
-    # label = "implicit-markets"
-    # dp_static = create_static_datapackage(label, indices, data_static, flip_static)
 
     dp_inverse = create_dynamic_datapackage(
         "validation.temp", indices, ~mask, get_dirichlet_scales, num_samples, seed,
@@ -405,9 +333,10 @@ def create_validation_all_datapackage(name, dp_varying, mask, num_samples=SAMPLE
     data[~mask] = data_inverse[~mask]
 
     dp_all = bwp.create_datapackage(
-        fs=ZipFS(str(DATA_DIR / f"{name}.zip"), write=True),
+        fs=ZipFS(str(DATA_DIR / f"{name}-{seed}.zip"), write=True),
         name=name,
         seed=seed,
+        sequential=True,
     )
     dp_all.add_persistent_array(
         matrix="technosphere_matrix",
@@ -434,20 +363,27 @@ def generate_validation_datapackages(indices, mask, num_samples, seed=42):
 
 if __name__ == "__main__":
 
-    # generate_markets_datapackage(
-    #     similar_fuzzy,
-    #     get_dirichlet_scales,
-    #     "implicit-markets",
-    #     SAMPLES,
-    # )
+    random_seeds = [43, 44, 45, 46]
+    for random_seed in random_seeds:
+        print(f"Random seed {random_seed}")
+        generate_markets_datapackage(
+            similar_fuzzy,
+            get_dirichlet_scales,
+            "implicit-markets",
+            SAMPLES,
+            random_seed,
+        )
 
-    im = bwp.load_datapackage(ZipFS(str(DATA_DIR / "implicit-markets.zip")))
-    im_indices = im.get_resource('implicit-markets.indices')[0]
+    # im = bwp.load_datapackage(ZipFS(str(DATA_DIR / "implicit-markets-43.zip")))
+    # im_data = im.get_resource('implicit-markets.data')[0]
+    # im_indices = im.get_resource('implicit-markets.indices')[0]
 
-    np.random.seed(42)
-    mask_random = np.random.choice([True, False], size=517, p=[0.1, 0.9])
+    # print(im_data)
+
+    # np.random.seed(42)
+    # mask_random = np.random.choice([True, False], size=517, p=[0.1, 0.9])
     # mask_random = np.ones(517, dtype=bool)
-    dp_all, dp_inf = generate_validation_datapackages(im_indices, mask_random, num_samples=2000)
+    # dp_vall, dp_vinf = generate_validation_datapackages(im_indices, mask_random, num_samples=2000)
 
     # generate_markets_datapackage(
     #     similar_exact,

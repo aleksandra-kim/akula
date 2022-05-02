@@ -1,5 +1,5 @@
-from .entso_data_converter import ENTSODataConverter
-from .add_residual_mix import add_swiss_residual_mix
+from entso_data_converter import ENTSODataConverter
+from add_residual_mix import add_swiss_residual_mix
 import bw2data as bd
 import bw_processing as bwp
 from fs.zipfs import ZipFS
@@ -9,6 +9,7 @@ from tqdm import tqdm
 import numpy as np
 
 DATA_DIR = Path(__file__).parent.parent.resolve() / "data"
+SAMPLES = 25000
 
 
 def create_average_entso_datapackages():
@@ -124,3 +125,48 @@ def create_timeseries_entso_datapackages():
         flip_array=np.ones(len(data), dtype=bool),
     )
     dp.finalize_serialization()
+
+
+if __name__ == "__main__":
+
+    bd.projects.set_current('GSA for archetypes')
+
+    name = "entso-timeseries"
+
+    dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"{name}.zip")))
+    indices = dp.data[0]
+    data = dp.data[1]
+    flip = dp.data[2]
+
+    ndata = data.shape[1]
+
+    random_seeds = [43, 44, 45, 46]
+
+    for random_seed in random_seeds:
+
+        print(f"Random seed {random_seed}")
+
+        np.random.seed(random_seed)
+        choice = np.random.choice(np.arange(ndata), SAMPLES)
+
+        data_current = data[:, choice]
+
+        # Create datapackage
+        dp = bwp.create_datapackage(
+            fs=ZipFS(str(DATA_DIR / f"{name}-{random_seed}.zip"), write=True),
+            name='timeseries ENTSO electricity values',
+            seed=random_seed,
+            sequential=True,
+        )
+        dp.add_persistent_array(
+            matrix="technosphere_matrix",
+            data_array=data_current,
+            # Resource group name that will show up in provenance
+            name='timeseries ENTSO electricity values',
+            indices_array=indices,
+            flip_array=flip,
+        )
+        dp.finalize_serialization()
+
+    print(dp.data[1])
+    print("")
