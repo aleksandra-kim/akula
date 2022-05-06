@@ -1,5 +1,5 @@
-from entso_data_converter import ENTSODataConverter
-from add_residual_mix import add_swiss_residual_mix
+from .entso_data_converter import ENTSODataConverter
+from .add_residual_mix import add_swiss_residual_mix
 import bw2data as bd
 import bw_processing as bwp
 from fs.zipfs import ZipFS
@@ -129,6 +129,7 @@ def create_timeseries_entso_datapackages():
 
 if __name__ == "__main__":
 
+    # Create datapackages for xgboost
     bd.projects.set_current('GSA for archetypes')
 
     name = "entso-timeseries"

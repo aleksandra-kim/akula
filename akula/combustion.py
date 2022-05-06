@@ -357,7 +357,7 @@ def generate_validation_datapackage(mask_tech, mask_bio, num_samples=SAMPLES, se
 
 
 if __name__ == "__main__":
-    random_seeds = [43, 44, 45, 46]
+    random_seeds = [44, 45, 46]
     num_samples = SAMPLES
     for random_seed in random_seeds:
         print(f"Random seed {random_seed}")

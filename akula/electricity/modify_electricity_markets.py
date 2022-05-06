@@ -2,6 +2,7 @@ import bw2data as bd
 import bw_processing as bwp
 from pathlib import Path
 from fs.zipfs import ZipFS
+from copy import deepcopy
 
 DATA_DIR = Path(__file__).parent.parent.resolve() / "data"
 
@@ -27,6 +28,7 @@ def replace_ei_with_entso():
 
         if len(exchange) == 1:
             exchange = exchange[0]
+            exchange['original_amount'] = deepcopy(exchange['amount'])
             exchange['amount'] = data[i]
             exchange['loc'] = data[i]
             exchange.save()
@@ -42,6 +44,7 @@ def replace_ei_with_entso():
                 input=(input_activity['database'], input_activity["code"]),
                 amount=data[i],
                 type=type_,
+                original_amount=0,
             ).save()
 
         else:

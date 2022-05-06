@@ -21,7 +21,7 @@ assert bi.__version__ >= (0, 9, "DEV7")
 
 
 SAMPLES = 25000
-PARAMS_DTYPE = [('row', '<i4'), ('col', '<U40')]
+PARAMS_DTYPE = [('row', '<U40'), ('col', '<i4')]
 
 DATA_DIR = Path(__file__).parent.resolve() / "data"
 # FILEPATH = "/Users/cmutel/Documents/lca/Ecoinvent/3.8/cutoff/datasets"
@@ -592,10 +592,6 @@ def create_static_datapackage(
     return dp
 
 
-def collect_tech_and_bio_datapackages(dp_tech, dp_bio):
-    return ""
-
-
 def create_static_data(indices):
 
     acts = get_activities_from_indices(indices)
@@ -640,17 +636,57 @@ def get_activities_from_indices(indices):
     return activities
 
 
-def get_exchanges_mask_from_parameters(indices, mask, indices_tech, indices_bio):
-    use_indices = indices[mask]
-    act_ids = use_indices['row']
-    mask_tech = np.ones(len(indices_tech))
-    mask_bio = np.ones(len(indices_bio))
-    for col in act_ids:
-        mtech = indices_tech['col'] != col
-        mask_tech = mask_tech & mtech
-        mbio = indices_bio['col'] != col
-        mask_bio = mask_bio & mbio
+def get_exchanges_mask_from_parameters(indices_params, mask, indices_tech, indices_bio):
+
+    use_cols = indices_params[mask]['col']
+
+    mask_tech = np.zeros(len(indices_tech), dtype=bool)
+    mask_bio = np.zeros(len(indices_bio), dtype=bool)
+
+    for col in use_cols:
+
+        mask_tech_current = indices_tech['col'] == col
+        mask_tech = np.logical_or(mask_tech, mask_tech_current)
+
+        mask_bio_current = indices_bio['col'] == col
+        mask_bio = np.logical_or(mask_bio, mask_bio_current)
+
     return mask_tech, mask_bio
+
+
+def collect_tech_and_bio_datapackages(name, dp_tech, dp_bio):
+
+    seed_tech = dp_tech.metadata['seed']
+    seed_bio = dp_tech.metadata['seed']
+    assert seed_tech == seed_bio
+
+    seed = seed_tech
+
+    dp = bwp.create_datapackage(
+        fs=ZipFS(str(DATA_DIR / f"{name}-{seed}.zip"), write=True),
+        name=f"validation.{name}.static",
+        seed=seed,
+        sequential=True,
+    )
+
+    dp.add_persistent_array(
+        matrix="technosphere_matrix",
+        data_array=dp_tech.data[1],
+        # Resource group name that will show up in provenance
+        name=f"{name}-tech",
+        indices_array=dp_tech.data[0],
+        flip_array=dp_tech.data[2],
+    )
+
+    dp.add_persistent_array(
+        matrix="biosphere_matrix",
+        data_array=dp_bio.data[1],
+        # Resource group name that will show up in provenance (?)
+        name=f"{name}-bio",
+        indices_array=dp_bio.data[0],
+    )
+
+    return dp
 
 
 def generate_validation_datapackages(indices, mask, num_samples, seed=42):
@@ -699,22 +735,36 @@ def generate_validation_datapackages(indices, mask, num_samples, seed=42):
         mask_array=mask_bio,
     )
 
-    dp_validation_inf = collect_tech_and_bio_datapackages(dp_validation_inf_tech, dp_validation_inf_bio)
+    dp_validation_inf = collect_tech_and_bio_datapackages(
+        f"validation.{name}.inf", dp_validation_inf_tech, dp_validation_inf_bio
+    )
 
     return dp_validation_all, dp_validation_inf
 
 
 if __name__ == "__main__":
+
     bd.projects.set_current("GSA for archetypes")
 
-    random_seeds = [43, 44, 45, 46]
-    for random_seed in random_seeds:
-        print(f"Random seed {random_seed}")
-        pdp = generate_parameterized_exchanges_datapackage("ecoinvent-parameterization", SAMPLES, random_seed)
-        pdp.finalize_serialization()
+    # random_seeds = [43, 44, 45, 46]
+    # for random_seed in random_seeds:
+    #     print(f"Random seed {random_seed}")
+    #     pdp = generate_parameterized_exchanges_datapackage("ecoinvent-parameterization", SAMPLES, random_seed)
+    #     pdp.finalize_serialization()
 
     # print("Generating local SA datapackage")
     # generate_local_sa_datapackage(ei_raw_data, const_factor=10.0)
     # generate_local_sa_datapackage(ei_raw_data, const_factor=0.1)
+
+    # fp_parameters = DATA_DIR / "ecoinvent-parameters.pickle"
+    # parameters = read_pickle(fp_parameters)
+
+    write_dir = Path("/Users/akim/PycharmProjects/akula/dev/write_files/gsa_for_archetypes/"
+                     "ch_hh_average_consumption_aggregated_years_151617")
+    fp_local_sa = write_dir / "local_sa.ecoinvent-parameterization.pickle"
+    local_sa = read_pickle(fp_local_sa)
+    pindices = np.array(list(local_sa), dtype=PARAMS_DTYPE)
+    pmask = np.random.randint(0, 2, len(pindices), dtype=bool)
+    dpvall, dpvinf = generate_validation_datapackages(pindices, pmask, 10, seed=42)
 
     print("")

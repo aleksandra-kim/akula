@@ -9,6 +9,8 @@ from matrix_utils.resource_group import FakeRNG
 import stats_arrays as sa
 from copy import deepcopy
 
+from sensitivity_analysis import get_mask
+
 
 DATA_DIR = Path(__file__).parent.resolve() / "data"
 SAMPLES = 25000
@@ -42,7 +44,7 @@ def create_background_datapackage(matrix_type, name, indices, num_samples=SAMPLE
     lca = create_lca(seed=seed)
 
     dp = bwp.create_datapackage(
-        fs=ZipFS(str(DATA_DIR / f"{name}.zip"), write=True),
+        fs=ZipFS(str(DATA_DIR / "xgboost" / f"{name}.zip"), write=True),
         name=name,
         seed=seed,
         sequential=True,
@@ -61,6 +63,14 @@ def create_background_datapackage(matrix_type, name, indices, num_samples=SAMPLE
         ]
     )
 
+    if len(indices_array) != len(indices):
+        mask = get_mask(indices_array, indices)
+    else:
+        if np.all(indices_array == indices):
+            mask = np.ones(len(indices_array), dtype=bool)
+        else:
+            mask = get_mask(indices_array, indices)
+
     data = []
     np.random.seed(seed)
     for _ in range(num_samples):
@@ -69,10 +79,8 @@ def create_background_datapackage(matrix_type, name, indices, num_samples=SAMPLE
         for group in obj.groups:
             if (not isinstance(group.rng, FakeRNG)) and (not group.empty):
                 idata.append(group.rng.random_data)
-        data.append(np.hstack(idata))
+        data.append(np.hstack(idata)[mask])
     data_array = np.vstack(data).T
-
-    assert np.all(indices_array == indices)
 
     if matrix_type == "technosphere":
         flip_array = np.hstack(
@@ -86,8 +94,8 @@ def create_background_datapackage(matrix_type, name, indices, num_samples=SAMPLE
             data_array=data_array,
             # Resource group name that will show up in provenance
             name=name,
-            indices_array=indices_array,
-            flip_array=flip_array,
+            indices_array=indices_array[mask],
+            flip_array=flip_array[mask],
         )
     else:
         dp.add_persistent_array(
@@ -95,7 +103,7 @@ def create_background_datapackage(matrix_type, name, indices, num_samples=SAMPLE
             data_array=data_array,
             # Resource group name that will show up in provenance
             name=name,
-            indices_array=indices_array,
+            indices_array=indices_array[mask],
         )
     [
         d.update({"global_index": 1}) for d in dp.metadata['resources']
@@ -166,10 +174,6 @@ def generate_validation_datapackages(matrix_type, indices, mask, num_samples=SAM
             indices_array=indices_array,
         )
 
-    # [
-    #     d.update({"global_index": 1}) for d in dp_validation_all.metadata['resources']
-    #     if d['matrix'] == "characterization_matrix"
-    # ]  # TODO Chris, is this correct?
     [
         d.update({"global_index": 1}) for d in dp_validation_inf.metadata['resources']
         if d['matrix'] == "characterization_matrix"
@@ -201,24 +205,24 @@ def get_amounts_shift(lca, shift_median=True):
         lognormal_mean = np.exp(m + s ** 2 / 2)
         lognormal_median = np.exp(m)
 
-        # 2. Normal
-        normal_where = np.where(
-            params["uncertainty_type"] == sa.NormalUncertainty.id
-        )[0]
-        normal = params[normal_where]
-        m = normal["loc"]
-        normal_mean = m
-        normal_median = normal_mean
-
-        # 2. Uniform
-        uniform_where = np.where(
-            params["uncertainty_type"] == sa.UniformUncertainty.id
-        )[0]
-        uniform = params[uniform_where]
-        a = uniform["minimum"]
-        b = uniform["maximum"]
-        uniform_mean = (a + b) / 2
-        uniform_median = uniform_mean
+        # # 2. Normal
+        # normal_where = np.where(
+        #     params["uncertainty_type"] == sa.NormalUncertainty.id
+        # )[0]
+        # normal = params[normal_where]
+        # m = normal["loc"]
+        # normal_mean = m
+        # normal_median = normal_mean
+        #
+        # # 2. Uniform
+        # uniform_where = np.where(
+        #     params["uncertainty_type"] == sa.UniformUncertainty.id
+        # )[0]
+        # uniform = params[uniform_where]
+        # a = uniform["minimum"]
+        # b = uniform["maximum"]
+        # uniform_mean = (a + b) / 2
+        # uniform_median = uniform_mean
 
         # 4. Triangular
         triangular_where = np.where(
