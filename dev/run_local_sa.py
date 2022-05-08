@@ -491,7 +491,7 @@ if __name__ == "__main__":
     # STEP 3: Run high-dimensional screening
     ########################################
 
-    # 3.1.1. Create datapackages for Xgboost
+    # 3.1.1. Create background datapackages for Xgboost
     from akula.background import create_background_datapackage
     xiterations = 25000
     # random_seeds = [44, 45, 46]
@@ -520,6 +520,8 @@ if __name__ == "__main__":
             for dp_name in dps_xgboost_names:
                 if dp_name == "entso-average":
                     dp_name = "entso-timeseries"
+                if dp_name == "ecoinvent-parameterization":
+                    dp_name = "ecoinvent-parameterization-exchanges"
                 dp_temp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "xgboost" / f"{dp_name}-{random_seed}.zip")))
                 dps_xgboost.append(dp_temp)
 
