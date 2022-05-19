@@ -708,7 +708,7 @@ if __name__ == "__main__":
     bd.projects.set_current("GSA for archetypes")
 
     # Generate datapackages for high-dimensional screening
-    random_seeds = [43, 44, 45, 46]
+    random_seeds = [51, 52, 53, 54, 55, 56, 57, 58, 59, 60]
     for random_seed in random_seeds:
         print(f"Random seed {random_seed}")
         parameters_dp, exchanges_dp = generate_parameterized_exchanges_datapackage(
@@ -724,12 +724,12 @@ if __name__ == "__main__":
     # fp_parameters = DATA_DIR / "ecoinvent-parameters.pickle"
     # parameters = read_pickle(fp_parameters)
 
-    write_dir = Path("/Users/akim/PycharmProjects/akula/dev/write_files/gsa_for_archetypes/"
-                     "ch_hh_average_consumption_aggregated_years_151617")
-    fp_local_sa = write_dir / "local_sa.ecoinvent-parameterization.pickle"
-    local_sa = read_pickle(fp_local_sa)
-    pindices = np.array(list(local_sa), dtype=PARAMS_DTYPE)
-    pmask = np.random.randint(0, 2, len(pindices), dtype=bool)
-    dpvall, dpvinf = generate_validation_datapackages(pindices, pmask, 10, seed=42)
+    # write_dir = Path("/Users/akim/PycharmProjects/akula/dev/write_files/gsa_for_archetypes/"
+    #                  "ch_hh_average_consumption_aggregated_years_151617")
+    # fp_local_sa = write_dir / "local_sa.ecoinvent-parameterization.pickle"
+    # local_sa = read_pickle(fp_local_sa)
+    # pindices = np.array(list(local_sa), dtype=PARAMS_DTYPE)
+    # pmask = np.random.randint(0, 2, len(pindices), dtype=bool)
+    # dpvall, dpvinf = generate_validation_datapackages(pindices, pmask, 10, seed=42)
 
     print("")

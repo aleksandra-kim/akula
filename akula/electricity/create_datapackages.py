@@ -141,7 +141,7 @@ if __name__ == "__main__":
 
     ndata = data.shape[1]
 
-    random_seeds = [43, 44, 45, 46]
+    random_seeds = np.arange(61, 71)
 
     for random_seed in random_seeds:
 

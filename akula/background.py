@@ -21,14 +21,10 @@ LABELS_DICT = {
 }
 
 
-def create_lca(use_distributions=True, seed=42):
+def create_lca(demand, use_distributions=True, seed=42):
 
     bd.projects.set_current("GSA for archetypes")
 
-    co = bd.Database('swiss consumption 1.0')
-    fu = [act for act in co if "ch hh average consumption aggregated, years 151617" == act['name']][0]
-
-    demand = {fu: 1}
     method = ("IPCC 2013", "climate change", "GWP 100a", "uncertain")
     fu_mapped, pkgs, _ = bd.prepare_lca_inputs(demand=demand, method=method, remapping=False)
 
@@ -39,9 +35,9 @@ def create_lca(use_distributions=True, seed=42):
     return lca
 
 
-def create_background_datapackage(matrix_type, name, indices, num_samples=SAMPLES, seed=42):
+def create_background_datapackage(demand, matrix_type, name, indices, num_samples=SAMPLES, seed=42):
 
-    lca = create_lca(seed=seed)
+    lca = create_lca(demand, seed=seed)
 
     dp = bwp.create_datapackage(
         fs=ZipFS(str(DATA_DIR / "xgboost" / f"{name}.zip"), write=True),
@@ -86,7 +82,7 @@ def create_background_datapackage(matrix_type, name, indices, num_samples=SAMPLE
         flip_array = np.hstack(
             [
                 group.flip for group in obj.groups
-                if (not isinstance(group.rng, FakeRNG)) and (not group.empty)
+                if (not isinstance(group.rng, FakeRNG)) and (not group.empty) and (len(group.package.data) == num_resources)
             ]
         )
         dp.add_persistent_array(
@@ -112,10 +108,10 @@ def create_background_datapackage(matrix_type, name, indices, num_samples=SAMPLE
     return dp
 
 
-def generate_validation_datapackages(matrix_type, indices, mask, num_samples=SAMPLES, seed=42):
+def generate_validation_datapackages(demand, matrix_type, indices, mask, num_samples=SAMPLES, seed=42):
 
     name_all = f"validation.{matrix_type}.all"
-    dp_validation_all = create_background_datapackage(matrix_type, name_all, indices, num_samples, seed)
+    dp_validation_all = create_background_datapackage(demand, matrix_type, name_all, indices, num_samples, seed)
 
     bd.projects.set_current("GSA for archetypes")
     if matrix_type == "technosphere":
@@ -261,9 +257,9 @@ def get_amounts_shift(lca, shift_median=True):
     return dict_
 
 
-def get_lca_score_shift(masks_dict, shift_median=True):
+def get_lca_score_shift(demand, masks_dict, shift_median=True):
 
-    lca = create_lca(use_distributions=False)
+    lca = create_lca(demand, use_distributions=False)
 
     static_score = deepcopy(lca.score)
 

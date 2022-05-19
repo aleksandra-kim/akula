@@ -363,7 +363,7 @@ def generate_validation_datapackages(indices, mask, num_samples, seed=42):
 
 if __name__ == "__main__":
 
-    random_seeds = [43, 44, 45, 46]
+    random_seeds = [48, 49, 50]
     for random_seed in random_seeds:
         print(f"Random seed {random_seed}")
         generate_markets_datapackage(
