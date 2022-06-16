@@ -59,4 +59,5 @@ MANIFEST
 dev/write_files/
 dev/archived/implicit_markets/
 dev/archived/*.pickle
+dev/archived/.ipynb_checkpoints/
 data/

@@ -1,5 +1,5 @@
-from .entso_data_converter import ENTSODataConverter
-from .add_residual_mix import add_swiss_residual_mix
+from entso_data_converter import ENTSODataConverter
+from add_residual_mix import add_swiss_residual_mix
 import bw2data as bd
 import bw_processing as bwp
 from fs.zipfs import ZipFS
@@ -141,20 +141,21 @@ if __name__ == "__main__":
 
     ndata = data.shape[1]
 
-    random_seeds = np.arange(61, 71)
+    random_seeds = [85, 86]
+    num_samples = 15000
 
     for random_seed in random_seeds:
 
         print(f"Random seed {random_seed}")
 
         np.random.seed(random_seed)
-        choice = np.random.choice(np.arange(ndata), SAMPLES)
+        choice = np.random.choice(np.arange(ndata), num_samples)
 
         data_current = data[:, choice]
 
         # Create datapackage
         dp = bwp.create_datapackage(
-            fs=ZipFS(str(DATA_DIR / f"{name}-{random_seed}.zip"), write=True),
+            fs=ZipFS(str(DATA_DIR / "xgboost" / f"{name}-{random_seed}.zip"), write=True),
             name='timeseries ENTSO electricity values',
             seed=random_seed,
             sequential=True,
@@ -169,5 +170,4 @@ if __name__ == "__main__":
         )
         dp.finalize_serialization()
 
-    print(dp.data[1])
     print("")

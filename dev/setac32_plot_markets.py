@@ -198,7 +198,7 @@ if __name__ == "__main__":
         plot_bgcolor="rgba(255,255,255,1)",
     )
 
-    fig.write_image(write_figs / f"{act_id}_implicit_market.pdf")
-    # fig.show()
+    # fig.write_image(write_figs / f"{act_id}_implicit_market.eps")
+    fig.show()
 
     print("")

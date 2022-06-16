@@ -9,8 +9,8 @@ from scipy.stats import lognorm
 # Local files
 from akula.combustion import DATA_DIR
 
-plot_fig1 = False
-plot_fig2 = True
+plot_fig1 = True
+plot_fig2 = False
 
 if __name__ == "__main__":
 
@@ -34,8 +34,8 @@ if __name__ == "__main__":
     opacity = 0.6
     num_bins = 100
 
-    # ind = 27
-    ind = 403
+    ind = 27
+    # ind = 403
     activity = bd.get_activity(int(bindices[ind]['col']))
 
     if plot_fig1:
@@ -134,9 +134,9 @@ if __name__ == "__main__":
             plot_bgcolor="rgba(255,255,255,1)",
         )
 
-        fig.write_image(write_figs / f"{bindices[ind]['row']}_{bindices[ind]['col']}_carbon_balance.pdf")
+        # fig.write_image(write_figs / f"{bindices[ind]['row']}_{bindices[ind]['col']}_carbon_balance.pdf")
 
-        # fig.show()
+        fig.show()
 
     if plot_fig2:
         ei = bd.Database("ecoinvent 3.8 cutoff")

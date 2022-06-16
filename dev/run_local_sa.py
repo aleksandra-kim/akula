@@ -7,6 +7,7 @@ import bw_processing as bwp
 from copy import deepcopy
 from gsa_framework.utils import read_pickle, write_pickle
 from gsa_framework.visualization.plotting import plot_correlation_Y1_Y2
+import plotly.graph_objects as go
 
 # Local files
 from akula.sensitivity_analysis.local_sensitivity_analysis import (
@@ -27,23 +28,17 @@ if __name__ == "__main__":
     project = 'GSA for archetypes'
     bd.projects.set_current(project)
     const_factor = 10
-    ctff = 1e-6  # Cutoff for contribution analysis
-    mclc = 1e10   # Maximum number of computations for supply chain traversal
+    ctff = 1e-9  # Cutoff for contribution analysis
+    mclc = 1e20   # Maximum number of computations for supply chain traversal
 
     # Setups
     ########
 
-    co = bd.Database('swiss consumption 1.0')
-    # fu = [act for act in co if "ch hh average consumption aggregated, years 151617" == act['name']][0]
-
-    ei = bd.Database("ecoinvent 3.8 cutoff")
-    # fu = {act: 1/3 for act in ei if "market group for electricity" in act['name'] and "RER" in act['location']}
-
-    fu = [act for act in co if "Food" in act['name']][0]
+    co_db = bd.Database('swiss consumption 1.0')
+    fu = [act for act in co_db if "ch hh average consumption aggregated, years 151617" == act['name']][0]
 
     write_dir = Path("write_files") / project.lower().replace(" ", "_") \
         / fu['name'].lower().replace(" ", "_").replace(",", "")
-    # write_dir = Path("write_files") / project.lower().replace(" ", "_") / "eu_electricity"
     write_dir_sct = write_dir / "supply_chain_traversal"
     write_dir_sct.mkdir(exist_ok=True, parents=True)
 
@@ -69,16 +64,16 @@ if __name__ == "__main__":
     tflip_ei = tei.get_resource('ecoinvent_3.8_cutoff_technosphere_matrix.flip')[0]
     tdistributions_ei = tei.get_resource('ecoinvent_3.8_cutoff_technosphere_matrix.distributions')[0]
 
-    # # Biosphere
-    # bei = ei.filter_by_attribute('matrix', 'biosphere_matrix')
-    # bindices = bei.get_resource('ecoinvent_3.8_cutoff_biosphere_matrix.indices')[0]
-    # bdata = bei.get_resource('ecoinvent_3.8_cutoff_biosphere_matrix.data')[0]
-    # bdistributions = bei.get_resource('ecoinvent_3.8_cutoff_biosphere_matrix.distributions')[0]
-    #
-    # # Characterization
-    # cindices = cf.get_resource('IPCC_2013_climate_change_GWP_100a_uncertain_matrix_data.indices')[0]
-    # cdata = cf.get_resource('IPCC_2013_climate_change_GWP_100a_uncertain_matrix_data.data')[0]
-    # cdistributions = cf.get_resource('IPCC_2013_climate_change_GWP_100a_uncertain_matrix_data.distributions')[0]
+    # Biosphere
+    bei = ei.filter_by_attribute('matrix', 'biosphere_matrix')
+    bindices = bei.get_resource('ecoinvent_3.8_cutoff_biosphere_matrix.indices')[0]
+    bdata = bei.get_resource('ecoinvent_3.8_cutoff_biosphere_matrix.data')[0]
+    bdistributions = bei.get_resource('ecoinvent_3.8_cutoff_biosphere_matrix.distributions')[0]
+
+    # Characterization
+    cindices = cf.get_resource('IPCC_2013_climate_change_GWP_100a_uncertain_matrix_data.indices')[0]
+    cdata = cf.get_resource('IPCC_2013_climate_change_GWP_100a_uncertain_matrix_data.data')[0]
+    cdistributions = cf.get_resource('IPCC_2013_climate_change_GWP_100a_uncertain_matrix_data.distributions')[0]
 
     # STEP 1: Remove non influential with contribution analysis
     ############################################################
@@ -98,23 +93,23 @@ if __name__ == "__main__":
         tmask_wo_noninf = get_mask(tindices_ei, tindices_wo_noninf)
         write_pickle(tmask_wo_noninf, fp_tmask_wo_noninf)
 
-    # # Step 1.2 Biosphere
-    # bindices_wo_noninf = get_bindices_wo_noninf(lca)
-    # fp_bmask_wo_noninf = write_dir / "mask.bio.without_noninf.pickle"
-    # if fp_bmask_wo_noninf.exists():
-    #     bmask_wo_noninf = read_pickle(fp_bmask_wo_noninf)
-    # else:
-    #     bmask_wo_noninf = get_mask(bindices, bindices_wo_noninf)
-    #     write_pickle(bmask_wo_noninf, fp_bmask_wo_noninf)
-    #
-    # # Step 1.3 Characterization
-    # cindices_wo_noninf = get_cindices_wo_noninf(lca)
-    # fp_cmask_wo_noninf = write_dir / "mask.cf.without_noninf.pickle"
-    # if fp_cmask_wo_noninf.exists():
-    #     cmask_wo_noninf = read_pickle(fp_cmask_wo_noninf)
-    # else:
-    #     cmask_wo_noninf = get_mask(cindices, cindices_wo_noninf)
-    #     write_pickle(cmask_wo_noninf, fp_cmask_wo_noninf)
+    # Step 1.2 Biosphere
+    bindices_wo_noninf = get_bindices_wo_noninf(lca)
+    fp_bmask_wo_noninf = write_dir / "mask.bio.without_noninf.pickle"
+    if fp_bmask_wo_noninf.exists():
+        bmask_wo_noninf = read_pickle(fp_bmask_wo_noninf)
+    else:
+        bmask_wo_noninf = get_mask(bindices, bindices_wo_noninf)
+        write_pickle(bmask_wo_noninf, fp_bmask_wo_noninf)
+
+    # Step 1.3 Characterization
+    cindices_wo_noninf = get_cindices_wo_noninf(lca)
+    fp_cmask_wo_noninf = write_dir / "mask.cf.without_noninf.pickle"
+    if fp_cmask_wo_noninf.exists():
+        cmask_wo_noninf = read_pickle(fp_cmask_wo_noninf)
+    else:
+        cmask_wo_noninf = get_mask(cindices, cindices_wo_noninf)
+        write_pickle(cmask_wo_noninf, fp_cmask_wo_noninf)
 
     # STEP 2: Run local SA
     ######################
@@ -225,40 +220,40 @@ if __name__ == "__main__":
     #     write_pickle(elocal_sa, fp_elocal_sa)
 
     # --> 2.2.1 Biosphere, 12'400 exchanges
-    # fp_blocal_sa = write_dir / f"local_sa.bio.pickle"
-    # if fp_blocal_sa.exists():
-    #     blocal_sa = read_pickle(fp_blocal_sa)
-    # else:
-    #     blocal_sa = run_local_sa(
-    #         "biosphere",
-    #         fu_mapped,
-    #         pkgs,
-    #         bindices,
-    #         bdata,
-    #         bdistributions,
-    #         bmask_wo_noninf,
-    #         None,
-    #         const_factor,
-    #     )
-    #     write_pickle(blocal_sa, fp_blocal_sa)
-    #
-    # # --> 2.3.1 Characterization, 77 exchanges
-    # fp_clocal_sa = write_dir / "local_sa.cf.pickle"
-    # if fp_clocal_sa.exists():
-    #     clocal_sa = read_pickle(fp_clocal_sa)
-    # else:
-    #     clocal_sa = run_local_sa(
-    #         "characterization",
-    #         fu_mapped,
-    #         pkgs,
-    #         cindices,
-    #         cdata,
-    #         cdistributions,
-    #         cmask_wo_noninf,
-    #         None,
-    #         const_factor,
-    #     )
-    #     write_pickle(clocal_sa, fp_clocal_sa)
+    fp_blocal_sa = write_dir / f"local_sa.bio.pickle"
+    if fp_blocal_sa.exists():
+        blocal_sa = read_pickle(fp_blocal_sa)
+    else:
+        blocal_sa = run_local_sa(
+            "biosphere",
+            fu_mapped,
+            pkgs,
+            bindices,
+            bdata,
+            bdistributions,
+            bmask_wo_noninf,
+            None,
+            const_factor,
+        )
+        write_pickle(blocal_sa, fp_blocal_sa)
+
+    # --> 2.3.1 Characterization, 77 exchanges
+    fp_clocal_sa = write_dir / "local_sa.cf.pickle"
+    if fp_clocal_sa.exists():
+        clocal_sa = read_pickle(fp_clocal_sa)
+    else:
+        clocal_sa = run_local_sa(
+            "characterization",
+            fu_mapped,
+            pkgs,
+            cindices,
+            cdata,
+            cdistributions,
+            cmask_wo_noninf,
+            None,
+            const_factor,
+        )
+        write_pickle(clocal_sa, fp_clocal_sa)
 
     # 2.4 --> Remove lowly influential based on variance
     datapackages = {
@@ -291,14 +286,14 @@ if __name__ == "__main__":
             indices = dp.get_resource(f'{rg_name}.indices')[0]
             if type_ == "tech":
                 pop_indices_from_dict(indices, tlocal_sa)
-            # elif type_ == "bio":
-            #     pop_indices_from_dict(indices, blocal_sa)
+            elif type_ == "bio":
+                pop_indices_from_dict(indices, blocal_sa)
 
     # 2.4.2 Determine variance threshold
     local_sa_list = [
         tlocal_sa,
-        # blocal_sa,
-        # clocal_sa,
+        blocal_sa,
+        clocal_sa,
         # mlocal_sa,
         # plocal_sa,
         # flocal_sa,
@@ -307,12 +302,12 @@ if __name__ == "__main__":
 
     add_variances(local_sa_list, static_score)
     # tlocal_sa_all = {**tlocal_sa, **mlocal_sa, **flocal_sa, **elocal_sa}
-    tlocal_sa_all = {**tlocal_sa}  # TODO change!!
+    tlocal_sa_all = {**tlocal_sa}
     # assert len(tlocal_sa) + len(mlocal_sa) + len(flocal_sa) + len(elocal_sa) == len(tlocal_sa_all)
-    #
-    num_parameters = 10000
-    # local_sa_list = [tlocal_sa_all, blocal_sa, clocal_sa, plocal_sa]  # TODO change
-    local_sa_list = [tlocal_sa_all]
+
+    num_parameters = 15000
+    # local_sa_list = [tlocal_sa_all, blocal_sa, clocal_sa, plocal_sa]
+    local_sa_list = [tlocal_sa_all, blocal_sa, clocal_sa]
     var_threshold = get_variance_threshold(local_sa_list, num_parameters)
 
     datapackages.update(
@@ -321,14 +316,14 @@ if __name__ == "__main__":
                 "local_sa": tlocal_sa,
                 "indices": tindices_ei,
             },
-            # "biosphere": {
-            #     "local_sa": blocal_sa,
-            #     "indices": bindices,
-            # },
-            # "characterization": {
-            #     "local_sa": clocal_sa,
-            #     "indices": cindices
-            # },
+            "biosphere": {
+                "local_sa": blocal_sa,
+                "indices": bindices,
+            },
+            "characterization": {
+                "local_sa": clocal_sa,
+                "indices": cindices
+            },
             # "implicit-markets": {
             #     "local_sa": mlocal_sa,
             #     "indices": mindices,
@@ -376,37 +371,37 @@ if __name__ == "__main__":
 
     # 2.5 --> Validation of results after local SA
 
-    viterations = 30
-    vseed = 22222000
-
-    # # 2.5.1 Technosphere
+    # viterations = 30
+    # vseed = 22222000
+    #
+    # # # 2.5.1 Technosphere
     # from akula.background import generate_validation_datapackages
     tname = "technosphere"
     # tmask = datapackages[tname]["mask_wo_lowinf"]
     # tdp_vall, tdp_vinf = generate_validation_datapackages(
-    #     tname, tindices_ei, tmask, num_samples=viterations, seed=vseed
+    #     demand, tname, tindices_ei, tmask, num_samples=viterations, seed=vseed
     # )
     # datapackages[tname]['local_sa.validation_all'] = tdp_vall
     # datapackages[tname]['local_sa.validation_inf'] = tdp_vinf
     #
-    # 2.5.2 Biosphere
-    # bname = "biosphere"
+    # # 2.5.2 Biosphere
+    bname = "biosphere"
     # bmask = datapackages[bname]["mask_wo_lowinf"]
     # bdp_vall, bdp_vinf = generate_validation_datapackages(
-    #     bname, bindices, bmask, num_samples=viterations, seed=vseed
+    #     demand, bname, bindices, bmask, num_samples=viterations, seed=vseed
     # )
     # datapackages[bname]['local_sa.validation_all'] = bdp_vall
     # datapackages[bname]['local_sa.validation_inf'] = bdp_vinf
     #
     # # # 2.5.3 Characterization
-    # cname = "characterization"
+    cname = "characterization"
     # cmask = datapackages[cname]["mask_wo_lowinf"]
     # cdp_vall, cdp_vinf = generate_validation_datapackages(
-    #     cname, cindices, cmask, num_samples=viterations, seed=vseed
+    #     demand, cname, cindices, cmask, num_samples=viterations, seed=vseed
     # )
     # datapackages[cname]['local_sa.validation_all'] = cdp_vall
     # datapackages[cname]['local_sa.validation_inf'] = cdp_vinf
-
+    #
     # # 2.5.4 Markets
     # from akula.markets import generate_validation_datapackages
     # mname = "implicit-markets"
@@ -431,7 +426,7 @@ if __name__ == "__main__":
     # print("computing all scores")
     # lca_all = bc.LCA(
     #     fu_mapped,
-    #     data_objs=pkgs + [tdp_vall],
+    #     data_objs=pkgs + [tdp_vall, bdp_vall, cdp_vall, mdp_vall],
     #     use_distributions=False,
     #     use_arrays=True,
     #     seed_override=vseed,
@@ -444,7 +439,7 @@ if __name__ == "__main__":
     # print("computing inf scores")
     # lca_inf = bc.LCA(
     #     fu_mapped,
-    #     data_objs=pkgs + [tdp_vinf],
+    #     data_objs=pkgs + [tdp_vinf, bdp_vinf, cdp_vinf, mdp_vinf],
     #     use_distributions=False,
     #     use_arrays=True,
     #     seed_override=vseed,
@@ -455,17 +450,17 @@ if __name__ == "__main__":
     #
     # masks_dict_all = {
     #     tname: np.ones(len(datapackages[tname]["mask_wo_lowinf"]), dtype=bool),
-    #     # bname: np.ones(len(datapackages[bname]["mask_wo_lowinf"]), dtype=bool),
-    #     # cname: np.ones(len(datapackages[cname]["mask_wo_lowinf"]), dtype=bool),
+    #     bname: np.ones(len(datapackages[bname]["mask_wo_lowinf"]), dtype=bool),
+    #     cname: np.ones(len(datapackages[cname]["mask_wo_lowinf"]), dtype=bool),
     # }
     # masks_dict_inf = {
     #     tname: datapackages[tname]["mask_wo_lowinf"],
-    #     # bname: datapackages[bname]["mask_wo_lowinf"],
-    #     # cname: datapackages[cname]["mask_wo_lowinf"],
+    #     bname: datapackages[bname]["mask_wo_lowinf"],
+    #     cname: datapackages[cname]["mask_wo_lowinf"],
     # }
     #
-    # offset_all = get_lca_score_shift(masks_dict_all, shift_median=False)
-    # offset_inf = get_lca_score_shift(masks_dict_inf, shift_median=False)
+    # offset_all = get_lca_score_shift(demand, masks_dict_all, shift_median=False)
+    # offset_inf = get_lca_score_shift(demand, masks_dict_inf, shift_median=False)
     # print(offset_all, offset_inf)
     #
     # Y1 = np.array(scores_all) - offset_all
@@ -489,37 +484,41 @@ if __name__ == "__main__":
     # )
     # fig.show()
 
-    # print("")
+    print("")
 
     # STEP 3: Run high-dimensional screening
     ########################################
 
     # 3.1.1. Create background datapackages for Xgboost
     from akula.background import create_background_datapackage
-    xiterations = 5000
-    random_seeds = [61, 62, 63, 64, 65, 66, 67, 68]
-    random_seeds = [61]
-    for random_seed in random_seeds:
-        print(random_seed)
-        for bg_name in [tname]:
-            print(bg_name)
-            indices = datapackages[bg_name]["indices_wo_lowinf"]
-            dp = create_background_datapackage(
-                demand, bg_name, f"tech-{bg_name}-{random_seed}", indices, num_samples=xiterations, seed=random_seed,
-            )
-            dp.finalize_serialization()
-
-    fp_name = "tech-technosphere-61 copy.zip"
-    dp_read = bwp.load_datapackage(ZipFS(str(DATA_DIR / "xgboost" / fp_name)))
-
-    print("-----------------")
+    xiterations = 15000
+    # random_seeds = [94]
+    # for random_seed in random_seeds:
+    #     print(random_seed)
+    #     for bg_name in [tname]:
+    #         print(bg_name)
+    #         indices = datapackages[bg_name]["indices_wo_lowinf"]
+    #         dp = create_background_datapackage(
+    #             demand, bg_name, f"{bg_name}-{random_seed}", indices, num_samples=xiterations, seed=random_seed,
+    #         )
+    #         dp.finalize_serialization()
+    #
+    # print("-----------------")
 
     # 3.1.2. MC simulations for XGBoost
-    dps_xgboost_names = list(datapackages)
-    random_seeds = [777]
+    dps_xgboost_names = [
+        "technosphere",
+        "biosphere",
+        "characterization",
+        # "implicit-markets",
+        # "ecoinvent-parameterization",
+        # "liquid-fuels-kilogram",
+        # "entso-average",
+    ]
+    random_seeds = [91, 92, 93, 94, 95, 96]
     for random_seed in random_seeds:
         print(f"MC random seed {random_seed}")
-        fp_xgboost = write_dir / f"mc.tech.xgboost.{xiterations}.{random_seed}.pickle"
+        fp_xgboost = write_dir / f"mc.base.xgboost.{xiterations}.{random_seed}.pickle"
         if fp_xgboost.exists():
             scores_xgboost = read_pickle(fp_xgboost)
         else:
@@ -529,7 +528,7 @@ if __name__ == "__main__":
                     dp_name = "entso-timeseries"
                 if dp_name == "ecoinvent-parameterization":
                     dp_name = "ecoinvent-parameterization-exchanges"
-                dp_temp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "xgboost" / f"tech-{dp_name}-{random_seed}.zip")))
+                dp_temp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "xgboost" / f"{dp_name}-{random_seed}.zip")))
                 dps_xgboost.append(dp_temp)
 
             lca_xgboost = bc.LCA(
@@ -537,11 +536,10 @@ if __name__ == "__main__":
                 data_objs=pkgs + dps_xgboost,
                 use_distributions=False,
                 use_arrays=True,
-                seed_override=vseed,
             )
             lca_xgboost.lci()
             lca_xgboost.lcia()
-            scores_xgboost = [lca_xgboost.score for _, _ in zip(lca_xgboost, range(xiterations))]
+            scores_xgboost = [lca_xgboost.score] + [lca_xgboost.score for _, _ in zip(lca_xgboost, range(xiterations-1))]
             print(scores_xgboost)
             write_pickle(scores_xgboost, fp_xgboost)
 

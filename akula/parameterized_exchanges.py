@@ -708,11 +708,12 @@ if __name__ == "__main__":
     bd.projects.set_current("GSA for archetypes")
 
     # Generate datapackages for high-dimensional screening
-    random_seeds = [51, 52, 53, 54, 55, 56, 57, 58, 59, 60]
+    random_seeds = [85, 86]
+    num_samples = 15000
     for random_seed in random_seeds:
         print(f"Random seed {random_seed}")
         parameters_dp, exchanges_dp = generate_parameterized_exchanges_datapackage(
-            "ecoinvent-parameterization", SAMPLES, random_seed
+            "ecoinvent-parameterization", num_samples, random_seed
         )
         parameters_dp.finalize_serialization()
         exchanges_dp.finalize_serialization()

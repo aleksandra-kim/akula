@@ -9,7 +9,7 @@ from scipy.stats import lognorm, dirichlet
 from copy import deepcopy
 
 # Local files
-from akula.electricity.create_datapackages import DATA_DIR
+from akula.markets import DATA_DIR
 
 color_gray_hex = "#b2bcc0"
 color_darkgray_hex = "#485063"
@@ -21,10 +21,12 @@ color_red_hex = "#ff2c54"
 color_psi_brown = "#85543a"
 color_psi_green = "#82911a"
 color_psi_blue = "#003b6e"
+color_psi_lblue = "#415483"
 color_psi_yellow = "#fdca00"
 color_psi_purple = "#7c204e"
+color_psi_lpurple = "#914967"
 color_psi_dgreen = "#197418"
-opacity = 0.95
+opacity = 0.9
 num_bins = 100
 
 widths = [580, 400, 1400]
@@ -37,8 +39,8 @@ dirichlet_scales = {
     8310: 21.75257995687919,   # high voltage
 }
 
-plot_lognormal = False
-plot_dirichlet = False
+plot_lognormal = True
+plot_dirichlet = True
 plot_zoomed = True
 
 dirichlet_scales = {
@@ -194,6 +196,7 @@ if __name__ == "__main__":
                         name=r"$\text{Dirichlet samples}$",
                         showlegend=showlegend,
                         opacity=opacity,
+                        marker=dict(opacity=opacity),
                         line=dict(color=color_psi_dgreen, width=1, shape="hvh"),
                         fill="tozeroy",
                         legendrank=3,
@@ -209,6 +212,7 @@ if __name__ == "__main__":
                     name=r"$\text{ENTSO-E reported data}$",
                     showlegend=showlegend,
                     opacity=opacity,
+                    marker=dict(opacity=opacity),
                     line=dict(color=color_darkgray_hex, width=1, shape="hvh"),
                     fill="tozeroy",
                     legendrank=1,
@@ -346,7 +350,7 @@ if __name__ == "__main__":
             )
         )
     )
-    fig.write_image(write_figs / f"_fig_dirichlet_validation_{plot_lognormal}_{plot_dirichlet}_{plot_zoomed}.pdf")
+    fig.write_image(write_figs / f"_figure_4_dirichlet_validation_{plot_lognormal}_{plot_dirichlet}_{plot_zoomed}.eps")
 
-    # fig.show()
+    fig.show()
 

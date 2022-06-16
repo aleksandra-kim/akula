@@ -51,15 +51,16 @@ if __name__ == "__main__":
     iterations = 2000
 
     # Static values, Ecoinvent
-    lca = bc.LCA(
-        demand=fu_mapped,
-        data_objs=pkgs,
-        use_arrays=False,
-        use_distributions=False
-    )
-    lca.lci()
-    lca.lcia()
-    static_ecoinvent = deepcopy(lca.score)
+    # lca = bc.LCA(
+    #     demand=fu_mapped,
+    #     data_objs=pkgs,
+    #     use_arrays=False,
+    #     use_distributions=False
+    # )
+    # lca.lci()
+    # lca.lcia()
+    # static_ecoinvent = deepcopy(lca.score)
+    static_ecoinvent = 0.048644
     print(static_ecoinvent)
 
     # Static values, Entso
@@ -125,7 +126,8 @@ if __name__ == "__main__":
     color_darkgray_rgb = f"rgb(72, 80, 99, {opacity})"
     color_black_hex = "#212931"
     color_pink_rgb = f"rgba(148, 52, 110, {opacity})"
-    color_bright_pink_rgb = "#ff44cc"
+    color_bright_pink_rgb = "#e75480" #"#ff44cc"
+    color_psi_lpurple = "#914967"
 
     Y_ecoinvent = scores_ecoinvent
     Y_entso = scores_entso
@@ -146,7 +148,7 @@ if __name__ == "__main__":
         hist_data=[Y_ecoinvent, Y_entso],
         group_labels=group_labels,
         bin_size=.005,
-        colors=[color_darkgray_rgb, color_pink_rgb],
+        colors=[color_darkgray_rgb, color_psi_lpurple],
     )
 
     fig.add_trace(
@@ -180,7 +182,7 @@ if __name__ == "__main__":
     )
 
     fig.update_xaxes(
-        title_text=r"$\text{GWP of Swiss low voltage electricity}$",
+        title_text=r"$\text{LCIA scores, [kg CO}_2\text{-eq.]}$",
         showgrid=True,
         gridwidth=1,
         gridcolor=color_gray_hex,
@@ -227,7 +229,7 @@ if __name__ == "__main__":
 
     fig.show()
 
-    fig.write_image(write_dir / f"_fig_ch_low_voltage_{option}.png")
+    fig.write_image(write_dir / f"_figure_1_ch_low_voltage_{option}.eps")
 
 
 

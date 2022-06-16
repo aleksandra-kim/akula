@@ -363,18 +363,19 @@ def generate_validation_datapackages(indices, mask, num_samples, seed=42):
 
 if __name__ == "__main__":
 
-    random_seeds = [48, 49, 50]
-    for random_seed in random_seeds:
-        print(f"Random seed {random_seed}")
-        generate_markets_datapackage(
-            similar_fuzzy,
-            get_dirichlet_scales,
-            "implicit-markets",
-            SAMPLES,
-            random_seed,
-        )
+    # random_seeds = [85, 86]
+    # num_samples = 15000
+    # for random_seed in random_seeds:
+    #     print(f"Random seed {random_seed}")
+    #     generate_markets_datapackage(
+    #         similar_fuzzy,
+    #         get_dirichlet_scales,
+    #         "implicit-markets",
+    #         num_samples,
+    #         random_seed,
+    #     )
 
-    # im = bwp.load_datapackage(ZipFS(str(DATA_DIR / "implicit-markets-43.zip")))
+    im = bwp.load_datapackage(ZipFS(str(DATA_DIR / "implicit-markets-91.zip")))
     # im_data = im.get_resource('implicit-markets.data')[0]
     # im_indices = im.get_resource('implicit-markets.indices')[0]
 

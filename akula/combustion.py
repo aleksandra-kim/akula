@@ -357,8 +357,8 @@ def generate_validation_datapackage(mask_tech, mask_bio, num_samples=SAMPLES, se
 
 
 if __name__ == "__main__":
-    random_seeds = [51, 52, 53, 54, 55, 56, 57, 58, 59, 60]
-    num_samples = SAMPLES
+    random_seeds = [85, 86]
+    num_samples = 15000
     for random_seed in random_seeds:
         print(f"Random seed {random_seed}")
         generate_liquid_fuels_combustion_correlated_samples(num_samples, random_seed)
