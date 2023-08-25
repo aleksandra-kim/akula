@@ -6,7 +6,7 @@ from collections import defaultdict
 from bentso import CachingDataClient as CDC
 from bentso.constants import ENTSO_COUNTRIES, TRADE_PAIRS
 from pathlib import Path
-from config import ENTSO_MAPPING
+from .config import ENTSO_MAPPING
 
 assert bd.__version__ >= (4, 0, "DEV11")
 # assert bentso.__version__ >= (0, 4)

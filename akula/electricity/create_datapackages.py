@@ -1,5 +1,3 @@
-from entso_data_converter import ENTSODataConverter
-from add_residual_mix import add_swiss_residual_mix
 import bw2data as bd
 import bw_processing as bwp
 from fs.zipfs import ZipFS
@@ -7,6 +5,9 @@ from pathlib import Path
 from bentso.constants import ENTSO_COUNTRIES
 from tqdm import tqdm
 import numpy as np
+
+from .entso_data_converter import ENTSODataConverter
+from .add_residual_mix import add_swiss_residual_mix
 
 DATA_DIR = Path(__file__).parent.parent.resolve() / "data"
 SAMPLES = 25000

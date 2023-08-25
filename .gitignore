@@ -57,7 +57,7 @@ MANIFEST
 
 # Local files
 dev/write_files/
-dev/archived/implicit_markets/
-dev/archived/*.pickle
-dev/archived/.ipynb_checkpoints/
+dev/archived/.ipynb_checkpoints
+dev/archived/archived
+dev/archived/figures
 data/

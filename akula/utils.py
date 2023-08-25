@@ -2,9 +2,22 @@ import bw2data as bd
 import bw2calc as bc
 import bw_processing as bwp
 from copy import deepcopy
+import pickle
+
+# from .sensitivity_analysis import get_mask
 
 
-from sensitivity_analysis import get_mask
+def write_pickle(data, filepath):
+    """Write ``data`` to a file with .pickle extension"""
+    with open(filepath, "wb") as f:
+        pickle.dump(data, f)
+
+
+def read_pickle(filepath):
+    """Read ``data`` from a file with .pickle extension"""
+    with open(filepath, "rb") as f:
+        data = pickle.load(f)
+    return data
 
 color_gray_hex = "#b2bcc0"
 color_darkgray_hex = "#485063"
@@ -126,9 +139,9 @@ def pop_indices_from_dict(indices, dict_):
     # print(f"Removed {count:4d} elements from dictionary")
 
 
-def get_mask_wrt_dp(indices_all, indices_dp, mask_screening):
-    """Get screening mask wrt indices of a datapackage."""
-    mask_dp_and_screening_wrt_all = get_mask(indices_all, indices_dp) & mask_screening
-    indices_dp_and_screening = indices_all[mask_dp_and_screening_wrt_all]
-    mask_screening_wrt_dp = get_mask(indices_dp, indices_dp_and_screening)
-    return mask_screening_wrt_dp
+# def get_mask_wrt_dp(indices_all, indices_dp, mask_screening):
+#     """Get screening mask wrt indices of a datapackage."""
+#     mask_dp_and_screening_wrt_all = get_mask(indices_all, indices_dp) & mask_screening
+#     indices_dp_and_screening = indices_all[mask_dp_and_screening_wrt_all]
+#     mask_screening_wrt_dp = get_mask(indices_dp, indices_dp_and_screening)
+#     return mask_screening_wrt_dp

@@ -10,9 +10,8 @@ from scipy.stats import dirichlet
 from thefuzz import fuzz
 from tqdm import tqdm
 from sklearn.linear_model import LinearRegression
-from gsa_framework.utils import read_pickle, write_pickle
 
-from utils import setup_bw_project, get_activities_from_indices
+from .utils import setup_bw_project, get_activities_from_indices, read_pickle, write_pickle
 
 DATA_DIR = Path(__file__).parent.resolve() / "data"
 SAMPLES = 25000

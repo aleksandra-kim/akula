@@ -15,16 +15,13 @@ from bw2parameters.errors import BroadcastingError
 from fs.zipfs import ZipFS
 from stats_arrays import uncertainty_choices
 from tqdm import tqdm
-from gsa_framework.utils import read_pickle, write_pickle
-
-assert bi.__version__ >= (0, 9, "DEV7")
+from .utils import read_pickle, write_pickle
 
 
 SAMPLES = 25000
 PARAMS_DTYPE = [('row', '<U40'), ('col', '<i4')]
 
 DATA_DIR = Path(__file__).parent.resolve() / "data"
-# FILEPATH = "/Users/cmutel/Documents/lca/Ecoinvent/3.8/cutoff/datasets"
 FILEPATH = "/Users/akim/Documents/LCA_files/ecoinvent_38_cutoff/datasets"
 FILEPATH_PARAMETERS = DATA_DIR / "ecoinvent-parameters.pickle"
 

@@ -9,7 +9,7 @@ import stats_arrays as sa
 from tqdm import tqdm
 
 # Local files
-from utils import create_static_datapackage
+from .utils import create_static_datapackage
 
 
 DATA_DIR = Path(__file__).parent.resolve() / "data"

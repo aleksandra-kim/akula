@@ -7,10 +7,10 @@ from copy import deepcopy
 DATA_DIR = Path(__file__).parent.parent.resolve() / "data"
 
 
-def replace_ei_with_entso():
+def replace_ei_with_entso(project):
     """Replace ecoinvent electricity mixes with ENTSO data averaged over the years 2019-2021."""
 
-    bd.projects.set_current("GSA for archetypes")
+    bd.projects.set_current(project)
 
     fp_entso = DATA_DIR / "entso-average.zip"
     dp = bwp.load_datapackage(ZipFS(str(fp_entso)))
@@ -49,7 +49,3 @@ def replace_ei_with_entso():
 
         else:
             print(exchange)
-
-
-if __name__ == "__main__":
-    replace_ei_with_entso()

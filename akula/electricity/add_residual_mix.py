@@ -2,7 +2,7 @@ import bw2data as bd
 from bw2data.backends.schema import ActivityDataset as AD
 
 
-def add_swiss_residual_mix():
+def add_swiss_residual_mix(project):
     if "swiss residual electricity mix" in bd.databases:
         return
 
@@ -18,7 +18,7 @@ def add_swiss_residual_mix():
         "electricity production, wind, <1MW turbine, onshore": 0.00043621504383564323,
     }
 
-    bd.projects.set_current("GSA for archetypes")
+    bd.projects.set_current(project)
 
     sr = bd.Database("swiss residual electricity mix")
     sr.register()
@@ -60,7 +60,3 @@ def add_swiss_residual_mix():
 
     bd.databases["ecoinvent 3.8 cutoff"]['depends'].append("swiss residual electricity mix")
     bd.databases.flush()
-
-
-if __name__ == "__main__":
-    add_swiss_residual_mix()
