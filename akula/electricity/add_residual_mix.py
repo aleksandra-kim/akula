@@ -3,6 +3,9 @@ from bw2data.backends.schema import ActivityDataset as AD
 
 
 def add_swiss_residual_mix(project):
+
+    bd.projects.set_current(project)
+
     if "swiss residual electricity mix" in bd.databases:
         return
 
@@ -17,8 +20,6 @@ def add_swiss_residual_mix(project):
         "electricity production, wind, 1-3MW turbine, onshore": 0.0026554668750543753,
         "electricity production, wind, <1MW turbine, onshore": 0.00043621504383564323,
     }
-
-    bd.projects.set_current(project)
 
     sr = bd.Database("swiss residual electricity mix")
     sr.register()

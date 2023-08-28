@@ -52,6 +52,11 @@ Clone consumption model and do an editable install
 
    pip install -e .
 
+Install bentso using pip
+::
+
+   pip install bentso
+
 
 .. _pyscaffold-notes:
 

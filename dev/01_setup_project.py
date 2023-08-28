@@ -15,8 +15,8 @@ from consumption_model_ch.consumption_fus import (
 )
 
 PROJECT = "GSA with correlations"
-PROJECT_PATH = Path(__file__).parent.parent.resolve()
-sys.path.append(str(PROJECT_PATH))
+PROJECT_DIR = Path(__file__).parent.parent.resolve()
+sys.path.append(str(PROJECT_DIR))
 
 
 def import_databases(use_exiobase=False, year='121314'):
@@ -74,34 +74,27 @@ def import_databases(use_exiobase=False, year='121314'):
         add_consumption_sectors(co_name, year)
 
 
-def modify_electricity():
-
-    bd.projects.set_current(PROJECT)
-
-    import os
-    os.environ["ENTSOE_API_TOKEN"] = "eb7887-8d16-43f4-b75c-1e8a80be520e"
-    os.environ["BENTSO_DATA_DIR"] = "/home/aleksandrakim/Documents/lca_files/bentso_data"
-
-    from akula.electricity import replace_ei_with_entso, add_swiss_residual_mix
-    add_swiss_residual_mix(PROJECT)
-    replace_ei_with_entso(PROJECT)
-
-
 if __name__ == "__main__":
     warnings.filterwarnings("ignore")
-    import_databases()
-    # modify_electricity()
+
+    imprt = False
+    if imprt:
+        import_databases()
 
     # Backup GSA project
     backup = True
     if backup:
         bi.backup_project_directory(PROJECT)
 
+    print(PROJECT_DIR)
+
     # Restore GSA project
-    restore = False
-    if restore:
-        fp_gsa_project = "brightway2-project-GSA-backup.16-November-2021-11-50AM.tar.gz"
-        if PROJECT not in bd.projects:
-            bi.restore_project_directory(fp_gsa_project)
-        else:
-            print("Cannot restore BW project, it already exists")
+    restore_ecoinvent = False
+    if restore_ecoinvent:
+        fp_gsa_project = PROJECT_DIR / "akula" / "data" / "GSA-with-correlations-backup.electricity-ecoinvent.tar.gz"
+        bi.restore_project_directory(fp_gsa_project)
+
+    restore_entsoe = False
+    if restore_entsoe:
+        fp_gsa_project = PROJECT_DIR / "akula" / "data" / "GSA-with-correlations-backup.electricity-entsoe.tar.gz"
+        bi.restore_project_directory(fp_gsa_project)

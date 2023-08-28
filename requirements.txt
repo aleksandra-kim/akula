@@ -9,7 +9,7 @@ bw_migrations==0.2
 numpy==1.24.0
 pandas==1.5.3
 stats_arrays==0.6.5
-bentso
+bentso==0.4
 scipy
 scikit-learn
 xgboost

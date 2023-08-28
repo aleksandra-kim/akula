@@ -4,8 +4,8 @@ from pathlib import Path
 import sys
 
 PROJECT = "GSA with correlations"
-PROJECT_PATH = Path(__file__).parent.parent.resolve()
-sys.path.append(str(PROJECT_PATH))
+PROJECT_DIR = Path(__file__).parent.parent.resolve()
+sys.path.append(str(PROJECT_DIR))
 
 if __name__ == "__main__":
 
@@ -34,7 +34,7 @@ if __name__ == "__main__":
         print("{:8.3f}  {}".format(lca.score, demand_act['name']))
 
 # =============================================================================
-# LCA results with ORIGINAL electricity data
+# LCIA results with ORIGINAL electricity data
 # =============================================================================
 # 1133.317  ch hh average consumption aggregated, years 121314
 #    2.164  Alcoholic beverages and tobacco sector, years 121314
@@ -55,5 +55,22 @@ if __name__ == "__main__":
 #  395.727  Transport sector, years 121314
 
 # =============================================================================
-# LCA results with ENTSOE electricity data
+# LCIA results with ENTSOE electricity data
 # =============================================================================
+# 1165.314  ch hh average consumption aggregated, years 121314
+#    2.152  Alcoholic beverages and tobacco sector, years 121314
+#    0.000  Clothing and footwear sector, years 121314
+#    0.000  Communication sector, years 121314
+#  130.578  Durable goods sector, years 121314
+#    0.000  Education sector, years 121314
+#    0.000  Fees sector, years 121314
+#  246.113  Food and non-alcoholic beverages sector, years 121314
+#    0.000  Furnishings, household equipment and routine household maintenance sector, years 121314
+#    0.000  Health sector, years 121314
+#  385.672  Housing, water, electricity, gas and other fuels sector, years 121314
+#    4.231  Miscellaneous goods and services sector, years 121314
+#    0.000  Other insurance premiums sector, years 121314
+#    0.000  Premiums for life insurance sector, years 121314
+#    1.563  Recreation and culture sector, years 121314
+#   -0.000  Restaurants and hotels sector, years 121314
+#  395.006  Transport sector, years 121314

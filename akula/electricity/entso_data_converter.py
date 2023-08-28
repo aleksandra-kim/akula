@@ -2,15 +2,15 @@ import bw2data as bd
 import pandas as pd
 import numpy as np
 from collections import defaultdict
-# import bentso
+import bentso
 from bentso import CachingDataClient as CDC
 from bentso.constants import ENTSO_COUNTRIES, TRADE_PAIRS
 from pathlib import Path
+
+# Local files
 from .config import ENTSO_MAPPING
 
-assert bd.__version__ >= (4, 0, "DEV11")
-# assert bentso.__version__ >= (0, 4)
-
+assert bentso.__version__ >= (0, 4)
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 cdc = CDC()
@@ -19,7 +19,7 @@ cdc = CDC()
 """
 Get electricity data from the ENTSO-E API
 
-To run this script, you must have the following environment variables set:
+To run these functions, you must have the following environment variables set:
 
     BENTSO_DATA_DIR: Directory to cache data from ENTSO-E API
     ENTSOE_API_TOKEN: API token you get from signing up to ENTSO-E transparency platform
@@ -148,7 +148,9 @@ class ENTSODataConverter:
         )  # Convert to MWh
 
     def get_ratio_hv_lv_solar_ecoinvent(self, country):
-        """Get the fraction of high voltage solar generation in total solar generation as defined in ecoinvent markets"""
+        """
+        Get the fraction of high voltage solar generation in total solar generation as defined in ecoinvent markets
+        """
         hv_solar_in_low_voltage = (
             sum(
                 exc["amount"]
@@ -183,7 +185,7 @@ class ENTSODataConverter:
         market = self.lv_mixes[country]
 
         if "Solar" not in df.columns:
-            return (None, pd.Series(np.ones(df.shape[0]), index=df.index))
+            return None, pd.Series(np.ones(df.shape[0]), index=df.index)
 
         solar_lv = df["Solar"] * (1 - self.get_ratio_hv_lv_solar_ecoinvent(country))
 
@@ -214,7 +216,7 @@ class ENTSODataConverter:
                     country, solar_lv.mean(axis=0)
                 )
             )
-            return (None, pd.Series(np.ones(df.shape[0]), index=df.index))
+            return None, pd.Series(np.ones(df.shape[0]), index=df.index)
 
         subtotal = sum(amounts.values())
         disaggregated = pd.DataFrame(
