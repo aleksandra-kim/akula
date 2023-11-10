@@ -82,7 +82,7 @@ if __name__ == "__main__":
         import_databases()
 
     # Backup GSA project
-    backup = True
+    backup = False
     if backup:
         bi.backup_project_directory(PROJECT)
 

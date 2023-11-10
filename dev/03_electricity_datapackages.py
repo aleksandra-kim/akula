@@ -19,7 +19,13 @@ from akula.electricity import (
 
 
 if __name__ == "__main__":
-    # create_average_entso_datapackages(PROJECT)
-    create_timeseries_entso_datapackages(PROJECT)
-    # add_swiss_residual_mix(PROJECT)
-    # replace_ei_with_entso(PROJECT)
+    add_swiss_residual_mix(PROJECT)
+
+    create = False
+    if create:
+        create_average_entso_datapackages(PROJECT)
+        create_timeseries_entso_datapackages(PROJECT)
+
+    replace = False
+    if replace:
+        replace_ei_with_entso(PROJECT)

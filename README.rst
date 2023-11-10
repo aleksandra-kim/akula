@@ -43,7 +43,7 @@ Installation
 ============
 ::
 
-    conda create --name <environment_name> --file requirements.txt python=3.10 -c conda-forge -c cmutel -c defaults -c anaconda
+    conda create --name <environment_name> --file requirements.txt python=3.10 -c conda-forge -c cmutel -c defaults -c anaconda -c haasad
     conda activate <environment_name>
     pip install bw2io==0.9.dev11
 

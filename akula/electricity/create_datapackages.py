@@ -10,6 +10,7 @@ import os
 from .entso_data_converter import ENTSODataConverter
 from .add_residual_mix import add_swiss_residual_mix
 
+
 DATA_DIR = Path(__file__).parent.parent.resolve() / "data"
 BENTSO_DATA_DIR = os.environ["BENTSO_DATA_DIR"]
 

@@ -59,7 +59,7 @@ def is_trade_exchange(exc):
     return exc.input["unit"] == "kilowatt hour" and "import from" in exc.input["name"]
 
 
-def apply_country_specific_fixes(df, country):
+def apply_country_specific_fixes(df, country, year):
     if country in ("GR", "ME"):
         df.rename(
             columns={"Hydro Water Reservoir": "Hydro Run-of-river and poundage"},
@@ -72,6 +72,8 @@ def apply_country_specific_fixes(df, country):
     elif country == "NO":
         df["Hydro Water Reservoir"] += df["Hydro Run-of-river and poundage"]
         df.drop("Hydro Run-of-river and poundage", axis=1, inplace=True)
+        if year == 2019:
+            df["Waste"] = 0
     elif country in ("RO", "BG"):
         df["Hydro Run-of-river and poundage"] += df["Hydro Water Reservoir"]
         df.drop("Hydro Water Reservoir", axis=1, inplace=True)
@@ -86,7 +88,7 @@ def get_df(country, year):
     df = cdc.get_generation(
         country=country, year=year, clean=True, full_year=True, fix_lv=True
     )
-    df = apply_country_specific_fixes(df, country)
+    df = apply_country_specific_fixes(df, country, year)
     return df
 
 
