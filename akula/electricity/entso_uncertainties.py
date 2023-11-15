@@ -5,12 +5,12 @@ import bw_processing as bwp
 import stats_arrays as sa
 from fs.zipfs import ZipFS
 import plotly.graph_objects as go
-import plotly.figure_factory as ff
-from plotly.subplots import make_subplots
 
 
 # Local files
 from ..constants import *
+from ..utils import (update_fig_axes,
+                     COLOR_DARKGRAY_HEX, COLOR_PSI_LPURPLE, COLOR_PSI_LPURPLE_OPAQUE, COLOR_DARKGRAY_HEX_OPAQUE)
 
 DAYTIME_MASK = np.hstack([
     np.zeros(DAYTIME_START_AM, dtype=bool),
@@ -275,14 +275,38 @@ def compute_low_voltage_ch_lcia(project, dp_entsoe, iterations=1000, seed=None):
     return scores
 
 
-def plot_lcia_scores(data, labels):
+def plot_lcia_scores(data):
+    fig = go.Figure()
+    showlegend = True
+    visited = False
 
-    fig = ff.create_distplot(
-        hist_data=list(data.values()),
-        group_labels=labels,
-        bin_size=.005,
-    )
-    fig.update_layout(width=1000, height=800, title_text="LCIA scores")
+    for option, d in data.items():
+        if option == 'ecoinvent':
+            fillcolor = COLOR_DARKGRAY_HEX_OPAQUE
+            linecolor = COLOR_DARKGRAY_HEX
+            showlegend = True
+            name = r'$\text{Ecoinvent}$'
+            rank = 1
+        else:
+            fillcolor = COLOR_PSI_LPURPLE_OPAQUE
+            linecolor = COLOR_PSI_LPURPLE
+            if visited:
+                showlegend = False
+            visited = True
+            name = r'$\text{ENTSO-E}$'
+            rank = 2
+        if option == "fitted":
+            option = "yearly averages"
+        latex = r'$\text{' + option + r'}$'
+
+        fig.add_trace(go.Violin(x=d, y=[latex]*2000, name=name, showlegend=showlegend, legendrank=rank,
+                                fillcolor=fillcolor, line=dict(color=linecolor)))
+
+    fig.update_traces(orientation='h', side='positive', width=2, points=False)
+    fig = update_fig_axes(fig)
+    fig.update_xaxes(range=(-0.1, 0.9), title_text=r"$\text{LCIA scores, [kg CO}_2\text{-eq.]}$")
+    fig.update_layout(xaxis_showgrid=True, xaxis_zeroline=False, yaxis_showgrid=False,
+                      width=350, height=460, legend=dict(yanchor="top", y=0.95, xanchor="left", x=0.55))
 
     return fig
 

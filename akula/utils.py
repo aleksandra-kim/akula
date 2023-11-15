@@ -6,6 +6,13 @@ import pickle
 
 # from .sensitivity_analysis import get_mask
 
+COLOR_GRAY_HEX = "#b2bcc0"
+COLOR_DARKGRAY_HEX = "#485063"
+COLOR_DARKGRAY_HEX_OPAQUE = "rgba(72, 80, 99, 0.5)"
+COLOR_BLACK_HEX = "#212931"
+COLOR_PSI_LPURPLE = "#914967"
+COLOR_PSI_LPURPLE_OPAQUE = "rgba(145, 73, 103, 0.5)"
+
 
 def write_pickle(data, filepath):
     """Write ``data`` to a file with .pickle extension"""
@@ -19,37 +26,33 @@ def read_pickle(filepath):
         data = pickle.load(f)
     return data
 
-color_gray_hex = "#b2bcc0"
-color_darkgray_hex = "#485063"
-color_black_hex = "#212931"
-
 
 def update_fig_axes(fig):
     fig.update_xaxes(
         showgrid=True,
         gridwidth=1,
-        gridcolor=color_gray_hex,
+        gridcolor=COLOR_GRAY_HEX,
         zeroline=True,
         zerolinewidth=1,
-        zerolinecolor=color_black_hex,
+        zerolinecolor=COLOR_BLACK_HEX,
         showline=True,
         linewidth=1,
-        linecolor=color_gray_hex,
+        linecolor=COLOR_GRAY_HEX,
     )
     fig.update_yaxes(
         showgrid=True,
         gridwidth=1,
-        gridcolor=color_gray_hex,
+        gridcolor=COLOR_GRAY_HEX,
         zeroline=True,
         zerolinewidth=1,
-        zerolinecolor=color_black_hex,
+        zerolinecolor=COLOR_BLACK_HEX,
         showline=True,
         linewidth=1,
-        linecolor=color_gray_hex,
+        linecolor=COLOR_GRAY_HEX,
     )
     fig.update_layout(
         legend=dict(
-            bordercolor=color_darkgray_hex,
+            bordercolor=COLOR_DARKGRAY_HEX,
             borderwidth=1,
         ),
         margin=dict(t=40, b=10, l=10, r=0),

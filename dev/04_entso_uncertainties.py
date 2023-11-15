@@ -13,12 +13,13 @@ from akula.electricity import (
 
 PROJECT = "GSA with correlations"
 PROJECT_DIR = Path(__file__).parent.parent.resolve()
+FIGURES_DIR = PROJECT_DIR / "figures"
 
 
 if __name__ == "__main__":
     mc_iterations = 2000
     random_seed = 111111
-    options = ["ecoinvent", "winter", "spring", "summer", "autumn", "nighttime", "daytime", "fitted"]
+    options = ["winter", "autumn", "summer", "spring", "nighttime", "daytime", "fitted", "ecoinvent"]
 
     directory = PROJECT_DIR / "akula" / "data" / "monte_carlo"
     directory.mkdir(exist_ok=True, parents=True)
@@ -43,5 +44,7 @@ if __name__ == "__main__":
                     pickle.dump(lcia_scores, f)
         results[opt] = lcia_scores
 
-    figure = plot_lcia_scores(results, labels=options)
+    figure = plot_lcia_scores(results)
     figure.show()
+
+    figure.write_image(FIGURES_DIR / "entsoe_seasonal_uncertainties.pdf")

@@ -19,3 +19,4 @@ plotly
 country_converter
 thefuzz
 entsoe-py
+kaleido
