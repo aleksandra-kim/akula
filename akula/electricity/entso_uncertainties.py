@@ -1,12 +1,13 @@
+import numpy as np
 import bw2data as bd
 import bw2calc as bc
 import bw_processing as bwp
+import stats_arrays as sa
 from fs.zipfs import ZipFS
-import numpy as np
 import plotly.graph_objects as go
 import plotly.figure_factory as ff
 from plotly.subplots import make_subplots
-from scipy.stats import dirichlet
+
 
 # Local files
 from ..constants import *
@@ -41,7 +42,7 @@ def get_one_activity(db_name, **kwargs):
 
 
 def get_winter_data(data):
-    # Select hours in spring 2019, 2020 and 2021
+    """Select time-series electricity generation data in winter 2019, 2020 and 2021."""
     data_winter = np.hstack([
         data[:, JAN_START_2019: SPRING_START_2019],
         data[:,    DEC_START_2019: SPRING_START_2020],
@@ -55,7 +56,7 @@ def get_winter_data(data):
 
 
 def get_spring_data(data):
-    # Select hours in spring 2019, 2020 and 2021
+    """Select time-series electricity generation data in spring 2019, 2020 and 2021."""
     data_spring = np.hstack([
         data[:, SPRING_START_2019: SUMMER_START_2019],
         data[:, SPRING_START_2020: SUMMER_START_2020],
@@ -66,7 +67,7 @@ def get_spring_data(data):
 
 
 def get_summer_data(data):
-    # Select hours in spring 2019, 2020 and 2021
+    """Select time-series electricity generation data in summer 2019, 2020 and 2021."""
     data_summer = np.hstack([
         data[:, SUMMER_START_2019: AUTUMN_START_2019],
         data[:, SUMMER_START_2020: AUTUMN_START_2020],
@@ -77,7 +78,7 @@ def get_summer_data(data):
 
 
 def get_autumn_data(data):
-    # Select hours in spring 2019, 2020 and 2021
+    """Select time-series electricity generation data in autumn 2019, 2020 and 2021."""
     data_autumn = np.hstack([
         data[:, AUTUMN_START_2019: DEC_START_2019],
         data[:, AUTUMN_START_2020: DEC_START_2020],
@@ -88,6 +89,7 @@ def get_autumn_data(data):
 
 
 def get_daytime_data(data):
+    """Select time-series electricity generation data during daytime in 2019, 2020 and 2021."""
     data_daytime = np.hstack([
         data[:, JAN_START_2019: JAN_START_2020][:, DAYTIME_MASK_YEAR],
         data[:, JAN_START_2020: JAN_START_2021][:, DAYTIME_MASK_2020],
@@ -100,6 +102,7 @@ def get_daytime_data(data):
 
 
 def get_nighttime_data(data):
+    """Select time-series electricity generation data during nighttime in 2019, 2020 and 2021."""
     data_nighttime = np.hstack([
         data[:, JAN_START_2019: JAN_START_2020][:, ~DAYTIME_MASK_YEAR],
         data[:, JAN_START_2020: JAN_START_2021][:, ~DAYTIME_MASK_2020],
@@ -112,8 +115,15 @@ def get_nighttime_data(data):
     return data_nighttime
 
 
-def get_average_mixes(data, indices):
+def get_fitted_data(data, indices, iterations):
+    average_mix = get_average_mixes(data, indices)
+    distributions = fit_uniform_distributions(average_mix)
+    data = generate_fitted_samples(indices, distributions, iterations)
+    return data
 
+
+def get_average_mixes(data, indices):
+    """Get average electricity market mixes for years 2019, 2020 and 2021."""
     data_2019 = data[:, JAN_START_2019: JAN_START_2020]
     data_2020 = data[:, JAN_START_2020: JAN_START_2021]
     data_2021 = data[:, JAN_START_2021:]
@@ -134,143 +144,57 @@ def get_average_mixes(data, indices):
     return average_mix
 
 
-def fit_pedigree_distributions(average_mix):
-
-    mean_lognormal = np.mean(average_mix, axis=1)
-
-    # Expert judgement
-    indicator_reliability = 1
-    indicator_completeness = 2
-    indicator_temporal_correlation = 2
-    indicator_geographical_correlation = 1
-    indicator_technical_correlation = 1
-    indicator_sample_size = 5
-
-    sigma_reliability = PEDIGREE_MATRIX["reliability"][indicator_reliability]
-    sigma_completeness = PEDIGREE_MATRIX["completeness"][indicator_completeness]
-    sigma_temporal_correlation = PEDIGREE_MATRIX["temporal_correlation"][indicator_temporal_correlation]
-    sigma_geographical_correlation = PEDIGREE_MATRIX["geographical_correlation"][indicator_geographical_correlation]
-    sigma_technical_correlation = PEDIGREE_MATRIX["technical_correlation"][indicator_technical_correlation]
-    sigma_sample_size = PEDIGREE_MATRIX["sample_size"][indicator_sample_size]
-
-    # Compute sigma of the underlying normal distribution
-    variance_normal = sigma_reliability**2 + sigma_completeness**2 + sigma_temporal_correlation**2 + \
-                      sigma_geographical_correlation**2 + sigma_technical_correlation**2 + sigma_sample_size**2
-    variance_normal = np.ones(len(average_mix)) * variance_normal
-
-    # Compute mean and sigma of lognormal distribution
-    mean_normal = np.log(mean_lognormal) - variance_normal / 2
-    variance_lognormal = np.sqrt((np.exp(variance_normal) - 1) * np.exp(2 * mean_normal + variance_normal))
-
+def fit_uniform_distributions(average_mix):
+    """Derive min and max of uniform distributions based on yearly averages of market mixes for 2019, 2020 and 2021."""
+    ids = np.ones(len(average_mix)) * sa.NoUncertainty.id
+    mins = np.min(average_mix, axis=1)
+    maxs = np.max(average_mix, axis=1)
+    mask = mins == maxs
+    ids[~mask] = sa.UniformUncertainty.id
     distributions = np.array(
-        list(zip(mean_lognormal, variance_lognormal)), dtype=[('mean', 'float64'), ('variance', 'float64')]
-    )
-
-    return distributions
-
-
-def fit_distributions(average_mix):
-    means = np.mean(average_mix, axis=1)
-    variances = np.var(average_mix, axis=1)
-    distributions = np.array(
-        list(zip(means, variances)), dtype=[('mean', 'float64'), ('variance', 'float64')]
+        list(zip(ids, mins, maxs)),
+        dtype=[('uncertainty_type', np.uint8), ('minimum', np.float64), ('maximum', np.float64)]
     )
     return distributions
 
 
-def get_scaling_based_on_variance(alpha, beta, variance):
-    """Derive scaling factor by fitting variance of the given distribution to the variance of the Beta distribution.
-
-    Alpha and beta are parameters of the Beta distribution, variance is the variance of the given distribution.
-    """
-    factor = (alpha * beta / (alpha + beta)**2 / variance - 1) / (alpha + beta)
-    return factor
-
-
-def get_dirichlet_factor(distributions):
-
-    alphas = distributions["mean"]
-
-    # Since it is impossible to choose one Dirichlet factor that fits beta distributions to all the exchanges perfectly,
-    # we use the mean value of exchange amounts as a threshold to decide which exchange distributions to optimize.
-    threshold = np.mean(alphas)
-
-    factors = []
-    for i, alpha in enumerate(alphas):
-        _, variance = distributions[i]["mean"], distributions[i]["variance"]
-        beta = sum(alphas) - alpha
-        if alpha >= threshold:  # alphas are equals to means
-            factor = get_scaling_based_on_variance(alpha, beta, variance)
-            factors.append(factor)
-
-    return np.mean(factors)
+def generate_fitted_samples(indices, distributions, iterations):
+    """Generate samples for market mixes based on the derived uniform distributions."""
+    samples = np.zeros([len(indices), iterations])
+    samples[:] = np.nan
+    # Some mixes do not have uncertainties
+    mask = distributions['uncertainty_type'] == sa.NoUncertainty.id
+    samples[mask, :] = np.tile(distributions['minimum'][mask], (iterations, 1)).T
+    # Rest of the exchanges in market mixes are modelled with uniform distributions
+    dicts = [
+        {'minimum': d['minimum'], 'maximum': d['maximum'], 'uncertainty_type': sa.UniformUncertainty.id}
+        for d in distributions[~mask]
+    ]
+    params = sa.UniformUncertainty.from_dicts(*dicts)
+    rng = sa.RandomNumberGenerator(sa.UniformUncertainty, params)
+    samples[~mask, :] = rng.generate_random_numbers(size=iterations)
+    # Normalize samples to ensure unit sum constraint in the market mixes
+    nsamples = normalize_samples(indices, samples)
+    return nsamples
 
 
-def get_dirichlet_samples(indices, distributions, iterations):
-    means = distributions["mean"]
-
-    data = np.zeros((len(indices), iterations))
-    data[:] = np.nan
-
+def normalize_samples(indices, samples):
+    """Normalize samples, such that amounts of exchanges sum up to 1 in the market mixes."""
+    nsamples = np.zeros(samples.shape)
+    nsamples[:] = np.nan
     unique_cols = sorted(list(set(indices['col'])))
-    for i, col in enumerate(unique_cols):
-        mask = indices['col'] == col
-
-        mask0 = mask & (means == 0)
-        data[mask0, :] = np.zeros((sum(mask0), iterations))
-
-        mask1 = mask & (means == 1)
-        data[mask1, :] = np.ones((sum(mask1), iterations))
-
-        mask_not_01 = mask & ~mask0 & ~mask1
-
-        if sum(mask_not_01):
-            factor = get_dirichlet_factor(distributions[mask_not_01])
-            samples = dirichlet.rvs(
-                means[mask_not_01] * abs(factor),
-                size=iterations,
-            ) * 1
-            data[mask_not_01, :] = samples.T
-
-    return data
-
-
-def plot_data_fitted(data_fitted, average_mix, indices):
-
-    unique_cols = sorted(list(set(indices['col'])))
-
     for col in unique_cols:
         mask = indices['col'] == col
-
-        rows = indices[mask]['row']
-        fig = make_subplots(rows=len(rows), cols=1)
-
-        for i, row in enumerate(rows):
-            averages = average_mix[mask][i, :]
-            data = data_fitted[mask][i, :]
-            fig.add_trace(go.Scatter(
-                x=averages, y=np.zeros(len(rows)), name=f"{i} averages", mode="markers"
-            ), row=i+1, col=1)
-            fig.add_trace(go.Histogram(
-                x=data, histnorm="probability", name=f"{i} samples", nbinsx=100
-            ), row=i+1, col=1)
-        fig.update_layout(width=800, height=200*len(rows))
-
-        fig.show()
-
-
-def get_fitted_data(data, indices, iterations):
-    average_mix = get_average_mixes(data, indices)
-    distributions = fit_distributions(average_mix)
-    data_fitted = get_dirichlet_samples(indices, distributions, iterations)
-    # plot_data_fitted(data_fitted, average_mix, indices)
-    return data_fitted
+        nsamples[mask] = samples[mask] / samples[mask].sum(axis=0)
+    return nsamples
 
 
 def create_entsoe_dp(project_dir, option, iterations):
     """
-    Possible options are: winter, spring, summer, autumn, daytime, nighttime, fitted.
+    Possible options are: all, winter, spring, summer, autumn, daytime, nighttime, fitted.
 
+    Note
+    ====
     Random seed will be ignored in the bwp.create_datapackage() if sequential=True.
     But when running MC simulations, if bc.LCA sets seed_override to a random seed,
     then the data will no longer be taken sequentially from this datapackage.
@@ -282,36 +206,43 @@ def create_entsoe_dp(project_dir, option, iterations):
     indices = dp.get_resource("timeseries ENTSO electricity values.indices")[0]
     flip = dp.get_resource("timeseries ENTSO electricity values.flip")[0]
 
-    if option == "winter":
-        data_new = get_winter_data(data)
-    elif option == "spring":
-        data_new = get_spring_data(data)
-    elif option == "summer":
-        data_new = get_summer_data(data)
-    elif option == "autumn":
-        data_new = get_autumn_data(data)
-    elif option == "daytime":
-        data_new = get_daytime_data(data)
-    elif option == "nighttime":
-        data_new = get_nighttime_data(data)
-    elif option == "fitted":
-        data_new = get_fitted_data(data, indices, iterations)
-    else:
+    if option == "all":
         print("Selecting complete ENTSO-E timeseries.")
-        data_new = data
+        samples = data
+    elif option == "winter":
+        samples = get_winter_data(data)
+    elif option == "spring":
+        samples = get_spring_data(data)
+    elif option == "summer":
+        samples = get_summer_data(data)
+    elif option == "autumn":
+        samples = get_autumn_data(data)
+    elif option == "daytime":
+        samples = get_daytime_data(data)
+    elif option == "nighttime":
+        samples = get_nighttime_data(data)
+    elif option == "fitted":
+        samples = get_fitted_data(data, indices, iterations)
+    else:
+        print("No valid option specified, selecting complete ENTSO-E timeseries.")
+        samples = data
 
-    dp_new = bwp.create_datapackage(sequential=True, seed=None)
-    dp_new.add_persistent_array(
+    dp_samples = bwp.create_datapackage(sequential=True, seed=None)
+    dp_samples.add_persistent_array(
         matrix='technosphere_matrix',
         indices_array=indices,
-        data_array=data_new,
+        data_array=samples,
         flip_array=flip,
     )
-    return dp_new
+    return dp_samples
 
 
-def compute_lcia(project, dp, iterations=1000, seed=None):
+def compute_low_voltage_ch_lcia(project, dp_entsoe, iterations=1000, seed=None):
     """
+    Compute climate change scores for the activity `market for electricity, low voltage, CH` based on ENTSOE data in dp.
+
+    Note
+    ====
     If we set seed_override to a random seed, and use_distributions=True, then we can reproduce LCIA scores,
     but it is not clear in which order the data is taken from the sequential datapackage `dp`,
     because seed_override controls randomness of both drawing samples from random distributions,
@@ -326,8 +257,8 @@ def compute_lcia(project, dp, iterations=1000, seed=None):
 
     fu, data_objs, _ = bd.prepare_lca_inputs({activity: 1}, method=method, remapping=False)
 
-    if dp is not None:
-        data_objs += [dp]
+    if dp_entsoe is not None:
+        data_objs += [dp_entsoe]
 
     lca = bc.LCA(
         demand=fu,
@@ -365,7 +296,6 @@ def plot_electricity_profile(project, project_dir):
     indices = dp.get_resource("timeseries ENTSO electricity values.indices")[0]
 
     mask = indices['col'] == activity.id
-    # data_2021 = data[:, JAN_START_2021:JAN_START_2021+DAYS_IN_JAN*HOURS_IN_DAY]
     data_2021 = data[:, JAN_START_2021:]
     data_2021_one_country = data_2021[mask, :]
     indices_one_country = indices[mask]
@@ -389,3 +319,57 @@ def plot_electricity_profile(project, project_dir):
                       legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5))
 
     return fig
+
+
+def fit_pedigree_distributions(average_mix):
+    """Instead of fitting uniform distributions to average mixes, it is also possible to use the pedigree approach.
+
+    First draft of the implementation is provided below.
+    """
+    mean_normal = np.mean(average_mix, axis=1)
+
+    # Expert judgement based on pedigree approach
+    # ===========================================
+    # Reliability 2:                Verified data partly based on assumptions / non-verified data based on measurements.
+    # Completeness 3:               Representative data from only some sited (≪ 50%) relevant for the market considered
+    #                               or >50% of sites but from shorter periods.
+    # Temporal Correlation 1:       Less than 3 years of difference to the time period of the dataset.
+    # Geographical Correlation 1:   Data from area under study.
+    # Technical Correlation 2:      Data from processes and materials under study (i.e. identical technology)
+    #                               but from different enterprises
+    # Sample Size 1:                Following ecoinvent approach, this is set to 1, assuming that sample size
+    #                               uncertainty is implicitly considered in other indicators.
+    indicator_reliability = 2
+    indicator_completeness = 3
+    indicator_temporal_correlation = 1
+    indicator_geographical_correlation = 1
+    indicator_technical_correlation = 2
+    indicator_sample_size = 1
+
+    # Uncertainty factors that are equal to squared geometric standard deviation.
+    gsigma2_reliability = PEDIGREE_MATRIX["reliability"][indicator_reliability]
+    gsigma2_completeness = PEDIGREE_MATRIX["completeness"][indicator_completeness]
+    gsigma2_temporal_correlation = PEDIGREE_MATRIX["temporal_correlation"][indicator_temporal_correlation]
+    gsigma2_geographical_correlation = PEDIGREE_MATRIX["geographical_correlation"][indicator_geographical_correlation]
+    gsigma2_technical_correlation = PEDIGREE_MATRIX["technical_correlation"][indicator_technical_correlation]
+    gsigma2_sample_size = PEDIGREE_MATRIX["sample_size"][indicator_sample_size]
+
+    # Compute standard deviation of the underlying normal distribution
+    sigma_normal = 0.5 * np.sqrt(
+        (np.log(gsigma2_reliability)) ** 2 + (np.log(gsigma2_completeness)) ** 2 +
+        (np.log(gsigma2_temporal_correlation)) ** 2 + (np.log(gsigma2_geographical_correlation)) ** 2 +
+        (np.log(gsigma2_technical_correlation)) ** 2 + (np.log(gsigma2_sample_size)) ** 2
+    )
+    sigma_normal = np.ones(len(mean_normal)) * sigma_normal
+    # Variance of the normal distribution
+    # sigma2_normal = sigma_normal**2
+
+    # Variance of the lognormal distribution
+    # sigma2_lognormal = np.sqrt((np.exp(sigma2_normal) - 1) * np.exp(2 * mean_normal + sigma2_normal))
+
+    distributions = np.array(
+        list(zip(mean_normal, sigma_normal)),
+        dtype=[('loc', np.float64), ('scale', np.float64)]
+    )
+
+    return distributions

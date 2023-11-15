@@ -3,7 +3,7 @@ import sys
 
 import os
 os.environ["ENTSOE_API_TOKEN"] = "0d6ea062-f603-43d3-bc60-176159803035"
-os.environ["BENTSO_DATA_DIR"] = "/home/aleksandrakim/Documents/lca_files/bentso_data"
+os.environ["BENTSO_DATA_DIR"] = "/home/aleksandrakim/LCAfiles/bentso_data"
 
 PROJECT = "GSA with correlations"
 PROJECT_DIR = Path(__file__).parent.parent.resolve()

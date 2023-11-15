@@ -393,3 +393,60 @@ if __name__ == "__main__":
     # )
 
     print("")
+
+
+# def get_scaling_based_on_variance(alpha, beta, variance):
+#     """Derive scaling factor by fitting variance of the given distribution to the variance of the Beta distribution.
+#
+#     Alpha and beta are parameters of the Beta distribution, variance is the variance of the given distribution.
+#     """
+#     factor = (alpha * beta / (alpha + beta)**2 / variance - 1) / (alpha + beta)
+#     return factor
+#
+#
+# def get_dirichlet_factor(distributions):
+#
+#     alphas = distributions["mean"]
+#
+#     # Since it is impossible to choose one Dirichlet factor that fits beta distributions to all the exchanges perfectly,
+#     # we use the mean value of exchange amounts as a threshold to decide which exchange distributions to optimize.
+#     threshold = np.mean(alphas)
+#
+#     factors = []
+#     for i, alpha in enumerate(alphas):
+#         _, variance = distributions[i]["mean"], distributions[i]["variance"]
+#         beta = sum(alphas) - alpha
+#         if alpha >= threshold:  # alphas are equals to means
+#             factor = get_scaling_based_on_variance(alpha, beta, variance)
+#             factors.append(factor)
+#
+#     return np.mean(factors)
+#
+#
+# def get_dirichlet_samples(indices, distributions, iterations):
+#     means = distributions["mean"]
+#
+#     data = np.zeros((len(indices), iterations))
+#     data[:] = np.nan
+#
+#     unique_cols = sorted(list(set(indices['col'])))
+#     for i, col in enumerate(unique_cols):
+#         mask = indices['col'] == col
+#
+#         mask0 = mask & (means == 0)
+#         data[mask0, :] = np.zeros((sum(mask0), iterations))
+#
+#         mask1 = mask & (means == 1)
+#         data[mask1, :] = np.ones((sum(mask1), iterations))
+#
+#         mask_not_01 = mask & ~mask0 & ~mask1
+#
+#         if sum(mask_not_01):
+#             factor = get_dirichlet_factor(distributions[mask_not_01])
+#             samples = dirichlet.rvs(
+#                 means[mask_not_01] * abs(factor),
+#                 size=iterations,
+#             ) * 1
+#             data[mask_not_01, :] = samples.T
+#
+#     return data

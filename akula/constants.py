@@ -51,6 +51,8 @@ DAYTIME_START_AM = 6  # 6AM
 HOURS_IN_DAYTIME = 12
 HOURS_IN_NIGHTTIME = HOURS_IN_DAY - HOURS_IN_DAYTIME
 
+# Source: Frischknecht, R., Jungbluth, N., Althaus, H. J., Doka, G., Dones, R., Heck, T., ... & Spielmann, M. (2005).
+# The ecoinvent database: overview and methodological framework. The international journal of life cycle assessment.
 PEDIGREE_MATRIX = {
     "reliability":
         {1: 1.00, 2: 1.05, 3: 1.10, 4: 1.20, 5: 1.50},
@@ -63,5 +65,5 @@ PEDIGREE_MATRIX = {
     "technical_correlation":
         {1: 1.00, 2: 1.10, 3: 1.20, 4: 1.50, 5: 2.00},
     "sample_size":
-        {1: 1.00, 2: 1.00, 3: 1.00, 4: 1.00, 5: 1.00},
+        {1: 1.00, 2: 1.02, 3: 1.05, 4: 1.10, 5: 1.20},
 }

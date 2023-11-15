@@ -1,32 +1,29 @@
-import bw2data as bd
-import bw2calc as bc
-import bw_processing as bwp
-from fs.zipfs import ZipFS
-import numpy as np
 from pathlib import Path
-import plotly.graph_objects as go
-import plotly.figure_factory as ff
-from plotly.subplots import make_subplots
 import pickle
-from scipy.stats import dirichlet
 
+import os
+os.environ["ENTSOE_API_TOKEN"] = "0d6ea062-f603-43d3-bc60-176159803035"
+os.environ["BENTSO_DATA_DIR"] = "/home/aleksandrakim/LCAfiles/bentso_data"
+
+from akula.electricity import (
+    create_entsoe_dp,
+    compute_low_voltage_ch_lcia,
+    plot_lcia_scores,
+)
 
 PROJECT = "GSA with correlations"
 PROJECT_DIR = Path(__file__).parent.parent.resolve()
 
 
 if __name__ == "__main__":
-
-    # figure = plot_electricity_profile()
-    # figure.show()
-
     mc_iterations = 2000
     random_seed = 111111
-    results = {}
     options = ["ecoinvent", "winter", "spring", "summer", "autumn", "nighttime", "daytime", "fitted"]
+
     directory = PROJECT_DIR / "akula" / "data" / "monte_carlo"
     directory.mkdir(exist_ok=True, parents=True)
 
+    results = {}
     for opt in options:
 
         print(f"Computing {opt} scores")
@@ -39,8 +36,8 @@ if __name__ == "__main__":
             if opt == "ecoinvent":
                 datapackage = None
             else:
-                datapackage = create_entsoe_dp(option=opt, iterations=mc_iterations)
-            lcia_scores = compute_lcia(datapackage, iterations=mc_iterations, seed=random_seed)
+                datapackage = create_entsoe_dp(PROJECT_DIR, option=opt, iterations=mc_iterations)
+            lcia_scores = compute_low_voltage_ch_lcia(PROJECT, datapackage, iterations=mc_iterations, seed=random_seed)
             if mc_iterations > 20:
                 with open(fp, "wb") as f:
                     pickle.dump(lcia_scores, f)
