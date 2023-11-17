@@ -32,20 +32,6 @@ Source: https://thesmartinsights.com/how-to-query-data-from-the-entso-e-transpar
 """
 
 
-def get_one(db_name, **kwargs):
-    possibles = [
-        act
-        for act in bd.Database(db_name)
-        if all(act.get(key) == value for key, value in kwargs.items())
-    ]
-    if len(possibles) == 1:
-        return possibles[0]
-    else:
-        raise ValueError(
-            f"Couldn't get exactly one activity in database `{db_name}` for arguments {kwargs}"
-        )
-
-
 def is_generation_exchange(exc):
     return (
         exc.input["unit"] == "kilowatt hour"
@@ -140,9 +126,9 @@ class ENTSODataConverter:
                 [
                     get_swissgrid_df(fp)
                     for fp in (
-                        DATA_DIR / "EnergieUebersichtCH-2019.xls",
-                        DATA_DIR / "EnergieUebersichtCH-2020.xlsx",
-                        DATA_DIR / "EnergieUebersichtCH-2021.xlsx",
+                        DATA_DIR / "swissgrid" / "EnergieUebersichtCH-2019.xls",
+                        DATA_DIR / "swissgrid" / "EnergieUebersichtCH-2020.xlsx",
+                        DATA_DIR / "swissgrid" / "EnergieUebersichtCH-2021.xlsx",
                     )
                 ]
             )["kWh.1"]

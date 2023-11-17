@@ -8,7 +8,7 @@ from copy import deepcopy
 from pathlib import Path
 from ..utils import read_pickle, write_pickle
 
-from ..parameterized_exchanges import PARAMS_DTYPE
+from ..parameterization import PARAMS_DTYPE
 
 DATA_DIR = Path(__file__).parents[1].resolve() / "data"
 

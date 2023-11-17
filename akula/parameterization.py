@@ -18,11 +18,8 @@ from tqdm import tqdm
 from .utils import read_pickle, write_pickle
 
 
-SAMPLES = 25000
 PARAMS_DTYPE = [('row', '<U40'), ('col', '<i4')]
-
-DATA_DIR = Path(__file__).parent.resolve() / "data"
-FILEPATH = "/Users/akim/Documents/LCA_files/ecoinvent_38_cutoff/datasets"
+DATA_DIR = Path(__file__).parent.parent.resolve() / "data"
 FILEPATH_PARAMETERS = DATA_DIR / "ecoinvent-parameters.pickle"
 
 MC_ERROR_TEXT = """Formula returned array of wrong shape:
@@ -39,7 +36,7 @@ substitutions = {
 
 
 class PatchedParameterSet(bwpa.ParameterSet):
-    def evaluate_monte_carlo(self, iterations=SAMPLES, stochastic=True, seed=42):
+    def evaluate_monte_carlo(self, iterations, stochastic=True, seed=42):
         """Evaluate each formula using Monte Carlo and variable uncertainty data, if present.
         Formulas **must** return a one-dimensional array, or ``BroadcastingError`` is raised.
         Returns dictionary of ``{parameter name: numpy array}``."""
@@ -172,7 +169,7 @@ def check_that_parameters_are_reasonable(act, results, rtol=0.1):
     return True
 
 
-def get_ecoinvent_raw_data(filepath=FILEPATH):
+def get_ecoinvent_raw_data(filepath):
     fp_ei = DATA_DIR / "ecoinvent.pickle"
     if fp_ei.exists():
         eii = read_pickle(fp_ei)
@@ -228,7 +225,7 @@ def add_tech_bio_data(
     return technosphere_data, biosphere_data
 
 
-def get_parameterized_values(input_data, mask=None, num_samples=SAMPLES, seed=42):
+def get_parameterized_values(input_data, num_samples, mask=None, seed=42):
     tech_data, bio_data = [], []
     params_data = {}
 
@@ -464,9 +461,9 @@ def generate_local_sa_datapackage(input_data, const_factor=10.0):
     dp.finalize_serialization()
 
 
-def generate_parameterized_exchanges_datapackage(name, num_samples=SAMPLES, seed=42):
+def generate_parameterized_exchanges_datapackage(name, num_samples, filepath, seed=42):
 
-    ei_raw_data = get_ecoinvent_raw_data(FILEPATH)
+    ei_raw_data = get_ecoinvent_raw_data(filepath)
     tech_data, bio_data, params_data = get_parameterized_values(ei_raw_data, num_samples=num_samples, seed=seed)
 
     # Create datapackage with parameters values
@@ -570,9 +567,9 @@ def create_static_data(indices):
     return data
 
 
-def get_activities_from_indices(indices):
+def get_activities_from_indices(project, indices):
 
-    bd.projects.set_current("GSA for archetypes")
+    bd.projects.set_current(project)
     activities = {}
 
     if indices is not None:
@@ -647,11 +644,11 @@ def collect_tech_and_bio_datapackages(name, dp_tech, dp_bio):
     return dp
 
 
-def generate_validation_datapackages(indices, mask, num_samples, seed=42):
+def generate_validation_datapackages(project, indices, mask, num_samples, seed=42):
 
     name = "ecoinvent-parameterization"
 
-    bd.projects.set_current("GSA for archetypes")
+    bd.projects.set_current(project)
 
     dp_validation_all = generate_parameterized_exchanges_datapackage(
         name=f"validation.{name}.all", num_samples=num_samples, seed=seed,
@@ -700,9 +697,8 @@ def generate_validation_datapackages(indices, mask, num_samples, seed=42):
     return dp_validation_all, dp_validation_inf
 
 
-if __name__ == "__main__":
-
-    bd.projects.set_current("GSA for archetypes")
+def s():
+    bd.projects.set_current(project)
 
     # Generate datapackages for high-dimensional screening
     random_seeds = [85, 86]
@@ -729,5 +725,3 @@ if __name__ == "__main__":
     # pindices = np.array(list(local_sa), dtype=PARAMS_DTYPE)
     # pmask = np.random.randint(0, 2, len(pindices), dtype=bool)
     # dpvall, dpvinf = generate_validation_datapackages(pindices, pmask, 10, seed=42)
-
-    print("")

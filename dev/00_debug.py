@@ -11,19 +11,7 @@ PROJECT = "GSA with correlations"
 PROJECT_DIR = Path(__file__).parent.parent.resolve()
 sys.path.append(str(PROJECT_DIR))
 
-
-def get_one(db_name, **kwargs):
-    possibles = [
-        act
-        for act in bd.Database(db_name)
-        if all(act.get(key) == value for key, value in kwargs.items())
-    ]
-    if len(possibles) == 1:
-        return possibles[0]
-    else:
-        raise ValueError(
-            f"Couldn't get exactly one activity in database `{db_name}` for arguments {kwargs}"
-        )
+from akula.electricity import get_one_activity
 
 
 def plot(data):
@@ -53,7 +41,7 @@ if __name__ == "__main__":
         if not np.allclose(sums[col], 1):
             print(col, sum(np.sum(country_data, axis=0) < 0.95))
 
-    activity = get_one("ecoinvent 3.8 cutoff", name="market for electricity, low voltage", location="CH")
+    activity = get_one_activity("ecoinvent 3.8 cutoff", name="market for electricity, low voltage", location="CH")
     #
     # ch_mix = indices["col"] == activity.id
     # ch_data = data[ch_mix, :]

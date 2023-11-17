@@ -24,7 +24,7 @@ def create_average_entso_datapackages(project, years=(2019, 2020, 2021)):
 
     # Start with average datapackages
     dp = bwp.create_datapackage(
-        fs=ZipFS(str(DATA_DIR / "entso-average.zip"), write=True),
+        fs=ZipFS(str(DATA_DIR / "datapackages" / "entso-average.zip"), write=True),
         name="Average ENTSO generation and trade",
         # set seed to have reproducible (though not sequential) sampling
         seed=42,

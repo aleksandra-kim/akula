@@ -91,10 +91,12 @@ if __name__ == "__main__":
     # Restore GSA project
     restore_ecoinvent = False
     if restore_ecoinvent:
-        fp_gsa_project = PROJECT_DIR / "akula" / "data" / "GSA-with-correlations-backup.electricity-ecoinvent.tar.gz"
+        fp_gsa_project = (PROJECT_DIR / "akula" / "data" / "project-backups" /
+                          "GSA-with-correlations-backup.electricity-ecoinvent.tar.gz")
         bi.restore_project_directory(fp_gsa_project)
 
     restore_entsoe = False
     if restore_entsoe:
-        fp_gsa_project = PROJECT_DIR / "akula" / "data" / "GSA-with-correlations-backup.electricity-entsoe.tar.gz"
+        fp_gsa_project = (PROJECT_DIR / "akula" / "data" / "project-backups" /
+                          "GSA-with-correlations-backup.electricity-entsoe.tar.gz")
         bi.restore_project_directory(fp_gsa_project)

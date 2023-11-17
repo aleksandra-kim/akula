@@ -5,12 +5,17 @@ import bw_processing as bwp
 import stats_arrays as sa
 from fs.zipfs import ZipFS
 import plotly.graph_objects as go
+import plotly.figure_factory as ff
+import pickle
 
 
 # Local files
 from ..constants import *
-from ..utils import (update_fig_axes,
-                     COLOR_DARKGRAY_HEX, COLOR_PSI_LPURPLE, COLOR_PSI_LPURPLE_OPAQUE, COLOR_DARKGRAY_HEX_OPAQUE)
+from ..utils import (
+    update_fig_axes, COLOR_BRIGHT_PINK_RGB,
+    COLOR_DARKGRAY_HEX, COLOR_PSI_LPURPLE, COLOR_PSI_LPURPLE_OPAQUE, COLOR_DARKGRAY_HEX_OPAQUE, COLOR_BLACK_HEX
+)
+from .utils import get_one_activity
 
 DAYTIME_MASK = np.hstack([
     np.zeros(DAYTIME_START_AM, dtype=bool),
@@ -25,20 +30,6 @@ DAYTIME_MASK_2020 = np.hstack([
     np.tile(DAYTIME_MASK, DAYS_IN_2020 - 1),
     DAYTIME_MASK[:-1]  # 31st of December is only 23 hours long in ENTSOE
 ])
-
-
-def get_one_activity(db_name, **kwargs):
-    possibles = [
-        act
-        for act in bd.Database(db_name)
-        if all(act.get(key) == value for key, value in kwargs.items())
-    ]
-    if len(possibles) == 1:
-        return possibles[0]
-    else:
-        raise ValueError(
-            f"Couldn't get exactly one activity in database `{db_name}` for arguments {kwargs}"
-        )
 
 
 def get_winter_data(data):
@@ -118,7 +109,7 @@ def get_nighttime_data(data):
 def get_fitted_data(data, indices, iterations):
     average_mix = get_average_mixes(data, indices)
     distributions = fit_uniform_distributions(average_mix)
-    data = generate_fitted_samples(indices, distributions, iterations)
+    data = generate_uniform_samples(indices, distributions, iterations)
     return data
 
 
@@ -158,7 +149,7 @@ def fit_uniform_distributions(average_mix):
     return distributions
 
 
-def generate_fitted_samples(indices, distributions, iterations):
+def generate_uniform_samples(indices, distributions, iterations):
     """Generate samples for market mixes based on the derived uniform distributions."""
     samples = np.zeros([len(indices), iterations])
     samples[:] = np.nan
@@ -174,24 +165,24 @@ def generate_fitted_samples(indices, distributions, iterations):
     rng = sa.RandomNumberGenerator(sa.UniformUncertainty, params)
     samples[~mask, :] = rng.generate_random_numbers(size=iterations)
     # Normalize samples to ensure unit sum constraint in the market mixes
-    nsamples = normalize_samples(indices, samples)
-    return nsamples
+    normalized = normalize_samples(indices, samples)
+    return normalized
 
 
 def normalize_samples(indices, samples):
     """Normalize samples, such that amounts of exchanges sum up to 1 in the market mixes."""
-    nsamples = np.zeros(samples.shape)
-    nsamples[:] = np.nan
+    normalized = np.zeros(samples.shape)
+    normalized[:] = np.nan
     unique_cols = sorted(list(set(indices['col'])))
     for col in unique_cols:
         mask = indices['col'] == col
-        nsamples[mask] = samples[mask] / samples[mask].sum(axis=0)
-    return nsamples
+        normalized[mask] = samples[mask] / samples[mask].sum(axis=0)
+    return normalized
 
 
 def create_entsoe_dp(project_dir, option, iterations):
     """
-    Possible options are: all, winter, spring, summer, autumn, daytime, nighttime, fitted.
+    Possible options are: entsoe, winter, spring, summer, autumn, daytime, nighttime, fitted.
 
     Note
     ====
@@ -206,7 +197,7 @@ def create_entsoe_dp(project_dir, option, iterations):
     indices = dp.get_resource("timeseries ENTSO electricity values.indices")[0]
     flip = dp.get_resource("timeseries ENTSO electricity values.flip")[0]
 
-    if option == "all":
+    if option == "entsoe":
         print("Selecting complete ENTSO-E timeseries.")
         samples = data
     elif option == "winter":
@@ -237,9 +228,66 @@ def create_entsoe_dp(project_dir, option, iterations):
     return dp_samples
 
 
-def compute_low_voltage_ch_lcia(project, dp_entsoe, iterations=1000, seed=None):
+def create_ecoinvent_original_dp(project, project_dir):
+    bd.projects.set_current(project)
+    dp = bwp.load_datapackage(ZipFS(str(project_dir / "akula" / "data" / "entso-timeseries.zip")))
+
+    indices = dp.get_resource("timeseries ENTSO electricity values.indices")[0]
+    flip = dp.get_resource("timeseries ENTSO electricity values.flip")[0]
+
+    # Get original ecoinvent data
+    dict_ = dict()
+    unique_cols = sorted(list(set(indices['col'])))
+    for col in unique_cols:
+        act = bd.get_activity(col)
+        temp = {
+            (exc.input.id, exc.output.id): exc["original_amount"] for exc in act.exchanges() if "original_amount" in exc
+        }
+        dict_.update(temp)
+
+    original = np.zeros(len(indices))
+    original[:] = np.nan
+    for i, ind in enumerate(indices):
+        original[i] = dict_[tuple(ind)]
+
+    dp_ecoinvent = bwp.create_datapackage()
+    dp_ecoinvent.add_persistent_vector(
+        matrix='technosphere_matrix',
+        indices_array=indices,
+        data_array=original,
+        flip_array=flip,
+    )
+    return dp_ecoinvent
+
+
+def compute_static_score(project, project_dir, use_entsoe=False):
+    """Compute deterministic LCIA score."""
+    bd.projects.set_current(project)
+    method = ("IPCC 2013", "climate change", "GWP 100a", "uncertain")
+    activity = get_one_activity("ecoinvent 3.8 cutoff", name="market for electricity, low voltage", location="CH")
+    fu, data_objs, _ = bd.prepare_lca_inputs({activity: 1}, method=method, remapping=False)
+
+    if use_entsoe:
+        dp = bwp.load_datapackage(ZipFS(str(project_dir / "akula" / "data" / "entso-average.zip")))
+    else:
+        dp = create_ecoinvent_original_dp(project, project_dir)
+
+    lca = bc.LCA(
+        demand=fu,
+        data_objs=data_objs + [dp],
+        use_arrays=False,
+        use_distributions=False
+    )
+    lca.lci()
+    lca.lcia()
+
+    return lca.score
+
+
+def compute_low_voltage_ch_lcia(project, dp, iterations=1000, seed=None):
     """
-    Compute climate change scores for the activity `market for electricity, low voltage, CH` based on ENTSOE data in dp.
+    Compute climate change scores for the activity `market for electricity, low voltage, CH` based on ENTSOE or
+    ecoinvent data in dp.
 
     Note
     ====
@@ -257,12 +305,9 @@ def compute_low_voltage_ch_lcia(project, dp_entsoe, iterations=1000, seed=None):
 
     fu, data_objs, _ = bd.prepare_lca_inputs({activity: 1}, method=method, remapping=False)
 
-    if dp_entsoe is not None:
-        data_objs += [dp_entsoe]
-
     lca = bc.LCA(
         demand=fu,
-        data_objs=data_objs,
+        data_objs=data_objs + [dp],
         use_arrays=True,
         use_distributions=True,
         seed_override=seed,
@@ -275,7 +320,95 @@ def compute_low_voltage_ch_lcia(project, dp_entsoe, iterations=1000, seed=None):
     return scores
 
 
-def plot_lcia_scores(data):
+def compute_scores(directory, project, project_dir, options, iterations, seed):
+    """Run MC simulations and compute LCIA scores for various options."""
+    results = {}
+
+    for opt in options:
+
+        print(f"Computing {opt} scores")
+
+        fp = directory / f"{opt}.N{iterations}.seed{seed}.pickle"
+        if fp.exists():
+            with open(fp, "rb") as f:
+                lcia_scores = pickle.load(f)
+        else:
+            if opt == "ecoinvent":
+                datapackage = create_ecoinvent_original_dp(project, project_dir)
+            else:
+                datapackage = create_entsoe_dp(project_dir, option=opt, iterations=iterations)
+            lcia_scores = compute_low_voltage_ch_lcia(project, datapackage, iterations=iterations, seed=seed)
+            with open(fp, "wb") as f:
+                pickle.dump(lcia_scores, f)
+        results[opt] = lcia_scores
+    return results
+
+
+def plot_entsoe_ecoinvent(project, project_dir, Y_ecoinvent, Y_entso):
+    group_labels = [r'$\text{Ecoinvent}$', r'$\text{ENTSO-E}$']
+
+    score_ecoinvent = compute_static_score(project, project_dir, use_entsoe=False)
+    score_entsoe = compute_static_score(project, project_dir, use_entsoe=True)
+
+    # Create distplot with custom bin_size
+    fig = ff.create_distplot(
+        hist_data=[Y_ecoinvent, Y_entso],
+        group_labels=group_labels,
+        bin_size=.005,
+        colors=[COLOR_DARKGRAY_HEX, COLOR_PSI_LPURPLE],
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=[score_ecoinvent],
+            y=[0],
+            mode="markers",
+            marker=dict(size=14, symbol="x", color=COLOR_BLACK_HEX, opacity=1),
+            name=r"$\text{Static LCIA score from ecoinvent}$",
+            legendrank=3,
+        )
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=[score_entsoe],
+            y=[0],
+            mode="markers",
+            marker=dict(
+                size=10,
+                symbol="diamond-tall",
+                color=COLOR_BRIGHT_PINK_RGB,
+            ),
+            name=r"$\text{Static LCIA score from ENTSO-E}$",
+            legendrank=4
+        )
+    )
+
+    fig = update_fig_axes(fig)
+
+    fig.update_xaxes(title_text=r"$\text{LCIA scores, [kg CO}_2\text{-eq.]}$")
+    fig.update_yaxes(title_text=r"$\text{Probability}$")
+    fig.layout.yaxis2.update({"title": ""})
+
+    fig.update_layout(
+        width=800,
+        height=260,
+        legend=dict(
+            yanchor="top",
+            y=1.0,
+            xanchor="left",
+            x=0.6,
+            orientation='v',
+            font=dict(size=13),
+        ),
+        margin=dict(t=30, b=0, l=30, r=0),
+        legend_traceorder="reversed"
+    )
+
+    return fig
+
+
+def plot_entsoe_seasonal(data):
     fig = go.Figure()
     showlegend = True
     visited = False
@@ -297,16 +430,18 @@ def plot_lcia_scores(data):
             rank = 2
         if option == "fitted":
             option = "yearly averages"
+        elif option == "entsoe":
+            option = "complete time-series"
         latex = r'$\text{' + option + r'}$'
 
-        fig.add_trace(go.Violin(x=d, y=[latex]*2000, name=name, showlegend=showlegend, legendrank=rank,
+        fig.add_trace(go.Violin(x=d, y=[latex]*len(d), name=name, showlegend=showlegend, legendrank=rank,
                                 fillcolor=fillcolor, line=dict(color=linecolor)))
 
     fig.update_traces(orientation='h', side='positive', width=2, points=False)
     fig = update_fig_axes(fig)
-    fig.update_xaxes(range=(-0.1, 0.9), title_text=r"$\text{LCIA scores, [kg CO}_2\text{-eq.]}$")
+    fig.update_xaxes(range=(-0.02, 0.42), title_text=r"$\text{LCIA scores, [kg CO}_2\text{-eq.]}$")
     fig.update_layout(xaxis_showgrid=True, xaxis_zeroline=False, yaxis_showgrid=False,
-                      width=350, height=460, legend=dict(yanchor="top", y=0.95, xanchor="left", x=0.55))
+                      width=560, height=360, legend=dict(yanchor="top", y=0.98, xanchor="left", x=0.75))
 
     return fig
 

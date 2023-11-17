@@ -17,7 +17,7 @@ from akula.sensitivity_analysis.local_sensitivity_analysis import (
 from akula.sensitivity_analysis.remove_non_influential import (
     get_variance_threshold, add_variances, get_indices_high_variance
 )
-from akula.parameterized_exchanges import get_parameters, get_lookup_cache, PARAMS_DTYPE
+from akula.parameterization import get_parameters, get_lookup_cache, PARAMS_DTYPE
 from akula.utils import pop_indices_from_dict
 from akula.markets import DATA_DIR
 from akula.background import get_lca_score_shift

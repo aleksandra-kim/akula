@@ -8,7 +8,7 @@ from plotly.subplots import make_subplots
 from scipy.stats import lognorm
 
 # Local files
-from akula.parameterized_exchanges import DATA_DIR, get_parameters, get_lookup_cache
+from akula.parameterization import DATA_DIR, get_parameters, get_lookup_cache
 
 
 def get_samples(exc):
