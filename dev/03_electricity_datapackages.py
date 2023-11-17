@@ -7,7 +7,6 @@ os.environ["BENTSO_DATA_DIR"] = "/home/aleksandrakim/LCAfiles/bentso_data"
 
 PROJECT = "GSA with correlations"
 PROJECT_DIR = Path(__file__).parent.parent.resolve()
-
 sys.path.append(str(PROJECT_DIR))
 
 from akula.electricity import (

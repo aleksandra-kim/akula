@@ -10,6 +10,7 @@ COLOR_GRAY_HEX = "#b2bcc0"
 COLOR_DARKGRAY_HEX = "#485063"
 COLOR_DARKGRAY_HEX_OPAQUE = "rgba(72, 80, 99, 0.5)"
 COLOR_BLACK_HEX = "#212931"
+COLOR_PSI_BLUE = "#003b6e"
 COLOR_PSI_LPURPLE = "#914967"
 COLOR_PSI_LPURPLE_OPAQUE = "rgba(145, 73, 103, 0.5)"
 COLOR_BRIGHT_PINK_RGB = "#e75480"
@@ -64,7 +65,7 @@ def update_fig_axes(fig):
 
 
 def setup_bw_project(years="151617"):
-    project = "GSA for archetypes"
+    project = "GSA for correlations"
     bd.projects.set_current(project)
 
     co = bd.Database('swiss consumption 1.0')

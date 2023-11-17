@@ -18,9 +18,12 @@ PROJECT = "GSA with correlations"
 PROJECT_DIR = Path(__file__).parent.parent.resolve()
 sys.path.append(str(PROJECT_DIR))
 
+BACKUP_DIR = PROJECT_DIR / "data" / "project-backups"
+BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+
 
 def import_databases(use_exiobase=False, year='121314'):
-    path_base = Path('/home/aleksandrakim/Documents/lca_files')
+    path_base = Path('/home/aleksandrakim/Documents/LCAfiles')
 
     directory_habe = path_base / 'HABE_2017/'
     fp_ecoinvent_38 = path_base / "ecoinvent_38_cutoff" / "datasets"
@@ -66,7 +69,7 @@ def import_databases(use_exiobase=False, year='121314'):
     if co_name not in bd.databases:
         import_consumption_db(
             directory_habe, year, co_name, fp_ecoinvent_33, exclude_databases, fp_exiobase,
-        )
+        )  # TODO filepaths for the consumption database
         # Add functional units
         option = 'aggregated'
         add_consumption_activities(co_name, year, option=option)
@@ -86,17 +89,13 @@ if __name__ == "__main__":
     if backup:
         bi.backup_project_directory(PROJECT)
 
-    print(PROJECT_DIR)
-
     # Restore GSA project
     restore_ecoinvent = False
     if restore_ecoinvent:
-        fp_gsa_project = (PROJECT_DIR / "akula" / "data" / "project-backups" /
-                          "GSA-with-correlations-backup.electricity-ecoinvent.tar.gz")
+        fp_gsa_project = (BACKUP_DIR / "GSA-with-correlations-backup.electricity-ecoinvent.tar.gz")
         bi.restore_project_directory(fp_gsa_project)
 
     restore_entsoe = False
     if restore_entsoe:
-        fp_gsa_project = (PROJECT_DIR / "akula" / "data" / "project-backups" /
-                          "GSA-with-correlations-backup.electricity-entsoe.tar.gz")
+        fp_gsa_project = (BACKUP_DIR / "GSA-with-correlations-backup.electricity-entsoe.tar.gz")
         bi.restore_project_directory(fp_gsa_project)

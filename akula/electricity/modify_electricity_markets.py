@@ -4,7 +4,7 @@ from pathlib import Path
 from fs.zipfs import ZipFS
 from copy import deepcopy
 
-DATA_DIR = Path(__file__).parent.parent.resolve() / "data"
+DATA_DIR = Path(__file__).parent.parent.parent.resolve() / "data"
 
 
 def replace_ei_with_entso(project):

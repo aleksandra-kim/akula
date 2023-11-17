@@ -7,6 +7,7 @@ from fs.zipfs import ZipFS
 import plotly.graph_objects as go
 import plotly.figure_factory as ff
 import pickle
+from pathlib import Path
 
 
 # Local files
@@ -30,6 +31,10 @@ DAYTIME_MASK_2020 = np.hstack([
     np.tile(DAYTIME_MASK, DAYS_IN_2020 - 1),
     DAYTIME_MASK[:-1]  # 31st of December is only 23 hours long in ENTSOE
 ])
+
+DATA_DIR = Path(__file__).parent.parent.parent.resolve() / "data" / "datapackages"
+MC_DIR = Path(__file__).parent.parent.parent.resolve() / "data" / "monte-carlo" / "electricity-uncertainties"
+MC_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def get_winter_data(data):
@@ -180,7 +185,7 @@ def normalize_samples(indices, samples):
     return normalized
 
 
-def create_entsoe_dp(project_dir, option, iterations):
+def create_entsoe_dp(option, iterations):
     """
     Possible options are: entsoe, winter, spring, summer, autumn, daytime, nighttime, fitted.
 
@@ -191,7 +196,7 @@ def create_entsoe_dp(project_dir, option, iterations):
     then the data will no longer be taken sequentially from this datapackage.
 
     """
-    dp = bwp.load_datapackage(ZipFS(str(project_dir / "akula" / "data" / "entso-timeseries.zip")))
+    dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entso-timeseries.zip")))
 
     data = dp.get_resource("timeseries ENTSO electricity values.data")[0]
     indices = dp.get_resource("timeseries ENTSO electricity values.indices")[0]
@@ -228,9 +233,9 @@ def create_entsoe_dp(project_dir, option, iterations):
     return dp_samples
 
 
-def create_ecoinvent_original_dp(project, project_dir):
+def create_ecoinvent_original_dp(project):
     bd.projects.set_current(project)
-    dp = bwp.load_datapackage(ZipFS(str(project_dir / "akula" / "data" / "entso-timeseries.zip")))
+    dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entso-timeseries.zip")))
 
     indices = dp.get_resource("timeseries ENTSO electricity values.indices")[0]
     flip = dp.get_resource("timeseries ENTSO electricity values.flip")[0]
@@ -260,7 +265,7 @@ def create_ecoinvent_original_dp(project, project_dir):
     return dp_ecoinvent
 
 
-def compute_static_score(project, project_dir, use_entsoe=False):
+def compute_static_score(project, use_entsoe=False):
     """Compute deterministic LCIA score."""
     bd.projects.set_current(project)
     method = ("IPCC 2013", "climate change", "GWP 100a", "uncertain")
@@ -268,9 +273,9 @@ def compute_static_score(project, project_dir, use_entsoe=False):
     fu, data_objs, _ = bd.prepare_lca_inputs({activity: 1}, method=method, remapping=False)
 
     if use_entsoe:
-        dp = bwp.load_datapackage(ZipFS(str(project_dir / "akula" / "data" / "entso-average.zip")))
+        dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entso-average.zip")))
     else:
-        dp = create_ecoinvent_original_dp(project, project_dir)
+        dp = create_ecoinvent_original_dp(project)
 
     lca = bc.LCA(
         demand=fu,
@@ -320,7 +325,7 @@ def compute_low_voltage_ch_lcia(project, dp, iterations=1000, seed=None):
     return scores
 
 
-def compute_scores(directory, project, project_dir, options, iterations, seed):
+def compute_scores(project, options, iterations, seed):
     """Run MC simulations and compute LCIA scores for various options."""
     results = {}
 
@@ -328,15 +333,15 @@ def compute_scores(directory, project, project_dir, options, iterations, seed):
 
         print(f"Computing {opt} scores")
 
-        fp = directory / f"{opt}.N{iterations}.seed{seed}.pickle"
+        fp = MC_DIR / f"{opt}.N{iterations}.seed{seed}.pickle"
         if fp.exists():
             with open(fp, "rb") as f:
                 lcia_scores = pickle.load(f)
         else:
             if opt == "ecoinvent":
-                datapackage = create_ecoinvent_original_dp(project, project_dir)
+                datapackage = create_ecoinvent_original_dp(project)
             else:
-                datapackage = create_entsoe_dp(project_dir, option=opt, iterations=iterations)
+                datapackage = create_entsoe_dp(option=opt, iterations=iterations)
             lcia_scores = compute_low_voltage_ch_lcia(project, datapackage, iterations=iterations, seed=seed)
             with open(fp, "wb") as f:
                 pickle.dump(lcia_scores, f)
@@ -344,11 +349,11 @@ def compute_scores(directory, project, project_dir, options, iterations, seed):
     return results
 
 
-def plot_entsoe_ecoinvent(project, project_dir, Y_ecoinvent, Y_entso):
+def plot_entsoe_ecoinvent(project, Y_ecoinvent, Y_entso):
     group_labels = [r'$\text{Ecoinvent}$', r'$\text{ENTSO-E}$']
 
-    score_ecoinvent = compute_static_score(project, project_dir, use_entsoe=False)
-    score_entsoe = compute_static_score(project, project_dir, use_entsoe=True)
+    score_ecoinvent = compute_static_score(project, use_entsoe=False)
+    score_entsoe = compute_static_score(project, use_entsoe=True)
 
     # Create distplot with custom bin_size
     fig = ff.create_distplot(
@@ -446,10 +451,10 @@ def plot_entsoe_seasonal(data):
     return fig
 
 
-def plot_electricity_profile(project, project_dir):
+def plot_electricity_profile(project):
     bd.projects.set_current(project)
     activity = get_one_activity("ecoinvent 3.8 cutoff", name="market for electricity, low voltage", location="CH")
-    dp = bwp.load_datapackage(ZipFS(str(project_dir / "akula" / "data" / "entso-timeseries.zip")))
+    dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entso-timeseries.zip")))
 
     data = dp.get_resource("timeseries ENTSO electricity values.data")[0]
     indices = dp.get_resource("timeseries ENTSO electricity values.indices")[0]

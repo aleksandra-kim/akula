@@ -1,0 +1,100 @@
+import bw2data as bd
+import bw2calc as bc
+import pickle
+from pathlib import Path
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+import numpy as np
+
+# Local files
+from .utils import update_fig_axes, COLOR_PSI_BLUE, COLOR_DARKGRAY_HEX
+
+MC_DIR = Path(__file__).parent.parent.resolve() / "data" / "monte-carlo" / "sampling-modules"
+MC_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def get_consumption_activity(project):
+    bd.projects.set_current(project)
+    co = bd.Database('swiss consumption 1.0')
+    activity = [act for act in co if f"ch hh average consumption aggregated" in act['name']]
+    assert len(activity) == 1
+    return activity[0]
+
+
+def compute_consumption_lcia(project, iterations, seed=42, datapackage=None):
+    bd.projects.set_current(project)
+    method = ("IPCC 2013", "climate change", "GWP 100a", "uncertain")
+    activity = get_consumption_activity(project)
+
+    fu, data_objs, _ = bd.prepare_lca_inputs({activity: 1}, method=method, remapping=False)
+    if datapackage is not None:
+        data_objs += [datapackage]
+
+    lca = bc.LCA(
+        demand=fu,
+        data_objs=data_objs,
+        use_arrays=True,
+        use_distributions=True,
+        seed_override=seed,
+    )
+    lca.lci()
+    lca.lcia()
+
+    scores = [lca.score for _ in zip(range(iterations), lca)]
+
+    return scores
+
+
+def compute_scores(project, option, iterations, seed=42, datapackage=None):
+    fp = MC_DIR / f"{option}-{seed}-{iterations}.pickle"
+    if fp.exists():
+        with open(fp, "rb") as f:
+            scores = pickle.load(f)
+    else:
+        scores = compute_consumption_lcia(project, iterations, seed, datapackage)
+        with open(fp, "wb") as f:
+            pickle.dump(scores, f)
+    return scores
+
+
+def plot_sampling_modules(Y0, YS):
+
+    Y0 = np.array(Y0)
+    YS = np.array(YS)
+
+    start, end = 0, 50
+    axis_text = r"$\text{LCIA scores}$"
+
+    color1 = COLOR_PSI_BLUE
+    color2 = COLOR_DARKGRAY_HEX
+
+    fig = make_subplots(rows=1, cols=2, shared_xaxes=False)
+
+    x = np.arange(start, end)
+    fig.add_trace(go.Scatter(x=x, y=Y0[start:end]-YS[start:end],
+                             mode="markers", marker=dict(color=color1, symbol="diamond-tall", size=8), showlegend=False),
+                  row=1, col=1)
+    fig.add_trace(go.Scatter(x=Y0, y=YS, mode="markers", marker=dict(color=color2, line=dict(width=1, color="black")),
+                             showlegend=False, opacity=0.65),
+                  row=1, col=2)
+
+    fig = update_fig_axes(fig)
+
+    fig.update_layout(
+        width=500,
+        height=160,
+        xaxis1=dict(domain=[0.0, 0.58]),
+        xaxis2=dict(domain=[0.76, 1.0], tickmode="array", tickvals=[1000, 1300, 1600]),
+        yaxis2=dict(tickmode="array", tickvals=[1000, 1300, 1600]),
+        margin=dict(l=20, r=20, t=10, b=20),
+    )
+
+    Ymin = min(np.hstack([Y0, YS]))
+    Ymax = max(np.hstack([Y0, YS]))
+
+    fig.update_xaxes(title_text=r"$\text{Sample number}$", title_standoff=5, row=1, col=1)
+    fig.update_yaxes(range=[-100, 100], title_text=r"$\Delta \text{ LCIA scores}$", title_standoff=5, row=1, col=1)
+    fig.update_xaxes(range=[Ymin, Ymax], title_text=axis_text, title_standoff=5, row=1, col=2)
+    fig.update_yaxes(range=[Ymin, Ymax], title_text=axis_text, title_standoff=5, row=1, col=2)
+
+    return fig

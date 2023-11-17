@@ -8,12 +8,7 @@ import numpy as np
 import stats_arrays as sa
 from tqdm import tqdm
 
-# Local files
-from .utils import create_static_datapackage
-
-
-DATA_DIR = Path(__file__).parent.resolve() / "data"
-SAMPLES = 25000
+DATA_DIR = Path(__file__).parent.parent.resolve() / "data" / "datapackages"
 
 
 def carbon_fuel_emissions_balanced(activity, fuels, co2):
@@ -127,77 +122,87 @@ def get_co2():
     return [x for x in bd.Database('biosphere3') if x['name'] == 'Carbon dioxide, fossil']
 
 
-def generate_liquid_fuels_combustion_correlated_samples(size=25000, seed=42):
-    bd.projects.set_current('GSA for archetypes')
+def generate_combustion_datapackage(name, num_samples, seed=42):
 
-    fuels = get_liquid_fuels()
-    co2 = get_co2()
-    candidates = get_candidates(co2)
+    fp_datapackage = DATA_DIR / f"{name}-{seed}-{num_samples}.zip"
 
-    processed_log = open(DATA_DIR / "liquid-fuels.processed.log", "w")
-    unbalanced_log = open(DATA_DIR / "liquid-fuels.unbalanced.log", "w")
-    error_log = open(DATA_DIR / "liquid-fuels.error.log", "w")
+    if not fp_datapackage.exists():
 
-    indices_tech, flip_tech, data_tech = [], [], []
-    indices_bio, data_bio = [], []
+        fuels = get_liquid_fuels()
+        co2 = get_co2()
+        candidates = get_candidates(co2)
 
-    dp = bwp.create_datapackage(
-        fs=ZipFS(str(DATA_DIR / f"liquid-fuels-kilogram-{seed}.zip"), write=True),
-        name="liquid-fuels",
-        seed=seed,
-        sequential=True,
-    )
+        processed_log = open(DATA_DIR / "combustion.processed.log", "w")
+        unbalanced_log = open(DATA_DIR / "combustion.unbalanced.log", "w")
+        error_log = open(DATA_DIR / "combustion.error.log", "w")
 
-    for candidate in tqdm(candidates):
-        if not carbon_fuel_emissions_balanced(candidate, fuels, co2):
-            unbalanced_log.write("{}\t{}\n".format(candidate.id, str(candidate)))
+        indices_tech, flip_tech, data_tech = [], [], []
+        indices_bio, data_bio = [], []
 
-        try:
-            tindices, tflip, tsample, factors = get_samples_and_scaling_vector(candidate, fuels, size=size, seed=seed)
-            if tindices.shape == (0, ):
-                continue
+        dp = bwp.create_datapackage(
+            fs=ZipFS(str(fp_datapackage), write=True),
+            seed=seed,
+            sequential=True,
+        )
 
-            bindices, bsample, _ = rescale_biosphere_exchanges_by_factors(candidate, factors, co2)
+        for candidate in tqdm(candidates):
+            if not carbon_fuel_emissions_balanced(candidate, fuels, co2):
+                unbalanced_log.write("{}\t{}\n".format(candidate.id, str(candidate)))
 
-            indices_tech.append(tindices)
-            flip_tech.append(tflip)
-            data_tech.append(tsample)
+            try:
+                tindices, tflip, tsample, factors = get_samples_and_scaling_vector(
+                    candidate, fuels, size=num_samples, seed=seed
+                )
+                if tindices.shape == (0, ):
+                    continue
 
-            indices_bio.append(bindices)
-            data_bio.append(bsample)
+                bindices, bsample, _ = rescale_biosphere_exchanges_by_factors(candidate, factors, co2)
 
-            processed_log.write("{}\t{}\n".format(candidate.id, str(candidate)))
-        except KeyError:
-            error_log.write("{}\t{}\n".format(candidate.id, str(candidate)))
+                indices_tech.append(tindices)
+                flip_tech.append(tflip)
+                data_tech.append(tsample)
 
-    processed_log.close()
-    unbalanced_log.close()
-    error_log.close()
+                indices_bio.append(bindices)
+                data_bio.append(bsample)
 
-    # for a, b, c in zip(indices, flip, data):
-    #     print(a.shape, b.shape, c.shape)
+                processed_log.write("{}\t{}\n".format(candidate.id, str(candidate)))
+            except KeyError:
+                error_log.write("{}\t{}\n".format(candidate.id, str(candidate)))
 
-    indices = indices_tech + indices_bio
-    print("Found {} exchanges in {} datasets".format(sum(len(x) for x in indices), len(indices)))
+        processed_log.close()
+        unbalanced_log.close()
+        error_log.close()
 
-    dp.add_persistent_array(
-        matrix="technosphere_matrix",
-        data_array=np.vstack(data_tech),
-        # Resource group name that will show up in provenance
-        name="liquid-fuels-tech",
-        indices_array=np.hstack(indices_tech),
-        flip_array=np.hstack(flip_tech),
-    )
+        # for a, b, c in zip(indices, flip, data):
+        #     print(a.shape, b.shape, c.shape)
 
-    dp.add_persistent_array(
-        matrix="biosphere_matrix",
-        data_array=np.vstack(data_bio),
-        # Resource group name that will show up in provenance
-        name="liquid-fuels-bio",
-        indices_array=np.hstack(indices_bio),
-    )
+        indices = indices_tech + indices_bio
+        print("Found {} exchanges in {} datasets".format(sum(len(x) for x in indices), len(indices)))
 
-    dp.finalize_serialization()
+        dp.add_persistent_array(
+            matrix="technosphere_matrix",
+            data_array=np.vstack(data_tech),
+            # Resource group name that will show up in provenance
+            name="combustion-tech",
+            indices_array=np.hstack(indices_tech),
+            flip_array=np.hstack(flip_tech),
+        )
+
+        dp.add_persistent_array(
+            matrix="biosphere_matrix",
+            data_array=np.vstack(data_bio),
+            # Resource group name that will show up in provenance
+            name="combustion-bio",
+            indices_array=np.hstack(indices_bio),
+        )
+
+        dp.finalize_serialization()
+
+    else:
+
+        dp = bwp.load_datapackage(ZipFS(str(fp_datapackage)))
+
+    return dp
 
 
 def create_technosphere_dp(indices_tech, static_tech, const_factor):
@@ -243,7 +248,7 @@ def create_biosphere_dp(indices_tech, indices_bio, sample_bio, static_bio):
     # return bindices, bdata
 
 
-def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0, seed=42):
+def generate_combustion_local_sa_samples(const_factor=10.0, seed=42):
     bd.projects.set_current('GSA for archetypes')
 
     fuels = get_liquid_fuels()
@@ -253,11 +258,11 @@ def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0, seed=42
     indices_tech, static_tech = [], []
     indices_bio, sample_bio, static_bio = [], [], []
 
-    name = "liquid-fuels-kilogram"
+    name = "combustion"
 
     dp = bwp.create_datapackage(
         fs=ZipFS(str(DATA_DIR / f"local-sa-{const_factor:.0e}-{name}.zip"), write=True),
-        name="local-sa-liquid-fuels",
+        # name="local-sa-liquid-fuels",
         seed=seed,
         sequential=True,
     )
@@ -310,58 +315,57 @@ def generate_liquid_fuels_combustion_local_sa_samples(const_factor=10.0, seed=42
     dp.finalize_serialization()
 
 
-def create_static_data(indices_tech, indices_bio):
-
-    cols = list(set(indices_tech['cols']))
-
-    for col in cols:
-        activity = bd.get_activity(int(col))
-        tindices, tstatic, factors = get_static_samples_and_scaling_vector(activity, fuels)
-        if tindices.shape == (0,):
-            continue
-
-        bindices, bsample, bstatic = rescale_biosphere_exchanges_by_factors(candidate, factors, co2)
-    return
-
-
-
-def create_dynamic_datapackage(name, indices_tech, indices_bio, num_samples):
-    dp = []
-    return dp
+# def create_static_data(indices_tech, indices_bio):
+#
+#     cols = list(set(indices_tech['cols']))
+#
+#     for col in cols:
+#         activity = bd.get_activity(int(col))
+#         tindices, tstatic, factors = get_static_samples_and_scaling_vector(activity, fuels)
+#         if tindices.shape == (0,):
+#             continue
+#
+#         bindices, bsample, bstatic = rescale_biosphere_exchanges_by_factors(candidate, factors, co2)
+#     return
 
 
-def generate_validation_datapackage(mask_tech, mask_bio, num_samples=SAMPLES, seed=42):
-
-    name = "liquid-fuels-kilogram"
-    dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"validation-{name}-{seed}.zip")))  # TODO this dp might not exist yet
-
-    tindices = dp.get_resource('liquid-fuels-tech.indices')[0]
-    assert len(tindices) == len(mask_tech)
-    static_tindices = tindices[~mask_tech]
-    dynamic_tindices = tindices[mask_tech]
-
-    bindices = dp.get_resource('liquid-fuels-bio.indices')[0]
-    assert len(bindices) == len(mask_bio)
-    static_bindices = bindices[~mask_bio]
-    dynamic_bindices = bindices[mask_bio]
-
-    indices_tech, data_tech, flip_tech, indices_bio, data_bio = create_static_data(static_tindices, static_bindices)
-
-    dp_static = create_static_datapackage(
-        name, indices_tech=None, data_tech=None, flip_tech=None, indices_bio=None, data_bio=None
-    )
-
-    dp_dynamic = create_dynamic_datapackage(name, dynamic_tindices, dynamic_bindices, num_samples)
-
-    return dp_static, dp_dynamic
+# def create_dynamic_datapackage(name, indices_tech, indices_bio, num_samples):
+#     dp = []
+#     return dp
 
 
-if __name__ == "__main__":
-    random_seeds = [85, 86]
-    num_samples = 15000
-    for random_seed in random_seeds:
-        print(f"Random seed {random_seed}")
-        generate_liquid_fuels_combustion_correlated_samples(num_samples, random_seed)
+# def generate_validation_datapackage(mask_tech, mask_bio, num_samples, seed=42):
+#
+#     name = "liquid-fuels-kilogram"
+#     dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / f"validation-{name}-{seed}.zip")))  # TODO dp might not exist yet
+#
+#     tindices = dp.get_resource('liquid-fuels-tech.indices')[0]
+#     assert len(tindices) == len(mask_tech)
+#     static_tindices = tindices[~mask_tech]
+#     dynamic_tindices = tindices[mask_tech]
+#
+#     bindices = dp.get_resource('liquid-fuels-bio.indices')[0]
+#     assert len(bindices) == len(mask_bio)
+#     static_bindices = bindices[~mask_bio]
+#     dynamic_bindices = bindices[mask_bio]
+#
+#     indices_tech, data_tech, flip_tech, indices_bio, data_bio = create_static_data(static_tindices, static_bindices)
+#
+#     dp_static = create_static_datapackage(
+#         name, indices_tech=None, data_tech=None, flip_tech=None, indices_bio=None, data_bio=None
+#     )
+#
+#     dp_dynamic = create_dynamic_datapackage(name, dynamic_tindices, dynamic_bindices, num_samples)
+#
+#     return dp_static, dp_dynamic
+
+
+# if __name__ == "__main__":
+#     random_seeds = [85, 86]
+#     num_samples = 15000
+#     for random_seed in random_seeds:
+#         print(f"Random seed {random_seed}")
+#         generate_liquid_fuels_combustion_correlated_samples(num_samples, random_seed)
 
     # dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "liquid-fuels-kilogram-43.zip")))
     # dp_data_tech = dp.get_resource('liquid-fuels-tech.data')[0]
@@ -379,4 +383,4 @@ if __name__ == "__main__":
     # bmask = np.random.choice([True, False], size=407, p=[0.1, 0.9])
     # dps, dpd = generate_validation_datapackage(tmask, bmask, SAMPLES)
 
-    print("")
+    # print("")

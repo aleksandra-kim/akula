@@ -12,7 +12,7 @@ from .config import ENTSO_MAPPING
 
 assert bentso.__version__ >= (0, 4)
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+DATA_DIR = Path(__file__).parent.parent.parent.resolve() / "data" / "swissgrid"
 cdc = CDC()
 
 
@@ -126,9 +126,9 @@ class ENTSODataConverter:
                 [
                     get_swissgrid_df(fp)
                     for fp in (
-                        DATA_DIR / "swissgrid" / "EnergieUebersichtCH-2019.xls",
-                        DATA_DIR / "swissgrid" / "EnergieUebersichtCH-2020.xlsx",
-                        DATA_DIR / "swissgrid" / "EnergieUebersichtCH-2021.xlsx",
+                        DATA_DIR / "EnergieUebersichtCH-2019.xls",
+                        DATA_DIR / "EnergieUebersichtCH-2020.xlsx",
+                        DATA_DIR / "EnergieUebersichtCH-2021.xlsx",
                     )
                 ]
             )["kWh.1"]
@@ -214,7 +214,7 @@ class ENTSODataConverter:
         return disaggregated, mv_generation_with_losses
 
     def data_dict_for_low_voltage_market(
-        self, country, years=(2019, 2020, 2021), average=False
+        self, country, years=(2019, 2020, 2021)
     ):
         data = {}
 
@@ -283,7 +283,7 @@ class ENTSODataConverter:
         return df["Waste"].fillna(0), hv_generation_with_losses
 
     def data_dict_for_medium_voltage_market(
-        self, country, years=(2019, 2020, 2021), average=False
+        self, country, years=(2019, 2020, 2021)
     ):
         data = {}
 
@@ -355,7 +355,7 @@ class ENTSODataConverter:
         return pd.concat(disaggregated, axis=1).fillna(0)
 
     def data_dict_for_high_voltage_market(
-        self, country, years=(2019, 2020, 2021), average=False
+        self, country, years=(2019, 2020, 2021)
     ):
         market = self.hv_mixes[country]
         df = self.adjust_entso_df_for_high_voltage(

@@ -1,4 +1,5 @@
 from pathlib import Path
+import sys
 
 import os
 os.environ["ENTSOE_API_TOKEN"] = "0d6ea062-f603-43d3-bc60-176159803035"
@@ -12,21 +13,21 @@ from akula.electricity import (
 
 PROJECT = "GSA with correlations"
 PROJECT_DIR = Path(__file__).parent.parent.resolve()
+sys.path.append(str(PROJECT_DIR))
+
 FIGURES_DIR = PROJECT_DIR / "figures"
+FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 if __name__ == "__main__":
-    iterations = 2000
+    iterations = 20
     seed = 111111
 
-    directory = PROJECT_DIR / "akula" / "data" / "monte-carlo" / "electricity-uncertainties"
-    directory.mkdir(exist_ok=True, parents=True)
-
     options = ["winter", "autumn", "summer", "spring", "nighttime", "daytime", "fitted", "entsoe", "ecoinvent"]
-    results = compute_scores(directory, PROJECT, PROJECT_DIR, options, iterations, seed)
+    results = compute_scores(PROJECT, options, iterations, seed)
 
     # Figure 1 in the paper
-    figure = plot_entsoe_ecoinvent(PROJECT, PROJECT_DIR, results["ecoinvent"], results["entsoe"])
+    figure = plot_entsoe_ecoinvent(PROJECT, results["ecoinvent"], results["entsoe"])
     figure.show()
     figure.write_image(FIGURES_DIR / "ecoinvent_entsoe_uncertainties.pdf")
 

@@ -13,8 +13,7 @@ from sklearn.linear_model import LinearRegression
 
 from .utils import setup_bw_project, get_activities_from_indices, read_pickle, write_pickle
 
-DATA_DIR = Path(__file__).parent.resolve() / "data"
-SAMPLES = 25000
+DATA_DIR = Path(__file__).parent.parent.resolve() / "data" / "datapackages"
 
 
 def similar_exact(a, b):
@@ -86,7 +85,6 @@ def get_lognormal_skewness(scale):
 def select_contributing_exchanges(amounts_exchanges, use_threshold, return_scores=False):
     """Select exchanges in the given market that have contribution scores higher than average."""
 
-    bd.projects.set_current("GSA for archetypes")
     lca = setup_bw_project()
 
     scores = {}
@@ -191,37 +189,39 @@ def predict_dirichlet_scales_generic_markets(generic_markets, fit_variance, base
     return ytest
 
 
-def generate_markets_datapackage(
-        similarity_func,
-        get_dirichlet_scales_func,
-        name,
-        num_samples=SAMPLES,
-        seed=42
-):
-    bd.projects.set_current("GSA for archetypes")
+def generate_markets_datapackage(name, num_samples, seed=42):
+    fp_datapackage = DATA_DIR / f"{name}-{seed}-{num_samples}.zip"
 
-    if 'generic' in name:
-        check_uncertainty = False
+    # if 'generic' in name:
+    #     check_uncertainty = False
+    # else:
+    #     check_uncertainty = True
+
+    if not fp_datapackage.exists():
+
+        fp_markets = DATA_DIR / f"{name}.pickle"
+        if fp_markets.exists():
+            markets = read_pickle(fp_markets)
+        else:
+            markets = find_markets("ecoinvent 3.8 cutoff", similarity_func, check_uncertainty)
+            write_pickle(markets, fp_markets)
+
+        indices_array = np.array(
+            [(exc.input.id, exc.output.id) for lst in markets.values() for exc in lst],
+            dtype=bwp.INDICES_DTYPE,
+        )
+        mask = np.ones(len(indices_array), dtype=bool)
+        dp = create_dynamic_datapackage(
+            name, indices_array, mask, get_dirichlet_scales_func, num_samples, seed
+        )
+
+        dp.finalize_serialization()
+
     else:
-        check_uncertainty = True
 
-    fp_markets = DATA_DIR / f"{name}.pickle"
-    if fp_markets.exists():
-        markets = read_pickle(fp_markets)
-    else:
-        markets = find_markets("ecoinvent 3.8 cutoff", similarity_func, check_uncertainty)
-        write_pickle(markets, fp_markets)
+        dp = bwp.load_datapackage(ZipFS(str(fp_datapackage)))
 
-    indices_array = np.array(
-        [(exc.input.id, exc.output.id) for lst in markets.values() for exc in lst],
-        dtype=bwp.INDICES_DTYPE,
-    )
-    mask = np.ones(len(indices_array), dtype=bool)
-    dp = create_dynamic_datapackage(
-        name, indices_array, mask, get_dirichlet_scales_func, num_samples, seed
-    )
-
-    dp.finalize_serialization()
+    return dp
 
 
 def get_market_lmeans(markets):
