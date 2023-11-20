@@ -16,6 +16,13 @@ COLOR_PSI_LPURPLE_OPAQUE = "rgba(145, 73, 103, 0.5)"
 COLOR_BRIGHT_PINK_RGB = "#e75480"
 
 
+def get_consumption_activity():
+    co = bd.Database('swiss consumption 1.0')
+    activity = [act for act in co if f"ch hh average consumption aggregated" in act['name']]
+    assert len(activity) == 1
+    return activity[0]
+
+
 def write_pickle(data, filepath):
     """Write ``data`` to a file with .pickle extension"""
     with open(filepath, "wb") as f:

@@ -7,24 +7,16 @@ import plotly.graph_objects as go
 import numpy as np
 
 # Local files
-from .utils import update_fig_axes, COLOR_PSI_BLUE, COLOR_DARKGRAY_HEX
+from .utils import update_fig_axes, COLOR_PSI_BLUE, COLOR_DARKGRAY_HEX, get_consumption_activity
 
 MC_DIR = Path(__file__).parent.parent.resolve() / "data" / "monte-carlo" / "sampling-modules"
 MC_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def get_consumption_activity(project):
-    bd.projects.set_current(project)
-    co = bd.Database('swiss consumption 1.0')
-    activity = [act for act in co if f"ch hh average consumption aggregated" in act['name']]
-    assert len(activity) == 1
-    return activity[0]
-
-
 def compute_consumption_lcia(project, iterations, seed=42, datapackage=None):
     bd.projects.set_current(project)
     method = ("IPCC 2013", "climate change", "GWP 100a", "uncertain")
-    activity = get_consumption_activity(project)
+    activity = get_consumption_activity()
 
     fu, data_objs, _ = bd.prepare_lca_inputs({activity: 1}, method=method, remapping=False)
     if datapackage is not None:
@@ -57,10 +49,10 @@ def compute_scores(project, option, iterations, seed=42, datapackage=None):
     return scores
 
 
-def plot_sampling_modules(Y0, YS):
+def plot_sampling_modules(Y0, YS, offset=0):
 
-    Y0 = np.array(Y0)
-    YS = np.array(YS)
+    Y0 = np.array(Y0) + offset
+    YS = np.array(YS) + offset
 
     start, end = 0, 50
     axis_text = r"$\text{LCIA scores}$"
@@ -80,12 +72,17 @@ def plot_sampling_modules(Y0, YS):
 
     fig = update_fig_axes(fig)
 
+    if offset == 0:
+        tickvals = [1000, 1300, 1600]
+    else:
+        tickvals = [1700, 2000, 2300]
+
     fig.update_layout(
         width=500,
         height=160,
         xaxis1=dict(domain=[0.0, 0.58]),
-        xaxis2=dict(domain=[0.76, 1.0], tickmode="array", tickvals=[1000, 1300, 1600]),
-        yaxis2=dict(tickmode="array", tickvals=[1000, 1300, 1600]),
+        xaxis2=dict(domain=[0.76, 1.0], tickmode="array", tickvals=tickvals),
+        yaxis2=dict(tickmode="array", tickvals=tickvals),
         margin=dict(l=20, r=20, t=10, b=20),
     )
 

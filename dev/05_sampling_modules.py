@@ -24,9 +24,9 @@ if __name__ == "__main__":
     iterations = 2000
     seed = 222201
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
     # 1. Generate datapackages for all sampling modules
-    # -------------------------------------------------------------------------
+    # =========================================================================
     dp_parameterization_parameters, dp_parameterization_exchanges = generate_parameterized_exchanges_datapackage(
         "ei_parameterization", FP_ECOINVENT, iterations, seed
     )
@@ -34,14 +34,14 @@ if __name__ == "__main__":
     dp_entsoe = generate_entsoe_datapackage("entsoe", iterations, seed)
     # dp_markets = generate_markets_datapackage("markets", iterations, seed)
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
     # 2. Run MC simulations, and compute LCIA WITHOUT any sampling module
-    # -------------------------------------------------------------------------
+    # =========================================================================
     scores_no_sampling = compute_scores(PROJECT, "no_sampling_modules", iterations, seed)
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
     # 3. Run MC simulations, and compute LCIA WITH sampling modules
-    # -------------------------------------------------------------------------
+    # =========================================================================
     scores_parameterization = compute_scores(
         PROJECT, "ei_parameterization", iterations, seed, dp_parameterization_exchanges
     )
@@ -49,21 +49,23 @@ if __name__ == "__main__":
     scores_entsoe = compute_scores(PROJECT, "entsoe", iterations, seed, dp_entsoe)
     # scores_markets = compute_scores(PROJECT, "markets", iterations, seed, dp_markets)
 
-    # -------------------------------------------------------------------------
-    # 4. Figure 5 in the paper  # TODO check if scores should include exiobase
-    # -------------------------------------------------------------------------
-    figure = plot_sampling_modules(scores_no_sampling, scores_parameterization)
+    # =========================================================================
+    # 4. Figure 5 in the paper
+    # =========================================================================
+    exiobase_offset = 1868.487 - 1165.333  # [kg CO2-eq] Precomputed in the `02_lca_consumption_model.py`
+
+    figure = plot_sampling_modules(scores_no_sampling, scores_parameterization, exiobase_offset)
     figure.show()
     figure.write_image(FIGURES_DIR / "sampling_parameterization.pdf")
 
-    figure = plot_sampling_modules(scores_no_sampling, scores_combustion)
+    figure = plot_sampling_modules(scores_no_sampling, scores_combustion, exiobase_offset)
     figure.show()
     figure.write_image(FIGURES_DIR / "sampling_combustion.pdf")
 
-    figure = plot_sampling_modules(scores_no_sampling, scores_entsoe)
+    figure = plot_sampling_modules(scores_no_sampling, scores_entsoe, exiobase_offset)
     figure.show()
     figure.write_image(FIGURES_DIR / "sampling_entsoe.pdf")
 
-    # figure = plot_sampling_modules(scores_no_sampling, scores_markets)
+    # figure = plot_sampling_modules(scores_no_sampling, scores_markets, exiobase_offset)
     # figure.show()
     # figure.write_image(FIGURES_DIR / "sampling_markets.pdf")
