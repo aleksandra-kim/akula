@@ -196,7 +196,7 @@ def create_entsoe_dp(option, iterations):
     then the data will no longer be taken sequentially from this datapackage.
 
     """
-    dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entso-timeseries.zip")))
+    dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entsoe-timeseries.zip")))
 
     data = dp.get_resource("timeseries ENTSO electricity values.data")[0]
     indices = dp.get_resource("timeseries ENTSO electricity values.indices")[0]
@@ -235,7 +235,7 @@ def create_entsoe_dp(option, iterations):
 
 def create_ecoinvent_original_dp(project):
     bd.projects.set_current(project)
-    dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entso-timeseries.zip")))
+    dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entsoe-timeseries.zip")))
 
     indices = dp.get_resource("timeseries ENTSO electricity values.indices")[0]
     flip = dp.get_resource("timeseries ENTSO electricity values.flip")[0]
@@ -273,7 +273,7 @@ def compute_static_score(project, use_entsoe=False):
     fu, data_objs, _ = bd.prepare_lca_inputs({activity: 1}, method=method, remapping=False)
 
     if use_entsoe:
-        dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entso-average.zip")))
+        dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entsoe-average.zip")))
     else:
         dp = create_ecoinvent_original_dp(project)
 
@@ -454,7 +454,7 @@ def plot_entsoe_seasonal(data):
 def plot_electricity_profile(project):
     bd.projects.set_current(project)
     activity = get_one_activity("ecoinvent 3.8 cutoff", name="market for electricity, low voltage", location="CH")
-    dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entso-timeseries.zip")))
+    dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entsoe-timeseries.zip")))
 
     data = dp.get_resource("timeseries ENTSO electricity values.data")[0]
     indices = dp.get_resource("timeseries ENTSO electricity values.indices")[0]

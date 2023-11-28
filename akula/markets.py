@@ -11,14 +11,9 @@ from thefuzz import fuzz
 from tqdm import tqdm
 from sklearn.linear_model import LinearRegression
 
-from .utils import setup_bw_project, get_activities_from_indices, read_pickle, write_pickle
+from .utils import read_pickle, write_pickle
 
 DATA_DIR = Path(__file__).parent.parent.resolve() / "data" / "datapackages"
-
-
-def similar_exact(a, b):
-    """Exact comparison between `a` and `b` strings."""
-    return a == b
 
 
 def similar_fuzzy(a, b):
@@ -49,7 +44,6 @@ def find_markets(database, similarity_func, check_uncertainty):
             inpts[exc.input["reference product"]].append(exc)
 
         for key, lst in inpts.items():
-            # print(key[:50], sum([exc["amount"] for exc in lst]))
             if (
                 len(lst) > 1
                 and similarity_func(rp, key)
@@ -192,18 +186,13 @@ def predict_dirichlet_scales_generic_markets(generic_markets, fit_variance, base
 def generate_markets_datapackage(name, num_samples, seed=42):
     fp_datapackage = DATA_DIR / f"{name}-{seed}-{num_samples}.zip"
 
-    # if 'generic' in name:
-    #     check_uncertainty = False
-    # else:
-    #     check_uncertainty = True
-
     if not fp_datapackage.exists():
 
-        fp_markets = DATA_DIR / f"{name}.pickle"
+        fp_markets = DATA_DIR / "implicit-markets.pickle"
         if fp_markets.exists():
             markets = read_pickle(fp_markets)
         else:
-            markets = find_markets("ecoinvent 3.8 cutoff", similarity_func, check_uncertainty)
+            markets = find_markets("ecoinvent 3.8 cutoff", similar_fuzzy, check_uncertainty=True)  # TODO check_uncertainty
             write_pickle(markets, fp_markets)
 
         indices_array = np.array(
@@ -247,7 +236,7 @@ def check_dirichlet_samples(markets, indices, data_array):
         assert np.allclose(min(sum_), max(sum_))
 
 
-def create_dynamic_datapackage(name, indices, mask, get_dirichlet_scales_func, num_samples=SAMPLES, seed=42):
+def create_dynamic_datapackage(name, indices, mask, get_dirichlet_scales_func, num_samples, seed=42):
 
     markets = get_activities_from_indices(indices)
 
@@ -319,7 +308,7 @@ def create_dynamic_datapackage(name, indices, mask, get_dirichlet_scales_func, n
     return dp
 
 
-def create_validation_all_datapackage(name, dp_varying, mask, num_samples=SAMPLES, seed=42):
+def create_validation_all_datapackage(name, dp_varying, mask, num_samples, seed=42):
 
     indices = dp_varying.data[0]
     data = deepcopy(dp_varying.data[1])
@@ -450,3 +439,27 @@ if __name__ == "__main__":
 #             data[mask_not_01, :] = samples.T
 #
 #     return data
+
+
+def get_activities_from_indices(project, indices):
+
+    bd.projects.set_current(project)
+    activities = {}
+
+    if indices is not None:
+
+        cols = sorted(set(indices['col']))
+        for col in cols:
+
+            rows = sorted(indices[indices['col'] == col]['row'])
+            act = bd.get_activity(int(col))
+
+            exchanges = []
+            for exc in act.exchanges():
+                if exc.input.id in rows:
+                    exchanges.append(exc)
+
+            if len(exchanges) > 0:
+                activities[act] = exchanges
+
+    return activities

@@ -12,7 +12,7 @@ def replace_ei_with_entso(project):
 
     bd.projects.set_current(project)
 
-    fp_entso = DATA_DIR / "entso-average.zip"
+    fp_entso = DATA_DIR / "entsoe-average.zip"
     dp = bwp.load_datapackage(ZipFS(str(fp_entso)))
 
     indices = dp.get_resource('average ENTSO electricity values.indices')[0]

@@ -24,7 +24,7 @@ def create_average_entso_datapackages(project, years=(2019, 2020, 2021)):
 
     # Start with average datapackages
     dp = bwp.create_datapackage(
-        fs=ZipFS(str(DATA_DIR / "entso-average.zip"), write=True),
+        fs=ZipFS(str(DATA_DIR / "entsoe-average.zip"), write=True),
         name="Average ENTSO generation and trade",
         # set seed to have reproducible (though not sequential) sampling
         seed=42,
@@ -80,7 +80,7 @@ def create_timeseries_entso_datapackages(project, years=(2019, 2020, 2021)):
 
     # Start with average datapackages
     dp = bwp.create_datapackage(
-        fs=ZipFS(str(DATA_DIR / "entso-timeseries.zip"), write=True),
+        fs=ZipFS(str(DATA_DIR / "entsoe-timeseries.zip"), write=True),
         name="2019-2021 ENTSO generation and trade timeseries",
         # set seed to have reproducible (though not sequential) sampling
         seed=42,
@@ -137,7 +137,7 @@ def generate_entsoe_datapackage(name, num_samples, seed=42):
 
     if not fp_datapackage.exists():
 
-        dp_timeseries = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entso-timeseries.zip")))
+        dp_timeseries = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entsoe-timeseries.zip")))
 
         data = dp_timeseries.get_resource("timeseries ENTSO electricity values.data")[0]
         indices = dp_timeseries.get_resource("timeseries ENTSO electricity values.indices")[0]

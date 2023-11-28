@@ -72,10 +72,12 @@ def plot_sampling_modules(Y0, YS, offset=0):
 
     fig = update_fig_axes(fig)
 
-    if offset == 0:
-        tickvals = [1000, 1300, 1600]
-    else:
+    if offset > 0:
         tickvals = [1700, 2000, 2300]
+        Ymin, Ymax = 1600, 2400
+    else:
+        tickvals = [1000, 1300, 1600]
+        Ymin, Ymax = 900, 1700
 
     fig.update_layout(
         width=500,
@@ -86,8 +88,8 @@ def plot_sampling_modules(Y0, YS, offset=0):
         margin=dict(l=20, r=20, t=10, b=20),
     )
 
-    Ymin = min(np.hstack([Y0, YS]))
-    Ymax = max(np.hstack([Y0, YS]))
+    # Ymin = min(np.hstack([Y0, YS]))
+    # Ymax = max(np.hstack([Y0, YS]))
 
     fig.update_xaxes(title_text=r"$\text{Sample number}$", title_standoff=5, row=1, col=1)
     fig.update_yaxes(range=[-100, 100], title_text=r"$\Delta \text{ LCIA scores}$", title_standoff=5, row=1, col=1)

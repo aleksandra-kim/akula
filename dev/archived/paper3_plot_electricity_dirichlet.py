@@ -56,7 +56,7 @@ if __name__ == "__main__":
     iterations = 20000
     write_figs = Path("/Users/akim/PycharmProjects/akula/dev/write_files/paper3")
 
-    dp = bwp.load_datapackage(ZipFS(DATA_DIR / "entso-timeseries.zip"))
+    dp = bwp.load_datapackage(ZipFS(DATA_DIR / "entsoe-timeseries.zip"))
     tindices = dp.get_resource("timeseries ENTSO electricity values.indices")[0]
     tdata = dp.get_resource("timeseries ENTSO electricity values.data")[0]
 

@@ -26,7 +26,7 @@ if __name__ == "__main__":
     method = ("IPCC 2013", "climate change", "GWP 100a", "uncertain")
     co = bd.Database("swiss consumption 1.0")
 
-    dp = bwp.load_datapackage(ZipFS(str(PROJECT_DIR / "akula" / "data" / "entso-timeseries.zip")))
+    dp = bwp.load_datapackage(ZipFS(str(PROJECT_DIR / "akula" / "data" / "entsoe-timeseries.zip")))
 
     data = dp.get_resource("timeseries ENTSO electricity values.data")[0]
     indices = dp.get_resource("timeseries ENTSO electricity values.indices")[0]

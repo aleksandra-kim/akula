@@ -45,8 +45,8 @@ if __name__ == "__main__":
         demand={ch_low: 1}, method=method, remapping=False,
     )
 
-    dp_timeseries = bwp.load_datapackage(ZipFS("../akula/data/entso-timeseries.zip"))
-    dp_average = bwp.load_datapackage(ZipFS("../akula/data/entso-average.zip"))
+    dp_timeseries = bwp.load_datapackage(ZipFS("../akula/data/entsoe-timeseries.zip"))
+    dp_average = bwp.load_datapackage(ZipFS("../akula/data/entsoe-average.zip"))
 
     iterations = 2000
 

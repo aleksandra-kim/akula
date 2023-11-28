@@ -463,7 +463,7 @@ def generate_local_sa_datapackage(input_data, const_factor=10.0):
     dp.finalize_serialization()
 
 
-def generate_parameterized_exchanges_datapackage(name, filepath, num_samples, seed=42):
+def generate_parameterization_datapackage(filepath, name, num_samples, seed=42):
 
     fp_parameters_datapackage = DATA_DIR / f"{name}-parameters-{seed}-{num_samples}.zip"
     fp_exchanges_datapackage = DATA_DIR / f"{name}-exchanges-{seed}-{num_samples}.zip"
@@ -658,7 +658,7 @@ def generate_validation_datapackages(indices, mask, num_samples, seed=42):
 
     name = "ecoinvent-parameterization"
 
-    dp_validation_all = generate_parameterized_exchanges_datapackage(
+    dp_validation_all = generate_parameterization_datapackage(
         name=f"validation.{name}.all", num_samples=num_samples, seed=seed,
     )
 

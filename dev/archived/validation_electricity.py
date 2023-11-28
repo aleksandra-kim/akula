@@ -9,14 +9,13 @@ from pathlib import Path
 from gsa_framework.utils import write_pickle, read_pickle
 
 from akula.electricity.create_datapackages import DATA_DIR
-from akula.markets import get_dirichlet_scales
-from akula.utils import get_activities_from_indices
+from akula.markets import get_dirichlet_scales, get_activities_from_indices
 
 bd.projects.set_current("GSA for archetypes")
 write_figs = Path("write_files") / "paper3" / "electricity_markets_dirichlet_html"
 write_figs.mkdir(parents=True, exist_ok=True,)
 
-dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entso-timeseries.zip")))
+dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entsoe-timeseries.zip")))
 indices = dp.get_resource('timeseries ENTSO electricity values.indices')[0]
 data = dp.get_resource('timeseries ENTSO electricity values.data')[0]
 

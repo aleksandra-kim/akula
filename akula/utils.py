@@ -1,10 +1,6 @@
 import bw2data as bd
 import bw2calc as bc
-import bw_processing as bwp
-from copy import deepcopy
 import pickle
-
-# from .sensitivity_analysis import get_mask
 
 COLOR_GRAY_HEX = "#b2bcc0"
 COLOR_DARKGRAY_HEX = "#485063"
@@ -21,6 +17,16 @@ def get_consumption_activity():
     activity = [act for act in co if f"ch hh average consumption aggregated" in act['name']]
     assert len(activity) == 1
     return activity[0]
+
+
+def compute_deterministic_score(project):
+    bd.projects.set_current(project)
+    act = get_consumption_activity()
+    method = ("IPCC 2013", "climate change", "GWP 100a", "uncertain")
+    lca = bc.LCA({act: 1}, method)
+    lca.lci()
+    lca.lcia()
+    return lca.score
 
 
 def write_pickle(data, filepath):
@@ -71,84 +77,60 @@ def update_fig_axes(fig):
     return fig
 
 
-def setup_bw_project(years="151617"):
-    project = "GSA for correlations"
-    bd.projects.set_current(project)
-
-    co = bd.Database('swiss consumption 1.0')
-    fu = [act for act in co if f"ch hh average consumption aggregated, years {years}" == act['name']][0]
-    demand = {fu: 1}
-    method = ("IPCC 2013", "climate change", "GWP 100a", "uncertain")
-
-    lca = bc.LCA(demand=demand, method=method, use_distributions=False)
-    lca.lci()
-    lca.lcia()
-
-    return lca
-
-
-def get_activities_from_indices(indices):
-
-    bd.projects.set_current("GSA for archetypes")
-    activities = {}
-
-    if indices is not None:
-
-        cols = sorted(set(indices['col']))
-        for col in cols:
-
-            rows = sorted(indices[indices['col'] == col]['row'])
-            act = bd.get_activity(int(col))
-
-            exchanges = []
-            for exc in act.exchanges():
-                if exc.input.id in rows:
-                    exchanges.append(exc)
-
-            if len(exchanges) > 0:
-                activities[act] = exchanges
-
-    return activities
+# def setup_bw_project(years="151617"):
+#     project = "GSA for correlations"
+#     bd.projects.set_current(project)
+#
+#     co = bd.Database('swiss consumption 1.0')
+#     fu = [act for act in co if f"ch hh average consumption aggregated, years {years}" == act['name']][0]
+#     demand = {fu: 1}
+#     method = ("IPCC 2013", "climate change", "GWP 100a", "uncertain")
+#
+#     lca = bc.LCA(demand=demand, method=method, use_distributions=False)
+#     lca.lci()
+#     lca.lcia()
+#
+#     return lca
 
 
-def create_static_datapackage(name, indices_tech=None, data_tech=None, flip_tech=None, indices_bio=None, data_bio=None):
-
-    dp = bwp.create_datapackage(
-        name=f"validation.{name}.static",
-        seed=42,
-    )
-
-    if indices_tech is not None:
-        dp.add_persistent_vector(
-            matrix="technosphere_matrix",
-            data_array=data_tech,
-            # Resource group name that will show up in provenance
-            name=f"{name}-tech",
-            indices_array=indices_tech,
-            flip_array=flip_tech,
-        )
-
-    if indices_bio is not None:
-        dp.add_persistent_vector(
-            matrix="biosphere_matrix",
-            data_array=data_bio,
-            # Resource group name that will show up in provenance (?)
-            name=f"{name}-bio",
-            indices_array=indices_bio,
-        )
-
-    return dp
-
-
-def pop_indices_from_dict(indices, dict_):
-    count = 0
-    for key in indices:
-        try:
-            dict_.pop(tuple(key))
-            count += 1
-        except KeyError:
-            pass
-    # print(f"Removed {count:4d} elements from dictionary")
+# def create_static_datapackage(name, indices_tech=None, data_tech=None, flip_tech=None, indices_bio=None, data_bio=None):
+#
+#     dp = bwp.create_datapackage(
+#         name=f"validation.{name}.static",
+#         seed=42,
+#     )
+#
+#     if indices_tech is not None:
+#         dp.add_persistent_vector(
+#             matrix="technosphere_matrix",
+#             data_array=data_tech,
+#             # Resource group name that will show up in provenance
+#             name=f"{name}-tech",
+#             indices_array=indices_tech,
+#             flip_array=flip_tech,
+#         )
+#
+#     if indices_bio is not None:
+#         dp.add_persistent_vector(
+#             matrix="biosphere_matrix",
+#             data_array=data_bio,
+#             # Resource group name that will show up in provenance (?)
+#             name=f"{name}-bio",
+#             indices_array=indices_bio,
+#         )
+#
+#     return dp
+#
+#
+# def pop_indices_from_dict(indices, dict_):
+#     count = 0
+#     for key in indices:
+#         try:
+#             dict_.pop(tuple(key))
+#             count += 1
+#         except KeyError:
+#             pass
+#     # print(f"Removed {count:4d} elements from dictionary")
 
 
 # def get_mask_wrt_dp(indices_all, indices_dp, mask_screening):
