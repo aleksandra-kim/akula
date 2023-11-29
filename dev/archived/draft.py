@@ -320,7 +320,7 @@ print("")
 #
 # bd.projects.set_current("GSA for archetypes")
 # dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "xgboost" / "implicit-markets-81.zip")))
-# fp_markets = DATA_DIR / "implicit-markets.pickle"
+# fp_markets = DATA_DIR / "markets.pickle"
 #
 # markets = read_pickle(fp_markets)
 #

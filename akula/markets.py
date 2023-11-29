@@ -21,7 +21,7 @@ def similar_fuzzy(a, b):
     return fuzz.partial_ratio(a, b) > 90 or fuzz.ratio(a, b) > 40
 
 
-def find_markets(database, similarity_func, check_uncertainty):
+def find_markets(database, similarity_func):
     """Find markets based on similar reference product names based on exact or fuzzy string comparison."""
 
     db = bd.Database(database)
@@ -37,7 +37,7 @@ def find_markets(database, similarity_func, check_uncertainty):
         for exc in act.technosphere():
             if exc.input == exc.output:
                 continue
-            elif check_uncertainty and exc.get("uncertainty type", 0) < 2:
+            elif exc.get("uncertainty type", 0) < 2:
                 continue
             elif exc.input.get("reference product", None) is None:
                 continue
@@ -76,7 +76,7 @@ def get_lognormal_skewness(scale):
     return (np.exp(scale**2)+2) * ((np.exp(scale**2)-1)**0.5)
 
 
-def select_contributing_exchanges(amounts_exchanges, use_threshold, return_scores=False):
+def select_contributing_exchanges(amounts_exchanges, return_scores=False):
     """Select exchanges in the given market that have contribution scores higher than average."""
 
     lca = setup_bw_project()
@@ -91,7 +91,7 @@ def select_contributing_exchanges(amounts_exchanges, use_threshold, return_score
 
     exchanges = {}
     for amount, exc in amounts_exchanges.items():
-        if scores[exc.input] >= threshold or use_threshold:
+        if scores[exc.input] >= threshold:
             if exc['uncertainty type'] != 2:
                 print(exc['uncertainty type'])
             exchanges[amount] = exc
@@ -101,16 +101,16 @@ def select_contributing_exchanges(amounts_exchanges, use_threshold, return_score
         return exchanges
 
 
-def select_higher_amount_exchanges(amounts_exchanges, use_average=True):
+def select_higher_amount_exchanges(amounts_exchanges):
     """Select exchanges in the given market that have amounts higher than average."""
 
-    alphas = list(amounts_exchanges.keys())
+    alphas = list(amounts_exchanges)
     threshold = np.mean(alphas)
 
     exchanges = {}
 
     for amount, exc in amounts_exchanges.items():
-        if amount >= threshold or use_average:
+        if amount >= threshold:
             if exc['uncertainty type'] != 2:
                 print(exc['uncertainty type'])
         exchanges[amount] = exc
@@ -118,17 +118,17 @@ def select_higher_amount_exchanges(amounts_exchanges, use_average=True):
     return exchanges
 
 
-def get_dirichlet_scale(amounts_exchanges, fit_variance, based_on_contributions, use_threshold):
+def get_dirichlet_scale(amounts_exchanges, fit_variance, based_on_contributions):
     """Compute dirichlet scale for exchanges, where the Dirichlet parameter `alpha` is set to exchange amounts."""
-    alphas = list(amounts_exchanges.keys())
+    alphas = list(amounts_exchanges)
     beta = sum(alphas)
 
     scaling_factors = []
 
     if based_on_contributions:
-        selected_exchanges = select_contributing_exchanges(amounts_exchanges, use_threshold)
+        selected_exchanges = select_contributing_exchanges(amounts_exchanges)
     else:
-        selected_exchanges = select_higher_amount_exchanges(amounts_exchanges, use_threshold)
+        selected_exchanges = select_higher_amount_exchanges(amounts_exchanges)
 
     for ialpha, iexc in selected_exchanges.items():
         loc = iexc['loc']
@@ -147,8 +147,8 @@ def get_dirichlet_scale(amounts_exchanges, fit_variance, based_on_contributions,
     return scaling_factor
 
 
-def get_dirichlet_scales(implicit_markets, fit_variance, based_on_contributions, use_threshold):
-    """Get Diriechlet scales for all implicit markets.
+def get_dirichlet_scales(markets, fit_variance, based_on_contributions):
+    """Get Dirichlet scales for all implicit markets.
 
     TODO
     This code is not good because it assumes that the file dirichlet_scales.pickle exists for validation steps.
@@ -157,18 +157,20 @@ def get_dirichlet_scales(implicit_markets, fit_variance, based_on_contributions,
     """
 
     dirichlet_scales = {}
-    for market, exchanges in implicit_markets.items():
+
+    for market, exchanges in markets.items():
         x = np.array([exc['amount'] for exc in exchanges])
         amounts = x.copy()
         amounts_exchanges_dict = {amounts[i]: exchanges[i] for i in range(len(amounts))}
-        ds = get_dirichlet_scale(amounts_exchanges_dict, fit_variance, based_on_contributions, use_threshold)
+        ds = get_dirichlet_scale(amounts_exchanges_dict, fit_variance, based_on_contributions)
         dirichlet_scales[market] = ds
+
     return dirichlet_scales
 
 
 def predict_dirichlet_scales_generic_markets(generic_markets, fit_variance, based_on_contributions, use_threshold):
     """Predict Dirichlet scales for all generic markets from implicit ones."""
-    fp_implicit_markets = DATA_DIR / "implicit-markets.pickle"
+    fp_implicit_markets = DATA_DIR / "markets.pickle"
     if fp_implicit_markets.exists():
         implicit_markets = read_pickle(fp_implicit_markets)
     else:
@@ -188,20 +190,29 @@ def generate_markets_datapackage(name, num_samples, seed=42):
 
     if not fp_datapackage.exists():
 
-        fp_markets = DATA_DIR / "implicit-markets.pickle"
+        fp_markets = DATA_DIR / "markets.pickle"
         if fp_markets.exists():
             markets = read_pickle(fp_markets)
         else:
-            markets = find_markets("ecoinvent 3.8 cutoff", similar_fuzzy, check_uncertainty=True)  # TODO check_uncertainty
+            markets = find_markets("ecoinvent 3.8 cutoff", similar_fuzzy)
             write_pickle(markets, fp_markets)
 
-        indices_array = np.array(
-            [(exc.input.id, exc.output.id) for lst in markets.values() for exc in lst],
-            dtype=bwp.INDICES_DTYPE,
+        data, indices, flip = generate_market_samples(markets, num_samples, seed=seed)
+
+        dp = bwp.create_datapackage(
+            fs=ZipFS(str(fp_datapackage), write=True),
+            name=name,
+            seed=seed,
+            sequential=True,
         )
-        mask = np.ones(len(indices_array), dtype=bool)
-        dp = create_dynamic_datapackage(
-            name, indices_array, mask, get_dirichlet_scales_func, num_samples, seed
+
+        dp.add_persistent_array(
+            matrix="technosphere_matrix",
+            data_array=data,
+            # Resource group name that will show up in provenance
+            name=name,
+            indices_array=indices,
+            flip_array=flip,
         )
 
         dp.finalize_serialization()
@@ -236,24 +247,17 @@ def check_dirichlet_samples(markets, indices, data_array):
         assert np.allclose(min(sum_), max(sum_))
 
 
-def create_dynamic_datapackage(name, indices, mask, get_dirichlet_scales_func, num_samples, seed=42):
+def generate_market_samples(markets, num_samples, seed=42):
 
-    markets = get_activities_from_indices(indices)
-
-    selected_indices = indices[mask]
-    selected_markets = get_activities_from_indices(selected_indices)
-    dirichlet_scales = get_dirichlet_scales_func(
-        selected_markets,
-        fit_variance=True,
-        based_on_contributions=True,
-        use_threshold=False,
+    indices_array = np.array(
+        [(exc.input.id, exc.output.id) for lst in markets.values() for exc in lst],
+        dtype=bwp.INDICES_DTYPE,
     )
 
-    dp = bwp.create_datapackage(
-        fs=ZipFS(str(DATA_DIR / f"{name}-{seed}.zip"), write=True),
-        name=name,
-        seed=seed,
-        sequential=True,
+    dirichlet_scales = get_dirichlet_scales(
+        markets,
+        fit_variance=True,
+        based_on_contributions=False,
     )
 
     data = []
@@ -263,15 +267,15 @@ def create_dynamic_datapackage(name, indices, mask, get_dirichlet_scales_func, n
     np.random.seed(seed)
     seeds = {market: np.random.randint(0, 2**32-1) for market in markets}
 
-    for inds in indices:
+    for inds in indices_array:
 
         market = bd.get_activity(int(inds['col']))
         exchanges = markets[market]
         where_exc = [i for i in range(len(exchanges)) if exchanges[i].input.id == inds['row']][0]
 
-        selected_exchanges = selected_markets.get(market, [])
+        selected_exchanges = markets.get(market, [])
 
-        if len(selected_exchanges) > 1 and inds in selected_indices:
+        if len(selected_exchanges) > 1 and inds in indices_array:
 
             total_amount = sum([exc['amount'] for exc in selected_exchanges])
             where_selected_exc = [
@@ -294,18 +298,81 @@ def create_dynamic_datapackage(name, indices, mask, get_dirichlet_scales_func, n
     flip_array = np.array(flip, dtype=bool)
 
     # Sanity check to ensure that samples in each market sum up to 1
-    check_dirichlet_samples(markets, indices, data_array)
+    check_dirichlet_samples(markets, indices_array, data_array)
 
-    dp.add_persistent_array(
-        matrix="technosphere_matrix",
-        data_array=data_array,
-        # Resource group name that will show up in provenance
-        name=name,
-        indices_array=indices,
-        flip_array=flip_array,
-    )
+    return data_array, indices_array, flip_array
 
-    return dp
+
+# def create_dynamic_datapackage(name, indices, mask, get_dirichlet_scales_func, num_samples, seed=42):
+#
+#     markets = get_activities_from_indices(indices)
+#
+#     selected_indices = indices[mask]
+#     selected_markets = get_activities_from_indices(selected_indices)
+#     dirichlet_scales = get_dirichlet_scales_func(
+#         selected_markets,
+#         fit_variance=True,
+#         based_on_contributions=True,
+#         use_threshold=False,
+#     )
+#
+#     dp = bwp.create_datapackage(
+#         fs=ZipFS(str(DATA_DIR / f"{name}-{seed}.zip"), write=True),
+#         name=name,
+#         seed=seed,
+#         sequential=True,
+#     )
+#
+#     data = []
+#     flip = []
+#
+#     # Dirichlet samples of different exchanges from one market should be generated with the same seed
+#     np.random.seed(seed)
+#     seeds = {market: np.random.randint(0, 2**32-1) for market in markets}
+#
+#     for inds in indices:
+#
+#         market = bd.get_activity(int(inds['col']))
+#         exchanges = markets[market]
+#         where_exc = [i for i in range(len(exchanges)) if exchanges[i].input.id == inds['row']][0]
+#
+#         selected_exchanges = selected_markets.get(market, [])
+#
+#         if len(selected_exchanges) > 1 and inds in selected_indices:
+#
+#             total_amount = sum([exc['amount'] for exc in selected_exchanges])
+#             where_selected_exc = [
+#                 i for i in range(len(selected_exchanges)) if selected_exchanges[i].input.id == inds['row']
+#             ][0]
+#             np.random.seed(seeds[market])
+#             samples = dirichlet.rvs(
+#                 np.array([exc["amount"] for exc in selected_exchanges]) * dirichlet_scales[market],
+#                 size=num_samples,
+#                 ) * total_amount
+#             data.append(samples[:, where_selected_exc])
+#             flip.append(selected_exchanges[where_selected_exc]['type'] != "production")
+#
+#         else:
+#
+#             data.append(np.ones(num_samples) * exchanges[where_exc]['amount'])
+#             flip.append(exchanges[where_exc]["type"] != "production")
+#
+#     data_array = np.vstack(data)
+#     flip_array = np.array(flip, dtype=bool)
+#
+#     # Sanity check to ensure that samples in each market sum up to 1
+#     check_dirichlet_samples(markets, indices, data_array)
+#
+#     dp.add_persistent_array(
+#         matrix="technosphere_matrix",
+#         data_array=data_array,
+#         # Resource group name that will show up in provenance
+#         name=name,
+#         indices_array=indices,
+#         flip_array=flip_array,
+#     )
+#
+#     return dp
 
 
 def create_validation_all_datapackage(name, dp_varying, mask, num_samples, seed=42):
@@ -441,9 +508,8 @@ if __name__ == "__main__":
 #     return data
 
 
-def get_activities_from_indices(project, indices):
+def get_activities_from_indices(indices):
 
-    bd.projects.set_current(project)
     activities = {}
 
     if indices is not None:
