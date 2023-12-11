@@ -1,0 +1,53 @@
+from pathlib import Path
+import sys
+import bw2data as bd
+
+import os
+os.environ["ENTSOE_API_TOKEN"] = "0d6ea062-f603-43d3-bc60-176159803035"
+os.environ["BENTSO_DATA_DIR"] = "/home/aleksandrakim/LCAfiles/bentso_data"
+
+from akula.markets import generate_markets_datapackage, plot_dirichlet_samples, plot_dirichlet_entsoe_samples
+from akula.electricity import generate_entsoe_datapackage
+
+PROJECT = "GSA with correlations"
+PROJECT_DIR = Path(__file__).parent.parent.resolve()
+sys.path.append(str(PROJECT_DIR))
+
+FIGURES_DIR_MARKETS = PROJECT_DIR / "figures" / "dirichlet" / "markets"
+FIGURES_DIR_MARKETS.mkdir(parents=True, exist_ok=True)
+
+FIGURES_DIR_ENTSOE = PROJECT_DIR / "figures" / "dirichlet" / "entsoe"
+FIGURES_DIR_ENTSOE.mkdir(parents=True, exist_ok=True)
+
+if __name__ == "__main__":
+    bd.projects.set_current(PROJECT)
+
+    iterations = 2000
+    seed = 111111
+
+    # =========================================================================
+    # 1. Plot uncertainties for all markets
+    # =========================================================================
+    # dp_markets = generate_markets_datapackage("markets", iterations, seed)
+    #
+    # indices = dp_markets.get_resource('markets.indices')[0]
+    # unique_cols = sorted(list(set(indices['col'])))
+    #
+    # for col in unique_cols:
+    #     act = bd.get_activity(col)
+    #     figure = plot_dirichlet_samples(col, dp_markets)
+    #     figure.write_image(FIGURES_DIR_MARKETS / f"{col}.{act['name'][:60]}.{act['location']}.png".replace("w/o", "wo"))
+
+    # =========================================================================
+    # 2. Validation of Dirichlet sampling
+    # =========================================================================
+    dp_entsoe = generate_entsoe_datapackage("entsoe", iterations, seed)
+    dp_dirichlet = generate_markets_datapackage("markets-entsoe", iterations, seed, for_entsoe=True)
+
+    indices = dp_entsoe.get_resource('entsoe.indices')[0]
+    unique_cols = sorted(list(set(indices['col'])))
+
+    for col in unique_cols[:1]:
+        act = bd.get_activity(col)
+        figure = plot_dirichlet_entsoe_samples(col, dp_entsoe, dp_dirichlet)
+        figure.write_image(FIGURES_DIR_ENTSOE / f"{col}.{act['name'][:60]}.{act['location']}.png".replace("w/o", "wo"))

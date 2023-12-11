@@ -5,13 +5,19 @@ from copy import deepcopy
 import bw2data as bd
 import bw_processing as bwp
 import numpy as np
+import stats_arrays as sa
 from fs.zipfs import ZipFS
-from scipy.stats import dirichlet
+from scipy.stats import dirichlet, lognorm
 from thefuzz import fuzz
 from tqdm import tqdm
 from sklearn.linear_model import LinearRegression
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
-from .utils import read_pickle, write_pickle
+from .utils import (
+    read_pickle, write_pickle,
+    update_fig_axes, COLOR_BRIGHT_PINK_RGB, COLOR_DARKGRAY_HEX, COLOR_PSI_LPURPLE, COLOR_PSI_DGREEN,
+)
 
 DATA_DIR = Path(__file__).parent.parent.resolve() / "data" / "datapackages"
 
@@ -52,6 +58,54 @@ def find_markets(database, similarity_func):
                 found[act] = lst
 
         # print(rp, len(found))
+
+    return found
+
+
+def find_entsoe_markets(similarity_func):
+    dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entsoe-timeseries.zip")))
+
+    indices = dp.get_resource('timeseries ENTSO electricity values.indices')[0]
+    data = dp.get_resource('timeseries ENTSO electricity values.data')[0]
+
+    # Fit lognormal distributions to ENTSO-E timeseries data
+    distributions = fit_distributions(data, indices)
+    distributions_dict = {tuple(i): d for i, d in zip(indices, distributions)}
+
+    found = {}
+    unique_cols = sorted(list(set(indices['col'])))
+    for col in unique_cols:
+
+        act = bd.get_activity(col)
+
+        rp = act.get("reference product")
+        if not rp:
+            continue
+
+        rows = sorted(indices[indices['col'] == col]['row'])
+
+        inpts = defaultdict(list)
+        for exc in act.technosphere():
+
+            if exc.input.id in rows:
+
+                exc_dict = deepcopy(exc.as_dict())
+                params = distributions_dict[(exc.input.id, col)]
+                distribution = {p[0].replace("_", " "): params[p[0]] for p in bwp.UNCERTAINTY_DTYPE}
+                exc_dict.update(**distribution)
+
+                if exc.input['name'] == "swiss residual electricity mix":
+                    inpts["swiss residual electricity mix"].append(exc_dict)
+                else:
+                    inpts[exc.input["reference product"]].append(exc_dict)
+
+        for key, lst in inpts.items():
+            if (
+                len(lst) > 1
+                and similarity_func(rp, key)
+                and 0.98 <= sum([exc["amount"] for exc in lst]) <= 1.02
+            ):
+                found[act] = lst
 
     return found
 
@@ -162,7 +216,7 @@ def get_dirichlet_scales(markets, fit_variance, based_on_contributions):
         x = np.array([exc['amount'] for exc in exchanges])
         amounts = x.copy()
         amounts_exchanges_dict = {amounts[i]: exchanges[i] for i in range(len(amounts))}
-        ds = get_dirichlet_scale(amounts_exchanges_dict, fit_variance, based_on_contributions)
+        ds = get_dirichlet_scale(amounts_exchanges_dict, fit_variance, based_on_contributions)  # TODO scales are nan for some markets
         dirichlet_scales[market] = ds
 
     return dirichlet_scales
@@ -185,16 +239,19 @@ def predict_dirichlet_scales_generic_markets(generic_markets, fit_variance, base
     return ytest
 
 
-def generate_markets_datapackage(name, num_samples, seed=42):
+def generate_markets_datapackage(name, num_samples, seed=42, for_entsoe=False):
     fp_datapackage = DATA_DIR / f"{name}-{seed}-{num_samples}.zip"
 
     if not fp_datapackage.exists():
 
-        fp_markets = DATA_DIR / "markets.pickle"
+        fp_markets = DATA_DIR / f"{name}.pickle"
         if fp_markets.exists():
             markets = read_pickle(fp_markets)
         else:
-            markets = find_markets("ecoinvent 3.8 cutoff", similar_fuzzy)
+            if for_entsoe:
+                markets = find_entsoe_markets(similar_fuzzy)
+            else:
+                markets = find_markets("ecoinvent 3.8 cutoff", similar_fuzzy)
             write_pickle(markets, fp_markets)
 
         data, indices, flip = generate_market_samples(markets, num_samples, seed=seed)
@@ -241,7 +298,11 @@ def check_dirichlet_samples(markets, indices, data_array):
         col = market.id
         where = []
         for exc in exchanges:
-            where.append(np.where(indices == np.array((exc.input.id, col), dtype=bwp.INDICES_DTYPE))[0][0])
+            try:
+                where.append(np.where(indices == np.array((exc.input.id, col), dtype=bwp.INDICES_DTYPE))[0][0])
+            except AttributeError:
+                where.append(np.where(indices == np.array((bd.get_activity(exc["input"]).id, col),
+                                                          dtype=bwp.INDICES_DTYPE))[0][0])
         where = np.array(where)
         sum_ = data_array[where].sum(axis=0)
         assert np.allclose(min(sum_), max(sum_))
@@ -249,10 +310,17 @@ def check_dirichlet_samples(markets, indices, data_array):
 
 def generate_market_samples(markets, num_samples, seed=42):
 
-    indices_array = np.array(
-        [(exc.input.id, exc.output.id) for lst in markets.values() for exc in lst],
-        dtype=bwp.INDICES_DTYPE,
-    )
+    try:
+        indices_array = np.array(
+            [(exc.input.id, exc.output.id) for lst in markets.values() for exc in lst],
+            dtype=bwp.INDICES_DTYPE,
+        )
+    except AttributeError:
+        indices_array = np.array(
+            [(bd.get_activity(exc["input"]).id, bd.get_activity(exc["output"]).id)
+             for lst in markets.values() for exc in lst],
+            dtype=bwp.INDICES_DTYPE,
+        )
 
     dirichlet_scales = get_dirichlet_scales(
         markets,
@@ -271,16 +339,26 @@ def generate_market_samples(markets, num_samples, seed=42):
 
         market = bd.get_activity(int(inds['col']))
         exchanges = markets[market]
-        where_exc = [i for i in range(len(exchanges)) if exchanges[i].input.id == inds['row']][0]
-
+        try:
+            where_exc = [i for i in range(len(exchanges)) if exchanges[i].input.id == inds['row']][0]
+        except AttributeError:
+            where_exc = [
+                i for i in range(len(exchanges)) if bd.get_activity(exchanges[i]["input"]).id == inds['row']
+            ][0]
         selected_exchanges = markets.get(market, [])
 
         if len(selected_exchanges) > 1 and inds in indices_array:
 
             total_amount = sum([exc['amount'] for exc in selected_exchanges])
-            where_selected_exc = [
-                i for i in range(len(selected_exchanges)) if selected_exchanges[i].input.id == inds['row']
-            ][0]
+            try:
+                where_selected_exc = [
+                    i for i in range(len(selected_exchanges)) if selected_exchanges[i].input.id == inds['row']
+                ][0]
+            except AttributeError:
+                where_selected_exc = [
+                    i for i in range(len(selected_exchanges))
+                    if bd.get_activity(selected_exchanges[i]["input"]).id == inds['row']
+                ][0]
             np.random.seed(seeds[market])
             samples = dirichlet.rvs(
                 np.array([exc["amount"] for exc in selected_exchanges]) * dirichlet_scales[market],
@@ -416,7 +494,7 @@ def generate_validation_datapackages(indices, mask, num_samples, seed=42):
     return dp_validation_all, dp_validation_inf
 
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
     # random_seeds = [85, 86]
     # num_samples = 15000
@@ -430,7 +508,7 @@ if __name__ == "__main__":
     #         random_seed,
     #     )
 
-    im = bwp.load_datapackage(ZipFS(str(DATA_DIR / "implicit-markets-91.zip")))
+    # im = bwp.load_datapackage(ZipFS(str(DATA_DIR / "implicit-markets-91.zip")))
     # im_data = im.get_resource('implicit-markets.data')[0]
     # im_indices = im.get_resource('implicit-markets.indices')[0]
 
@@ -448,7 +526,7 @@ if __name__ == "__main__":
     #     SAMPLES,
     # )
 
-    print("")
+    # print("")
 
 
 # def get_scaling_based_on_variance(alpha, beta, variance):
@@ -508,24 +586,268 @@ if __name__ == "__main__":
 #     return data
 
 
-def get_activities_from_indices(indices):
+# def get_activities_from_indices(indices):
+#
+#     activities = {}
+#
+#     if indices is not None:
+#
+#         cols = sorted(set(indices['col']))
+#         for col in cols:
+#
+#             rows = sorted(indices[indices['col'] == col]['row'])
+#             act = bd.get_activity(int(col))
+#
+#             exchanges = []
+#             for exc in act.exchanges():
+#                 if exc.input.id in rows:
+#                     exchanges.append(exc)
+#
+#             if len(exchanges) > 0:
+#                 activities[act] = exchanges
+#
+#     return activities
 
-    activities = {}
 
-    if indices is not None:
+def get_distributions(indices):
 
-        cols = sorted(set(indices['col']))
-        for col in cols:
+    ddict = dict()
+    assert bwp.UNCERTAINTY_DTYPE[-1][0] == "negative"
 
-            rows = sorted(indices[indices['col'] == col]['row'])
-            act = bd.get_activity(int(col))
+    cols = sorted(set(indices['col']))
+    for col in cols:
+        rows = sorted(indices[indices['col'] == col]['row'])
+        act = bd.get_activity(int(col))
+        for exc in act.exchanges():
+            if exc.input.id in rows:
+                ddict[(exc.input.id, col)] = (
+                    [exc.get(p[0].replace("_", " "), np.nan) for p in bwp.UNCERTAINTY_DTYPE[:-1]]
+                    + [exc["type"] == "production"])
 
-            exchanges = []
-            for exc in act.exchanges():
-                if exc.input.id in rows:
-                    exchanges.append(exc)
+    dlist = [tuple(ddict[row, col]) for row, col in indices]
+    distributions = np.array(dlist, dtype=bwp.UNCERTAINTY_DTYPE)
 
-            if len(exchanges) > 0:
-                activities[act] = exchanges
+    return distributions
 
-    return activities
+
+def plot_dirichlet_samples(act_id, dp_markets, num_bins=100):
+
+    data = dp_markets.get_resource('markets.data')[0]
+    indices = dp_markets.get_resource('markets.indices')[0]
+    mask = indices['col'] == act_id
+    data = data[mask, :]
+    indices = indices[mask]
+
+    num_exchanges = len(indices)
+
+    distributions = get_distributions(indices)
+    assert np.all(distributions["uncertainty_type"] == sa.LognormalUncertainty.id)
+
+    fig = make_subplots(rows=num_exchanges, cols=1, subplot_titles=["placeholder"]*num_exchanges)
+    opacity = 0.65
+    showlegend = True
+
+    for i in range(num_exchanges):
+
+        row = indices[i]['row']
+        act = bd.get_activity(row)
+        fig.layout.annotations[i]['text'] = f"{act['name'][:60]} -- {act['location']}"
+
+        loc = distributions[i]['loc']
+        scale = distributions[i]['scale']
+        min_distr = lognorm.ppf(0.001, s=scale, scale=np.exp(loc))
+        max_distr = lognorm.ppf(0.999, s=scale, scale=np.exp(loc))
+
+        Y = data[i, :]
+        min_samples = min(Y)
+        max_samples = max(Y)
+
+        bin_min = min(min_distr, min_samples)
+        bin_max = max(max_distr, max_samples)
+
+        bins_ = np.linspace(bin_min, bin_max, num_bins + 1, endpoint=True)
+        Y_samples, _ = np.histogram(Y, bins=bins_, density=True)
+
+        midbins = (bins_[1:] + bins_[:-1]) / 2
+        Y_distr = lognorm.pdf(midbins, s=scale, scale=np.exp(loc))
+
+        # Plot Dirichlet samples
+        fig.add_trace(
+            go.Scatter(
+                x=midbins,
+                y=Y_samples,
+                name=r"$\text{Dirichlet samples}$",
+                showlegend=showlegend,
+                opacity=opacity,
+                line=dict(color=COLOR_DARKGRAY_HEX, width=1, shape="hvh"),
+                fill="tozeroy",
+            ),
+            row=i+1,
+            col=1,
+        )
+        # Plot lognormal distribution
+        fig.add_trace(
+            go.Scatter(
+                x=midbins,
+                y=Y_distr,
+                line=dict(color=COLOR_PSI_LPURPLE),
+                name=r"$\text{Defined lognormal}$",
+                showlegend=showlegend,
+                legendrank=1,
+            ),
+            row=i+1,
+            col=1,
+        )
+        showlegend = False
+    #
+    fig.update_xaxes(title_text=r"$\text{Production volume share}$")
+    fig.update_yaxes(title_text=r"$\text{Frequency}$")
+    fig = update_fig_axes(fig)
+    if num_exchanges < 10:
+        offset = 0.1
+    else:
+        offset = 0.005
+    fig.update_layout(
+        width=600, height=180*num_exchanges + 40,
+        legend=dict(yanchor="bottom", y=1 + offset, xanchor="center", x=0.5,
+                    orientation='h', font=dict(size=13)),
+        margin=dict(t=10, b=10, l=10, r=10),
+    )
+
+    return fig
+
+
+def fit_distributions(data, indices):
+
+    dlist = []
+    assert bwp.UNCERTAINTY_DTYPE[0][0] == "uncertainty_type"
+    assert bwp.UNCERTAINTY_DTYPE[-1][0] == "negative"
+
+    for i, d in enumerate(data):
+        dpos = d[d > 0]
+        if len(dpos):
+            shape, loc, scale = lognorm.fit(dpos, floc=0)
+            params = dict(uncertainty_type=sa.LognormalUncertainty.id, loc=np.log(scale), scale=shape)
+        else:
+            params = dict(uncertainty_type=sa.NoUncertainty.id)
+        distribution = ([params.get(p[0], np.nan) for p in bwp.UNCERTAINTY_DTYPE[:-1]]
+                        + [indices[i]["row"] == indices[i]["col"]])
+        dlist.append(tuple(distribution))
+
+    distributions = np.array(dlist, dtype=bwp.UNCERTAINTY_DTYPE)
+
+    return distributions
+
+
+def plot_dirichlet_entsoe_samples(act_id, dp_entsoe, dp_dirichlet, num_bins=100):
+
+    # Extract ENTSO-E data for the given activity
+    indices = dp_entsoe.get_resource('entsoe.indices')[0]
+    mask = indices['col'] == act_id
+    num_exchanges = sum(mask)
+    data_entsoe = dp_entsoe.get_resource('entsoe.data')[0]
+    data_entsoe = data_entsoe[mask, :]
+
+    # Fit lognormal distributions to ENTSO-E data
+    distributions_lognorm = fit_distributions(data_entsoe, indices)
+    assert np.all(distributions_lognorm["uncertainty_type"] == 2)
+
+    # Get Dirichlet distributions samples that were fit to ENTSO-E data
+    indices = dp_dirichlet.get_resource('entsoe-dirichlet.indices')[0]
+    mask = indices['col'] == act_id
+    data_dirichlet = dp_dirichlet.get_resource('entsoe-dirichlet.data')[0]
+    data_dirichlet = data_dirichlet[mask, :]
+    # assert np.all(distributions_dirichlet["uncertainty_type"] == sa.LognormalUncertainty.id)
+
+    fig = make_subplots(rows=num_exchanges, cols=1, subplot_titles=["placeholder"]*num_exchanges)
+    opacity = 0.65
+    showlegend = True
+
+    for i in range(num_exchanges):
+
+        row = indices[i]['row']
+        act = bd.get_activity(row)
+
+        fig.layout.annotations[i]['text'] = f"{act['name'][:60]} -- {act['location']}"
+
+        Y_entsoe = data_entsoe[i, :]
+        min_entsoe = min(Y_entsoe)
+        max_entsoe = max(Y_entsoe)
+
+        loc = distributions_lognorm[i]['loc']
+        scale = distributions_lognorm[i]['scale']
+        min_lognorm = lognorm.ppf(0.001, s=scale, scale=np.exp(loc))
+        max_lognorm = lognorm.ppf(0.999, s=scale, scale=np.exp(loc))
+
+        Y_dirichlet = data_dirichlet[i, :]
+        min_dirichlet = min(Y_dirichlet)
+        max_dirichlet = max(Y_dirichlet)
+
+        bin_min = min(min_lognorm, min_entsoe, min_dirichlet)
+        bin_max = max(max_lognorm, max_entsoe, max_dirichlet)
+
+        bins_ = np.linspace(bin_min, bin_max, num_bins + 1, endpoint=True)
+        midbins = (bins_[1:] + bins_[:-1]) / 2
+        Y_entsoe, _ = np.histogram(Y_entsoe, bins=bins_, density=True)
+        Y_lognorm = lognorm.pdf(midbins, s=scale, scale=np.exp(loc))
+        Y_dirichlet, _ = np.histogram(Y_dirichlet, bins=bins_, density=True)
+
+        # Plot ENTSO-E samples
+        fig.add_trace(
+            go.Scatter(
+                x=midbins,
+                y=Y_entsoe,
+                name=r"$\text{ENTSO-E samples}$",
+                showlegend=showlegend,
+                opacity=opacity,
+                line=dict(color=COLOR_DARKGRAY_HEX, width=1, shape="hvh"),
+                fill="tozeroy",
+            ),
+            row=i+1,
+            col=1,
+        )
+        # Plot fitted lognormal distribution
+        fig.add_trace(
+            go.Scatter(
+                x=midbins,
+                y=Y_lognorm,
+                line=dict(color="red"),
+                name=r"$\text{Fitted lognormal}$",
+                showlegend=showlegend,
+                legendrank=1,
+            ),
+            row=i+1,
+            col=1,
+        )
+        # Plot Dirichlet samples
+        fig.add_trace(
+            go.Scatter(
+                x=midbins,
+                y=Y_dirichlet,
+                name=r"$\text{Dirichlet samples}$",
+                showlegend=showlegend,
+                opacity=opacity,
+                line=dict(color=COLOR_PSI_DGREEN, width=1, shape="hvh"),
+                fill="tozeroy",
+            ),
+            row=i+1,
+            col=1,
+        )
+
+        showlegend = False
+
+    fig.update_xaxes(title_text=r"$\text{Production volume share}$")
+    fig.update_yaxes(title_text=r"$\text{Frequency}$")
+    fig = update_fig_axes(fig)
+    if num_exchanges < 10:
+        offset = 0.1
+    else:
+        offset = 0.005
+    fig.update_layout(
+        width=600, height=180*num_exchanges + 40,
+        legend=dict(yanchor="bottom", y=1 + offset, xanchor="center", x=0.5,
+                    orientation='h', font=dict(size=13)),
+        margin=dict(t=10, b=10, l=10, r=10),
+    )
+
+    return fig

@@ -148,12 +148,14 @@ def generate_entsoe_datapackage(name, num_samples, seed=42):
 
         dp = bwp.create_datapackage(
             fs=ZipFS(str(fp_datapackage), write=True),
+            name=name,
             seed=seed,
             sequential=True,
         )
 
         dp.add_persistent_array(
             matrix='technosphere_matrix',
+            name=name,
             indices_array=indices,
             data_array=data[:, inds],
             flip_array=flip,

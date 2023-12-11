@@ -65,3 +65,4 @@ data/monte-carlo/electricity-uncertainties/*
 data/monte-carlo/sampling-modules/*
 data/project-backups/*
 data/swissgrid/*
+figures/*

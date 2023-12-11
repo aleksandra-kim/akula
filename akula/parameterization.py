@@ -17,10 +17,9 @@ from stats_arrays import uncertainty_choices
 from tqdm import tqdm
 from .utils import read_pickle, write_pickle
 
-
-PARAMS_DTYPE = [('row', '<U40'), ('col', '<i4')]
 DATA_DIR = Path(__file__).parent.parent.resolve() / "data" / "datapackages"
 FP_PARAMETERS = DATA_DIR / "ecoinvent-parameters.pickle"
+PARAMS_DTYPE = [('row', '<U40'), ('col', '<i4')]
 
 MC_ERROR_TEXT = """
     Formula returned array of wrong shape:
