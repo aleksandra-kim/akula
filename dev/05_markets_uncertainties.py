@@ -19,35 +19,42 @@ FIGURES_DIR_MARKETS.mkdir(parents=True, exist_ok=True)
 FIGURES_DIR_ENTSOE = PROJECT_DIR / "figures" / "dirichlet" / "entsoe"
 FIGURES_DIR_ENTSOE.mkdir(parents=True, exist_ok=True)
 
+entsoe = False
+markets = True
+
 if __name__ == "__main__":
     bd.projects.set_current(PROJECT)
 
-    iterations = 2000
+    iterations = 10000
     seed = 111111
 
     # =========================================================================
-    # 1. Plot uncertainties for all markets
+    # 1. Validation of Dirichlet sampling
     # =========================================================================
-    # dp_markets = generate_markets_datapackage("markets", iterations, seed)
-    #
-    # indices = dp_markets.get_resource('markets.indices')[0]
-    # unique_cols = sorted(list(set(indices['col'])))
-    #
-    # for col in unique_cols:
-    #     act = bd.get_activity(col)
-    #     figure = plot_dirichlet_samples(col, dp_markets)
-    #     figure.write_image(FIGURES_DIR_MARKETS / f"{col}.{act['name'][:60]}.{act['location']}.png".replace("w/o", "wo"))
+    if entsoe:
+        dp_entsoe = generate_entsoe_datapackage("entsoe", iterations, seed)
+        dp_dirichlet = generate_markets_datapackage("markets-entsoe", iterations, seed, for_entsoe=True)
+
+        indices = dp_dirichlet.get_resource('markets-entsoe.indices')[0]
+        unique_cols = sorted(list(set(indices['col'])))
+
+        for col in unique_cols:
+            act = bd.get_activity(col)
+            figure = plot_dirichlet_entsoe_samples(col, dp_entsoe, dp_dirichlet)
+            figure.write_image(FIGURES_DIR_ENTSOE /
+                               f"{col}.{act['name'][:100]}.{act['location']}.png".replace("w/o", "wo"))
 
     # =========================================================================
-    # 2. Validation of Dirichlet sampling
+    # 2. Plot uncertainties for all markets
     # =========================================================================
-    dp_entsoe = generate_entsoe_datapackage("entsoe", iterations, seed)
-    dp_dirichlet = generate_markets_datapackage("markets-entsoe", iterations, seed, for_entsoe=True)
+    if markets:
+        dp_markets = generate_markets_datapackage("markets", iterations, seed)
 
-    indices = dp_entsoe.get_resource('entsoe.indices')[0]
-    unique_cols = sorted(list(set(indices['col'])))
+        indices = dp_markets.get_resource('markets.indices')[0]
+        unique_cols = sorted(list(set(indices['col'])))
 
-    for col in unique_cols[:1]:
-        act = bd.get_activity(col)
-        figure = plot_dirichlet_entsoe_samples(col, dp_entsoe, dp_dirichlet)
-        figure.write_image(FIGURES_DIR_ENTSOE / f"{col}.{act['name'][:60]}.{act['location']}.png".replace("w/o", "wo"))
+        for col in unique_cols:
+            act = bd.get_activity(col)
+            figure = plot_dirichlet_samples(col, dp_markets)
+            figure.write_image(FIGURES_DIR_MARKETS /
+                               f"{col}.{act['name'][:100]}.{act['location']}.png".replace("w/o", "wo"))

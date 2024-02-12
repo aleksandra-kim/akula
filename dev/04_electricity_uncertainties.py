@@ -20,7 +20,7 @@ FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 if __name__ == "__main__":
-    iterations = 20
+    iterations = 2000
     seed = 111111
 
     options = ["winter", "autumn", "summer", "spring", "nighttime", "daytime", "fitted", "entsoe", "ecoinvent"]
