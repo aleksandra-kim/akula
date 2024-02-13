@@ -18,6 +18,7 @@ from .utils import (
 )
 
 DATA_DIR = Path(__file__).parent.parent.resolve() / "data" / "datapackages"
+PERCENTILES = [5, 95]
 
 
 def similar_fuzzy(a, b):
@@ -60,14 +61,14 @@ def find_markets(database, similarity_func):
     return found
 
 
-def find_entsoe_markets(similarity_func):
+def find_entsoe_markets(similarity_func, fit_lognormal=False):
     dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entsoe-timeseries.zip")))
 
     indices = dp.get_resource('timeseries ENTSO electricity values.indices')[0]
     data = dp.get_resource('timeseries ENTSO electricity values.data')[0]
 
     # Fit lognormal distributions to ENTSO-E timeseries data
-    distributions = fit_distributions(data, indices)
+    distributions = fit_distributions(data, indices, fit_lognormal=fit_lognormal)
     distributions_dict = {tuple(i): d for i, d in zip(indices, distributions)}
 
     found = {}
@@ -92,7 +93,7 @@ def find_entsoe_markets(similarity_func):
                 distribution = {p[0].replace("_", " "): params[p[0]] for p in bwp.UNCERTAINTY_DTYPE}
                 exc_dict.update(**distribution)
 
-                if exc_dict["uncertainty type"] == 2:
+                if exc_dict["uncertainty type"] >= 2:
                     if exc.input['name'] == "swiss residual electricity mix":
                         inpts["swiss residual electricity mix"].append(exc_dict)
                     else:
@@ -129,7 +130,7 @@ def select_higher_amount_exchanges(amounts_exchanges):
 
     for amount, exc in amounts_exchanges.items():
         if amount >= threshold:
-            if exc['uncertainty type'] == 2:
+            if exc['uncertainty type'] >= 2:
                 exchanges[amount] = exc
 
     return exchanges
@@ -146,11 +147,18 @@ def get_dirichlet_scale(amounts_exchanges):
     for ialpha, iexc in selected_exchanges.items():
         loc = iexc['loc']
         scale = iexc['scale']
-        if iexc['uncertainty type'] == 2:
+
+        if iexc['uncertainty type'] == sa.LognormalUncertainty.id:
             beta_variance = get_beta_variance(ialpha, beta-ialpha)
             lognormal_variance = get_lognormal_variance(loc, scale)
             if lognormal_variance:
                 scaling_factors.append(beta_variance / lognormal_variance * 2)
+
+        elif iexc['uncertainty type'] == sa.NormalUncertainty.id:
+            beta_variance = get_beta_variance(ialpha, beta - ialpha)
+            normal_variance = scale**2
+            if normal_variance:
+                scaling_factors.append(beta_variance / normal_variance)
 
     scaling_factor = np.mean(scaling_factors)
 
@@ -178,7 +186,7 @@ def get_dirichlet_scales(markets):
     return dirichlet_scales
 
 
-def generate_markets_datapackage(name, num_samples, seed=42, for_entsoe=False):
+def generate_markets_datapackage(name, num_samples, seed=42, for_entsoe=False, fit_lognormal=False):
     fp_datapackage = DATA_DIR / f"{name}-{seed}-{num_samples}.zip"
 
     if not fp_datapackage.exists():
@@ -188,7 +196,7 @@ def generate_markets_datapackage(name, num_samples, seed=42, for_entsoe=False):
             markets = read_pickle(fp_markets)
         else:
             if for_entsoe:
-                markets = find_entsoe_markets(similar_fuzzy)
+                markets = find_entsoe_markets(similar_fuzzy, fit_lognormal=fit_lognormal)
             else:
                 markets = find_markets("ecoinvent 3.8 cutoff", similar_fuzzy)
             write_pickle(markets, fp_markets)
@@ -412,22 +420,38 @@ def plot_dirichlet_samples(act_id, dp_markets, num_bins=100):
     return fig
 
 
-def fit_distributions(data, indices):
+def fit_distributions(data, indices, fit_lognormal=False):
 
-    dlist = []
     assert bwp.UNCERTAINTY_DTYPE[0][0] == "uncertainty_type"
     assert bwp.UNCERTAINTY_DTYPE[-1][0] == "negative"
 
-    for i, d in enumerate(data):
-        dpos = d[d > 0]
-        if len(dpos) and (len(set(d)) > 1):
-            shape, loc, scale = lognorm.fit(dpos, floc=0)
-            params = dict(uncertainty_type=sa.LognormalUncertainty.id, loc=np.log(scale), scale=shape)
-        else:
-            params = dict(uncertainty_type=sa.NoUncertainty.id)
-        distribution = ([params.get(p[0], np.nan) for p in bwp.UNCERTAINTY_DTYPE[:-1]]
-                        + [indices[i]["row"] == indices[i]["col"]])
-        dlist.append(tuple(distribution))
+    dlist = []
+
+    if fit_lognormal:
+        for i, d in enumerate(data):
+            dpos = d[d > 0]
+            if len(dpos) and (len(set(d)) > 1):
+                shape, loc, scale = lognorm.fit(dpos, floc=0)
+                params = dict(uncertainty_type=sa.LognormalUncertainty.id, loc=np.log(scale), scale=shape)
+            else:
+                params = dict(uncertainty_type=sa.NoUncertainty.id)
+            distribution = ([params.get(p[0], np.nan) for p in bwp.UNCERTAINTY_DTYPE[:-1]]
+                            + [indices[i]["row"] == indices[i]["col"]])
+            dlist.append(tuple(distribution))
+
+    else:
+        for i, d in enumerate(data):
+            d_no_outliers = d[np.logical_and(d > np.percentile(d, PERCENTILES[0]),
+                                             d < np.percentile(d, PERCENTILES[1]))]
+            if len(set(d_no_outliers)) > 1:
+                loc = np.mean(d_no_outliers)
+                scale = np.std(d_no_outliers)
+                params = dict(uncertainty_type=sa.NormalUncertainty.id, loc=loc, scale=scale)
+            else:
+                params = dict(uncertainty_type=sa.NoUncertainty.id)
+            distribution = ([params.get(p[0], np.nan) for p in bwp.UNCERTAINTY_DTYPE[:-1]]
+                            + [indices[i]["row"] == indices[i]["col"]])
+            dlist.append(tuple(distribution))
 
     distributions = np.array(dlist, dtype=bwp.UNCERTAINTY_DTYPE)
 
@@ -437,32 +461,33 @@ def fit_distributions(data, indices):
 def plot_dirichlet_entsoe_samples(act_id, dp_entsoe, dp_dirichlet, num_bins=100):
 
     # Get Dirichlet distributions samples that were fit to ENTSO-E data
-    indices = dp_dirichlet.get_resource('markets-entsoe.indices')[0]
-    mask = indices['col'] == act_id
+    indices_dirichlet = dp_dirichlet.get_resource('markets-entsoe.indices')[0]
+    mask = indices_dirichlet['col'] == act_id
     num_exchanges = int(sum(mask))
-
-    indices_act = indices[mask]
+    indices_act = indices_dirichlet[mask]
     data_dirichlet = dp_dirichlet.get_resource('markets-entsoe.data')[0]
     data_dirichlet = data_dirichlet[mask, :]
 
-    # Extract ENTSO-E data for the given activity
-    indices = dp_entsoe.get_resource('entsoe.indices')[0]
+    # Extract ENTSO-E data for the given activity and its exchanges
+    indices_entsoe = dp_entsoe.get_resource('entsoe.indices')[0]
     where = []
     for inds in indices_act:
-        where.append(np.where(indices == inds)[0][0])
+        where.append(np.where(indices_entsoe == inds)[0][0])
     data_entsoe = dp_entsoe.get_resource('entsoe.data')[0]
     data_entsoe = data_entsoe[where, :]
 
     # Fit lognormal distributions to ENTSO-E data
-    distributions_lognorm = fit_distributions(data_entsoe, indices)
+    distributions_lognorm = fit_distributions(data_entsoe, indices_entsoe[where],  fit_lognormal=True)
 
+    # Plot Dirichlet and ENTSO-E samples, and lognormal distribution fit to ENTSO-E data
     fig = make_subplots(rows=num_exchanges, cols=1, subplot_titles=["placeholder"]*num_exchanges)
+
     opacity = 0.65
     showlegend = True
 
     for i in range(num_exchanges):
 
-        row = indices[i]['row']
+        row = indices_act[i]['row']
         act = bd.get_activity(row)
 
         fig.layout.annotations[i]['text'] = f"{act['name'][:60]} -- {act['location']}"

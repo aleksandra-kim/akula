@@ -25,7 +25,7 @@ markets = True
 if __name__ == "__main__":
     bd.projects.set_current(PROJECT)
 
-    iterations = 10000
+    iterations = 20000
     seed = 111111
 
     # =========================================================================
@@ -33,7 +33,8 @@ if __name__ == "__main__":
     # =========================================================================
     if entsoe:
         dp_entsoe = generate_entsoe_datapackage("entsoe", iterations, seed)
-        dp_dirichlet = generate_markets_datapackage("markets-entsoe", iterations, seed, for_entsoe=True)
+        dp_dirichlet = generate_markets_datapackage("markets-entsoe", iterations, seed,
+                                                    for_entsoe=True, fit_lognormal=False)
 
         indices = dp_dirichlet.get_resource('markets-entsoe.indices')[0]
         unique_cols = sorted(list(set(indices['col'])))

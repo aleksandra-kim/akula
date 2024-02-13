@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
     bd.projects.set_current(PROJECT)
 
-    iterations = 20
+    iterations = 2000
     seed = 222201
 
     # =========================================================================
