@@ -16,6 +16,7 @@ from .utils import (
     read_pickle, write_pickle,
     update_fig_axes, COLOR_DARKGRAY_HEX, COLOR_PSI_LPURPLE, COLOR_PSI_DGREEN,
 )
+from .electricity.utils import get_one_activity
 
 DATA_DIR = Path(__file__).parent.parent.resolve() / "data" / "datapackages"
 PERCENTILES = [5, 95]
@@ -573,6 +574,275 @@ def plot_dirichlet_entsoe_samples(act_id, dp_entsoe, dp_dirichlet, num_bins=100)
         legend=dict(yanchor="bottom", y=1 + offset, xanchor="center", x=0.5,
                     orientation='h', font=dict(size=13)),
         margin=dict(t=10, b=10, l=10, r=10),
+    )
+
+    return fig
+
+
+def plot_denmark_markets(dp_entsoe, dp_dirichlet, num_bins=300, ei_name="ecoinvent 3.8 cutoff"):
+
+    # Data from datapackages
+    data_entsoe = dp_entsoe.get_resource('entsoe.data')[0]
+    indices_entsoe = dp_entsoe.get_resource('entsoe.indices')[0]
+    data_dirichlet = dp_dirichlet.get_resource('markets-entsoe.data')[0]
+    indices_dirichlet = dp_dirichlet.get_resource('markets-entsoe.indices')[0]
+
+    # IDs of the Denmark markets
+    low_voltage = get_one_activity(ei_name, name="market for electricity, low voltage", location="DK")
+    medium_voltage = get_one_activity(ei_name, name="market for electricity, medium voltage", location="DK")
+    high_voltage = get_one_activity(ei_name, name="market for electricity, high voltage", location="DK")
+    cols = [low_voltage.id, medium_voltage.id, high_voltage.id]
+
+    # Names of the exchanges in the Denmark markets for plotting
+    titles_dict = {
+        'electricity production, photovoltaic, 3kWp slanted-roof installation, single-Si, panel, mounted':
+            "solar, single-Si",
+        'electricity production, photovoltaic, 3kWp slanted-roof installation, multi-Si, panel, mounted':
+            "solar, multi-Si",
+        'electricity voltage transformation from medium to low voltage':
+            "medium to low voltage",
+        'electricity voltage transformation from high to medium voltage':
+            "high to medium voltage",
+        'electricity, from municipal waste incineration to generic market for electricity, medium voltage':
+            "waste incineration",
+        'market for electricity, high voltage':
+            "high voltage",
+        'electricity production, wind, >3MW turbine, onshore':
+            "wind, greater 3MW",
+        'heat and power co-generation, natural gas, conventional power plant, 100MW electrical':
+            "heat/power, gas",
+        'electricity production, oil':
+            "electricity, oil",
+        'heat and power co-generation, wood chips, 6667 kW, state-of-the-art 2014':
+            "heat/power, wood",
+        'electricity production, wind, <1MW turbine, onshore':
+            "wind, lower 1MW",
+        'heat and power co-generation, biogas, gas engine':
+            "heat/power, biogas",
+        'electricity production, wind, 1-3MW turbine, offshore':
+            "wind, 1-3MW",
+        'heat and power co-generation, hard coal':
+            "heat/power, coal",
+        'heat and power co-generation, natural gas, combined cycle power plant, 400MW electrical':
+            "gas, 400MW",
+        'electricity production, wind, 1-3MW turbine, onshore':
+            "wind, 1-3MW",
+        'heat and power co-generation, oil':
+            "heat/power, oil",
+    }
+
+    # Create figure
+    opacity = 0.65
+    num_rows, num_cols = 3, 7
+    fig = make_subplots(rows=num_rows+1, cols=num_cols, vertical_spacing=0.15, horizontal_spacing=0.05,
+                        subplot_titles=["temp"]*28, row_heights=[0.3, 0.01,  0.3, 0.3])
+    showlegend = True
+    row_offset = 0
+    titles_str_all = []
+
+    for col in cols:
+
+        # Determine location of the subplot on the figure grid
+        col_offset = 0 if col in [low_voltage.id, high_voltage.id] else 4
+        irow = 1 if col in [low_voltage.id, medium_voltage.id] else 3
+
+        # Get Dirichlet distributions samples that were fit to ENTSO-E data
+        mask = indices_dirichlet['col'] == col
+        indices_act = indices_dirichlet[mask]
+        num_exchanges = len(indices_act)
+        data_dirichlet_col = data_dirichlet[mask, :]
+
+        # Extract ENTSO-E data for the given activity and its exchanges
+        where = []
+        for inds in indices_act:
+            where.append(np.where(indices_entsoe == inds)[0][0])
+        data_entsoe_col = data_entsoe[where, :]
+
+        # Fit lognormal distributions to ENTSO-E data
+        distributions_lognorm = fit_distributions(data_entsoe_col, indices_entsoe[where], fit_lognormal=True)
+
+        # Create titles of the subplots
+        titles = [bd.get_activity(int(row)) for row in indices_act['row']]
+        titles_str = [f"{titles_dict.get(t['name'], t['name'])}, {t['location']}" for t in titles]
+        titles_str_all += titles_str
+
+        for j in range(num_exchanges):
+
+            if col == high_voltage.id and j % num_cols == 0 and j > 0:
+                row_offset += 1
+
+            Y_entsoe = data_entsoe_col[j, :]
+            min_entsoe = min(Y_entsoe)
+            max_entsoe = max(Y_entsoe)
+
+            loc = distributions_lognorm[j]['loc']
+            scale = distributions_lognorm[j]['scale']
+            min_lognorm = lognorm.ppf(0.001, s=scale, scale=np.exp(loc))
+            max_lognorm = lognorm.ppf(0.999, s=scale, scale=np.exp(loc))
+
+            Y_dirichlet = data_dirichlet_col[j, :]
+            min_dirichlet = min(Y_dirichlet)
+            max_dirichlet = max(Y_dirichlet)
+
+            bin_min = max(min(min_lognorm, min_entsoe, min_dirichlet), 0)
+            bin_max = min(max(max_lognorm, max_entsoe, max_dirichlet), 1)
+
+            bins_ = np.linspace(bin_min, bin_max, num_bins + 1, endpoint=True)
+            midbins = (bins_[1:] + bins_[:-1]) / 2
+            Y_entsoe, _ = np.histogram(Y_entsoe, bins=bins_, density=True)
+            Y_lognorm = lognorm.pdf(midbins, s=scale, scale=np.exp(loc))
+            Y_dirichlet, _ = np.histogram(Y_dirichlet, bins=bins_, density=True)
+
+            # Plot ENTSO-E samples
+            fig.add_trace(
+                go.Scatter(
+                    x=midbins,
+                    y=Y_entsoe,
+                    name=r"$\text{ENTSO-E samples}$",
+                    showlegend=showlegend,
+                    opacity=opacity,
+                    line=dict(color=COLOR_DARKGRAY_HEX, width=1, shape="hvh"),
+                    fill="tozeroy",
+                ),
+                row=irow + row_offset,
+                col=j % num_cols + 1 + col_offset,
+            )
+            # Plot fitted lognormal distribution
+            fig.add_trace(
+                go.Scatter(
+                    x=midbins,
+                    y=Y_lognorm,
+                    line=dict(color="red"),
+                    name=r"$\text{Fitted lognormal}$",
+                    showlegend=showlegend,
+                    legendrank=1,
+                ),
+                row=irow + row_offset,
+                col=j % num_cols + 1 + col_offset,
+            )
+            # Plot Dirichlet samples
+            fig.add_trace(
+                go.Scatter(
+                    x=midbins,
+                    y=Y_dirichlet,
+                    name=r"$\text{Dirichlet samples}$",
+                    showlegend=showlegend,
+                    opacity=opacity,
+                    line=dict(color=COLOR_PSI_DGREEN, width=1, shape="hvh"),
+                    fill="tozeroy",
+                ),
+                row=irow + row_offset,
+                col=j % num_cols + 1 + col_offset,
+            )
+            showlegend = False
+
+    plot_zoomed = True
+
+    if plot_zoomed:
+
+        # Low voltage
+        fig.update_xaxes(range=(0, 0.2), row=1, col=1)
+        fig.update_xaxes(range=(0, 0.2), row=1, col=2)
+        fig.update_xaxes(range=(0.8, 1), row=1, col=3)
+        fig.update_yaxes(range=(0, 12), row=1, col=1)
+        fig.update_yaxes(range=(0, 12), row=1, col=2)
+        fig.update_yaxes(range=(0, 12), row=1, col=3)
+
+        # Medium voltage
+        fig.update_xaxes(range=(0.8, 1), row=1, col=5)
+        fig.update_xaxes(range=(0, 0.2), row=1, col=6)
+        fig.update_yaxes(range=(0, 22), row=1, col=5)
+        fig.update_yaxes(range=(0, 22), row=1, col=6)
+
+        # High voltage, first row
+        fig.update_xaxes(range=(0, 0.019), row=3, col=1)
+        fig.update_yaxes(range=(0, 20), row=3, col=1)
+        fig.update_xaxes(range=(0, 0.4), row=3, col=2)
+        fig.update_yaxes(range=(0, 7), row=3, col=2)
+        fig.update_xaxes(range=(0, 0.2), row=3, col=3)
+        fig.update_yaxes(range=(0, 14), row=3, col=3)
+        fig.update_xaxes(range=(0, 0.3), row=3, col=4)
+        fig.update_yaxes(range=(0, 9), row=3, col=4)
+        fig.update_xaxes(range=(0, 0.1), row=3, col=5)
+        fig.update_yaxes(range=(0, 35), row=3, col=5)
+        fig.update_xaxes(range=(0, 0.04), row=3, col=6)
+        fig.update_yaxes(range=(0, 130), row=3, col=6)
+        fig.update_xaxes(range=(0, 0.3), row=3, col=7)
+        fig.update_yaxes(range=(0, 11), row=3, col=7)
+
+        # High voltage, second row
+        fig.update_xaxes(range=(0, 0.01), row=4, col=1)
+        fig.update_yaxes(range=(0, 220), row=4, col=1)
+        fig.update_xaxes(range=(0, 0.15), row=4, col=2)
+        fig.update_yaxes(range=(0, 22), row=4, col=2)
+        fig.update_xaxes(range=(0, 0.015), row=4, col=3)
+        fig.update_yaxes(range=(0, 250), row=4, col=3)
+        fig.update_xaxes(range=(0, 0.25), row=4, col=4)
+        fig.update_yaxes(range=(0, 16), row=4, col=4)
+        fig.update_xaxes(range=(0, 0.4), row=4, col=5)
+        fig.update_yaxes(range=(0, 8), row=4, col=5)
+        fig.update_xaxes(range=(0, 0.3), row=4, col=6)
+        fig.update_yaxes(range=(0, 10), row=4, col=6)
+        fig.update_xaxes(range=(0, 0.5), row=4, col=7)
+        fig.update_yaxes(range=(0, 9), row=4, col=7)
+
+    fig = update_fig_axes(fig)
+
+    fig.update_xaxes(title_text=r"$\text{Share}$", title_standoff=0.06)
+    fig.update_yaxes(title_text=r"$\text{Frequency}$", col=1, title_standoff=10)
+    fig.update_layout(width=1200, height=550, margin=dict(t=60, b=0, l=20, r=0),
+                      legend=dict(yanchor="top", y=-0.15, xanchor="center", x=0.5, orientation='h', font=dict(size=13)))
+
+    annotations = list(fig.layout.annotations)
+    k = 0
+    for i in range(3):
+        str_ = r"$\text{" + titles_str_all[k] + "}$"
+        annotations[i].update(dict(text=str_, font=dict(size=14)))
+        k += 1
+    annotations[3].update({'text': ""})
+    for i in range(4, 6):
+        str_ = r"$\text{" + titles_str_all[k] + "}$"
+        annotations[i].update(dict(text=str_, font=dict(size=14)))
+        k += 1
+    for i in range(6, 14):
+        str_ = ""
+        annotations[i].update(dict(text=str_, font=dict(size=14)))
+    for i in range(14, 28):
+        str_ = r"$\text{" + titles_str_all[k] + "}$"
+        annotations[i].update(dict(text=str_, font=dict(size=14)))
+        k += 1
+    fig.layout.update({"annotations": annotations})
+
+    # Bigger titles
+    fig.add_annotation(
+        deepcopy(annotations[1]).update(
+            dict(
+                font=dict(size=16),
+                text=r"$\text{Market for electricity, LOW voltage}$",
+                x=annotations[1]['x'],
+                y=annotations[1]['y']+0.09,
+            )
+        )
+    )
+    fig.add_annotation(
+        annotations[4].update(
+            dict(
+                font=dict(size=16),
+                text=r"$\text{Market for electricity, MEDIUM voltage}$",
+                x=(annotations[4]['x'] + annotations[5]['x'])/2,
+                y=annotations[4]['y']+0.09,
+            )
+        )
+    )
+    fig.add_annotation(
+        annotations[17].update(
+            dict(
+                font=dict(size=16),
+                text=r"$\text{Market for electricity, HIGH voltage}$",
+                x=annotations[17]['x'],
+                y=annotations[17]['y']+0.09,
+            )
+        )
     )
 
     return fig

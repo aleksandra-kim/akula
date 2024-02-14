@@ -6,21 +6,29 @@ import os
 os.environ["ENTSOE_API_TOKEN"] = "0d6ea062-f603-43d3-bc60-176159803035"
 os.environ["BENTSO_DATA_DIR"] = "/home/aleksandrakim/LCAfiles/bentso_data"
 
-from akula.markets import generate_markets_datapackage, plot_dirichlet_samples, plot_dirichlet_entsoe_samples
+from akula.markets import (
+    generate_markets_datapackage,
+    plot_dirichlet_samples,
+    plot_dirichlet_entsoe_samples,
+    plot_denmark_markets,
+)
 from akula.electricity import generate_entsoe_datapackage
 
 PROJECT = "GSA with correlations"
 PROJECT_DIR = Path(__file__).parent.parent.resolve()
 sys.path.append(str(PROJECT_DIR))
 
-FIGURES_DIR_MARKETS = PROJECT_DIR / "figures" / "dirichlet" / "markets"
+FIGURES_DIR = PROJECT_DIR / "figures"
+
+FIGURES_DIR_MARKETS = FIGURES_DIR / "dirichlet" / "markets"
 FIGURES_DIR_MARKETS.mkdir(parents=True, exist_ok=True)
 
-FIGURES_DIR_ENTSOE = PROJECT_DIR / "figures" / "dirichlet" / "entsoe"
+FIGURES_DIR_ENTSOE = FIGURES_DIR / "dirichlet" / "entsoe"
 FIGURES_DIR_ENTSOE.mkdir(parents=True, exist_ok=True)
 
 entsoe = False
-markets = True
+markets = False
+denmark = True
 
 if __name__ == "__main__":
     bd.projects.set_current(PROJECT)
@@ -59,3 +67,13 @@ if __name__ == "__main__":
             figure = plot_dirichlet_samples(col, dp_markets)
             figure.write_image(FIGURES_DIR_MARKETS /
                                f"{col}.{act['name'][:100]}.{act['location']}.png".replace("w/o", "wo"))
+
+    # =========================================================================
+    # 3. Plot uncertainties for high, medium and low voltage markets in Denmark
+    # =========================================================================
+    if denmark:
+        dp_entsoe = generate_entsoe_datapackage("entsoe", iterations, seed)
+        dp_dirichlet = generate_markets_datapackage("markets-entsoe", iterations, seed,
+                                                    for_entsoe=True, fit_lognormal=False)
+        figure = plot_denmark_markets(dp_entsoe, dp_dirichlet)
+        figure.write_image(FIGURES_DIR / "denmark.pdf")
