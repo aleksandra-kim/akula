@@ -23,7 +23,7 @@ if __name__ == "__main__":
     # =========================================================================
     # 1. Remove non-influential inputs
     # =========================================================================
-    tmask_wo_noninf = get_tmask_wo_noninf(PROJECT, CUTOFF, MAX_CALC)
+    tmask_wo_noninf = get_tmask_wo_noninf(PROJECT, CUTOFF, MAX_CALC)  # takes ~25 min for cutoff=1e-9, max_calc=1e20
     bmask_wo_noninf = get_bmask_wo_noninf(PROJECT)
     cmask_wo_noninf = get_cmask_wo_noninf(PROJECT)
 
