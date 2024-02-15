@@ -27,9 +27,12 @@ if __name__ == "__main__":
     bmask_wo_noninf = get_bmask_wo_noninf(PROJECT)
     cmask_wo_noninf = get_cmask_wo_noninf(PROJECT)
 
-    print(f"{sum(tmask_wo_noninf):6d} / {len(tmask_wo_noninf):6d} TECH inputs after removing non-influential with SCT")
-    print(f"{sum(bmask_wo_noninf):6d} / {len(bmask_wo_noninf):6d}  BIO inputs after removing non-influential with MAT")
-    print(f"{sum(cmask_wo_noninf):6d} / {len(cmask_wo_noninf):6d}   CF inputs after removing non-influential with MAT")
+    print(f"{sum(tmask_wo_noninf):6d} / {len(tmask_wo_noninf):6d} TECH inputs after removing non-influential "
+                                                                       f"with Supply Chain Traversal")
+    print(f"{sum(bmask_wo_noninf):6d} / {len(bmask_wo_noninf):6d}  BIO inputs after removing non-influential "
+                                                                       f"with Biosphere Matrix Analysis")
+    print(f"{sum(cmask_wo_noninf):6d} / {len(cmask_wo_noninf):6d}   CF inputs after removing non-influential "
+                                                                       f"with Characterization Matrix Analysis\n")
 
     # =========================================================================
     # 2. Remove lowly influential inputs with local sensitivity analysis
