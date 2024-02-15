@@ -9,7 +9,7 @@ from matrix_utils.resource_group import FakeRNG
 import stats_arrays as sa
 from copy import deepcopy
 
-from sensitivity_analysis import get_mask
+from sensitivity_analysis.utils import get_mask
 
 
 DATA_DIR = Path(__file__).parent.resolve() / "data"

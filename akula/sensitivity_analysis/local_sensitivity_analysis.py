@@ -8,22 +8,7 @@ from copy import deepcopy
 from pathlib import Path
 from ..utils import read_pickle, write_pickle
 
-from ..parameterization import PARAMS_DTYPE
-
 DATA_DIR = Path(__file__).parents[1].resolve() / "data"
-
-
-def get_mask(all_indices, use_indices, is_params=False):
-    """Creates a `mask` such that `all_indices[mask]=use_indices`."""
-    if is_params:
-        use_indices = np.array(use_indices, dtype=PARAMS_DTYPE)
-    else:
-        use_indices = np.array(use_indices, dtype=bwp.INDICES_DTYPE)
-    mask = np.zeros(len(all_indices), dtype=bool)
-    for inds in use_indices:
-        mask_current = all_indices == inds
-        mask = mask | mask_current
-    return mask
 
 
 def get_mask_parameters(all_indices, use_indices):
@@ -37,49 +22,30 @@ def get_mask_parameters(all_indices, use_indices):
     return mask
 
 
-def get_tindices_wo_noninf(lca, cutoff, max_calc=1e4):
-    """Find datapackage indices with lowest contribution scores obtained with Supply chain traversal"""
-    res = bc.GraphTraversal().calculate(
-        lca, cutoff=cutoff, max_calc=max_calc
-    )
-    use_indices = []
-    use_indices_dict = {}
-    for edge in res['edges']:
-        if edge['to'] != -1:
-            if abs(edge['impact']) > abs(lca.score * cutoff):
-                row, col = edge['from'], edge['to']
-                i, j = lca.dicts.activity.reversed[row], lca.dicts.activity.reversed[col]
-                use_indices.append((i, j))
-                use_indices_dict[(i, j)] = edge['impact']
-    return use_indices
+# def add_variances(list_, lcia_score):
+#     for dictionary in list_:
+#         values = np.vstack(list(dictionary.values()))
+#         values = np.hstack([values, np.ones((len(values), 1))*lcia_score])
+#         variances = np.var(values, axis=1)
+#         for i, k in enumerate(dictionary.keys()):
+#             dictionary[k] = {
+#                 "arr": values[i, :],
+#                 "var": variances[i],
+#             }
+#
+#
+# def get_variance_threshold(list_, num_parameters):
+#     # Collect all variances
+#     vars = np.array([value['var'] for dictionary in list_ for key, value in dictionary.items()])
+#     vars = np.sort(vars)[-1::-1]
+#     vars_threshold = vars[:num_parameters][-1]
+#     return vars_threshold
+#
+#
+# # Remove lowly influential
+# def get_indices_high_variance(dictionary, variances_threshold):
+#     return [key for key in dictionary if dictionary[key]['var'] >= variances_threshold]
 
-
-def get_bindices_wo_noninf(lca):
-    """Find datapackage indices that correspond to B*Ainv*f, where contributions are higher than cutoff"""
-    inv = lca.characterized_inventory
-    finv = inv.multiply(abs(inv) > 0)
-    # Find row and column in B*Ainv*f
-    biosphere_row_col = list(zip(*finv.nonzero()))
-    # Translate row and column to datapackage indices
-    biosphere_reversed = lca.dicts.biosphere.reversed
-    activity_reversed = lca.dicts.activity.reversed
-    use_indices = []
-    for row, col in biosphere_row_col:
-        i, j = biosphere_reversed[row], activity_reversed[col]
-        use_indices.append((i, j))
-    return use_indices
-
-
-def get_cindices_wo_noninf(lca):
-    """Find datapackage indices that correspond to C*B*Ainv*f, where contributions are higher than cutoff"""
-    inv_sum = np.array(np.sum(lca.characterized_inventory, axis=1)).squeeze()
-    # print('Characterized inventory:', inv.shape, inv.nnz)
-    finv_sum = inv_sum * abs(inv_sum) > 0
-    characterization_row = list(finv_sum.nonzero()[0])
-    # Translate row to datapackage indices
-    biosphere_reversed = lca.dicts.biosphere.reversed
-    use_indices = [(biosphere_reversed[row], 1) for row in characterization_row]
-    return use_indices
 
 
 class LocalSAInterface:

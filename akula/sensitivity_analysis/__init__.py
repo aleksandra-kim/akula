@@ -1,1 +1,1 @@
-from .local_sensitivity_analysis import get_mask
+from .remove_non_influential import get_tmask_wo_noninf, get_bmask_wo_noninf, get_cmask_wo_noninf

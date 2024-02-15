@@ -704,8 +704,8 @@ def generate_validation_datapackages(indices, mask, num_samples, seed=42):
     return dp_validation_all, dp_validation_inf
 
 
-def placeholder():
-    print("Generating local SA datapackage")
+# def placeholder():
+#     print("Generating local SA datapackage")
     # generate_local_sa_datapackage(ei_raw_data, const_factor=10.0)
     # generate_local_sa_datapackage(ei_raw_data, const_factor=0.1)
 

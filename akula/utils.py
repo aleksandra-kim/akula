@@ -20,11 +20,16 @@ def get_consumption_activity():
     return activity[0]
 
 
-def compute_deterministic_score(project):
+def get_lca(project):
     bd.projects.set_current(project)
     act = get_consumption_activity()
     method = ("IPCC 2013", "climate change", "GWP 100a", "uncertain")
     lca = bc.LCA({act: 1}, method)
+    return lca
+
+
+def compute_deterministic_score():
+    lca = get_lca()
     lca.lci()
     lca.lcia()
     return lca.score

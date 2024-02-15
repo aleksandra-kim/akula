@@ -32,11 +32,11 @@ if __name__ == "__main__":
     # =========================================================================
     # 1. Generate datapackages for all sampling modules
     # =========================================================================
-    # _, dp_parameterization = generate_parameterized_exchanges_datapackage(
-    #     FP_ECOINVENT, "parameterization", iterations, seed
-    # )
-    # dp_combustion = generate_combustion_datapackage("combustion", iterations, seed)
-    # dp_entsoe = generate_entsoe_datapackage("entsoe", iterations, seed)
+    _, dp_parameterization = generate_parameterization_datapackage(
+        FP_ECOINVENT, "parameterization", iterations, seed
+    )
+    dp_combustion = generate_combustion_datapackage("combustion", iterations, seed)
+    dp_entsoe = generate_entsoe_datapackage("entsoe", iterations, seed)
     dp_markets = generate_markets_datapackage("markets", iterations, seed)
 
     # =========================================================================
@@ -47,28 +47,29 @@ if __name__ == "__main__":
     # =========================================================================
     # 3. Run MC simulations, and compute LCIA WITH sampling modules
     # =========================================================================
-    # scores_parameterization = compute_scores(PROJECT, "parameterization", iterations, seed, dp_parameterization)
-    # scores_combustion = compute_scores(PROJECT, "combustion", iterations, seed, dp_combustion)
-    # scores_entsoe = compute_scores(PROJECT, "entsoe", iterations, seed, dp_entsoe)
+    scores_parameterization = compute_scores(PROJECT, "parameterization", iterations, seed, dp_parameterization)
+    scores_combustion = compute_scores(PROJECT, "combustion", iterations, seed, dp_combustion)
+    scores_entsoe = compute_scores(PROJECT, "entsoe", iterations, seed, dp_entsoe)
     scores_markets = compute_scores(PROJECT, "markets", iterations, seed, dp_markets)
 
     # =========================================================================
     # 4. Figure 5 in the paper
     # =========================================================================
-    # exiobase_offset = exiobase_lcia - no_exiobase_lcia
-    exiobase_offset = 703.1540208909953
+    exiobase_offset = exiobase_lcia - no_exiobase_lcia
+    print(exiobase_offset)
+    # exiobase_offset = 703.1540208909953
 
-    # figure = plot_sampling_modules(scores_no_sampling, scores_parameterization, exiobase_offset)
-    # figure.show()
-    # figure.write_image(FIGURES_DIR / "sampling_parameterization.pdf")
-    #
-    # figure = plot_sampling_modules(scores_no_sampling, scores_combustion, exiobase_offset)
-    # figure.show()
-    # figure.write_image(FIGURES_DIR / "sampling_combustion.pdf")
-    #
-    # figure = plot_sampling_modules(scores_no_sampling, scores_entsoe, exiobase_offset)
-    # figure.show()
-    # figure.write_image(FIGURES_DIR / "sampling_entsoe.pdf")
+    figure = plot_sampling_modules(scores_no_sampling, scores_parameterization, exiobase_offset)
+    figure.show()
+    figure.write_image(FIGURES_DIR / "sampling_parameterization.pdf")
+
+    figure = plot_sampling_modules(scores_no_sampling, scores_combustion, exiobase_offset)
+    figure.show()
+    figure.write_image(FIGURES_DIR / "sampling_combustion.pdf")
+
+    figure = plot_sampling_modules(scores_no_sampling, scores_entsoe, exiobase_offset)
+    figure.show()
+    figure.write_image(FIGURES_DIR / "sampling_entsoe.pdf")
 
     figure = plot_sampling_modules(scores_no_sampling, scores_markets, exiobase_offset)
     figure.show()
