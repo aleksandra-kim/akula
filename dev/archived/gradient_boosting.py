@@ -13,7 +13,7 @@ from gsa_framework.utils import read_pickle, write_pickle
 from gsa_framework.sensitivity_analysis.gradient_boosting import GradientBoosting
 from gsa_framework.sensitivity_methods.gradient_boosting import xgboost_indices_base
 
-from akula.sensitivity_analysis.local_sensitivity_analysis import get_mask
+from akula.sensitivity_analysis.remove_lowly_influential import get_mask
 
 
 # local files

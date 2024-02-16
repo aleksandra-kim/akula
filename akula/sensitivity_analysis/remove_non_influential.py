@@ -152,8 +152,7 @@ def get_cmask_wo_noninf(project):
         mask = read_pickle(fp)
     else:
         bd.projects.set_current(project)
-        lca = get_lca(project)
-        cf = bd.Method(lca.method).datapackage()
+        cf = bd.Method(("IPCC 2013", "climate change", "GWP 100a", "uncertain")).datapackage()
         cindices = cf.get_resource('IPCC_2013_climate_change_GWP_100a_uncertain_matrix_data.indices')[0]
         cindices_wo_noninf = get_cindices_wo_noninf(project)
         mask = get_mask(cindices, cindices_wo_noninf)

@@ -10,8 +10,8 @@ from gsa_framework.visualization.plotting import plot_correlation_Y1_Y2
 import plotly.graph_objects as go
 
 # Local files
-from akula.sensitivity_analysis.local_sensitivity_analysis import (
-    run_local_sa, run_local_sa_technosphere, run_local_sa_from_samples_technosphere,
+from akula.sensitivity_analysis.remove_lowly_influential import (
+    run_local_sa, get_scores_local_sa_technosphere, run_local_sa_from_samples_technosphere,
     get_mask, get_tindices_wo_noninf, get_bindices_wo_noninf, get_cindices_wo_noninf, get_mask_parameters,
 )
 from akula.sensitivity_analysis.remove_non_influential import (
@@ -122,7 +122,7 @@ if __name__ == "__main__":
     if fp_tlocal_sa.exists():
         tlocal_sa = read_pickle(fp_tlocal_sa)
     else:
-        tlocal_sa = run_local_sa_technosphere(
+        tlocal_sa = get_scores_local_sa_technosphere(
             fu_mapped,
             pkgs,
             tdistributions_ei,

@@ -28,8 +28,17 @@ def get_lca(project):
     return lca
 
 
-def compute_deterministic_score():
-    lca = get_lca()
+def get_fu_pkgs(project):
+    bd.projects.set_current(project)
+    act = get_consumption_activity()
+    method = ("IPCC 2013", "climate change", "GWP 100a", "uncertain")
+    fu_mapped, pkgs, _ = bd.prepare_lca_inputs(demand={act: 1}, method=method, remapping=False)
+    return fu_mapped, pkgs
+
+
+def compute_deterministic_score(project):
+    bd.projects.set_current(project)
+    lca = get_lca(project)
     lca.lci()
     lca.lcia()
     return lca.score
