@@ -13,7 +13,7 @@ GSA_DIR.mkdir(parents=True, exist_ok=True)
 def get_tindices_wo_noninf(project, cutoff, max_calc):
     """Find datapackage indices with the lowest contribution scores obtained with Supply chain traversal."""
 
-    fp = GSA_DIR / f"tech.indices.without_noninf.sct.cutoff_{cutoff:.0e}.maxcalc_{max_calc:.0e}.pickle"
+    fp = GSA_DIR / f"indices.tech.without_noninf.sct.cutoff_{cutoff:.0e}.maxcalc_{max_calc:.0e}.pickle"
 
     if fp.exists():
         indices = read_pickle(fp)
@@ -46,7 +46,7 @@ def get_bindices_wo_noninf(project):
     github.com/LCA-ActivityBrowser/activity-browser/blob/master/activity_browser/bwutils/sensitivity_analysis.py
     """
 
-    fp = GSA_DIR / "bio.indices.without_noninf.pickle"
+    fp = GSA_DIR / "indices.bio.without_noninf.pickle"
 
     if fp.exists():
         indices = read_pickle(fp)
@@ -83,7 +83,7 @@ def get_cindices_wo_noninf(project):
     github.com/LCA-ActivityBrowser/activity-browser/blob/master/activity_browser/bwutils/sensitivity_analysis.py
     """
 
-    fp = GSA_DIR / "cf.indices.without_noninf.pickle"
+    fp = GSA_DIR / "indices.cf.without_noninf.pickle"
 
     if fp.exists():
         indices = read_pickle(fp)
@@ -108,7 +108,7 @@ def get_cindices_wo_noninf(project):
 
 def get_tmask_wo_noninf(project, cutoff, max_calc):
 
-    fp = GSA_DIR / f"tech.mask.without_noninf.sct.cutoff_{cutoff:.0e}.maxcalc_{max_calc:.0e}.pickle"
+    fp = GSA_DIR / f"mask.tech.without_noninf.sct.cutoff_{cutoff:.0e}.maxcalc_{max_calc:.0e}.pickle"
 
     if fp.exists():
         mask = read_pickle(fp)
@@ -127,7 +127,7 @@ def get_tmask_wo_noninf(project, cutoff, max_calc):
 
 def get_bmask_wo_noninf(project):
 
-    fp = GSA_DIR / "bio.mask.without_noninf.pickle"
+    fp = GSA_DIR / "mask.bio.without_noninf.pickle"
 
     if fp.exists():
         mask = read_pickle(fp)
@@ -146,7 +146,7 @@ def get_bmask_wo_noninf(project):
 
 def get_cmask_wo_noninf(project):
 
-    fp = GSA_DIR / "cf.mask.without_noninf.pickle"
+    fp = GSA_DIR / "mask.cf.without_noninf.pickle"
 
     if fp.exists():
         mask = read_pickle(fp)

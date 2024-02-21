@@ -1,3 +1,2 @@
 from .remove_non_influential import get_tmask_wo_noninf, get_bmask_wo_noninf, get_cmask_wo_noninf
-from .remove_lowly_influential import get_tmask_wo_lowinf, get_bmask_wo_lowinf, get_cmask_wo_lowinf
-from .remove_lowly_influential import get_all_lowinf_scores
+from .remove_lowly_influential import get_masks_wo_lowinf

@@ -13,14 +13,18 @@ MC_DIR = Path(__file__).parent.parent.resolve() / "data" / "monte-carlo" / "samp
 MC_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def compute_consumption_lcia(project, iterations, seed=42, datapackage=None):
+def compute_consumption_lcia(project, iterations, seed=42, datapackages=None):
     bd.projects.set_current(project)
     method = ("IPCC 2013", "climate change", "GWP 100a", "uncertain")
     activity = get_consumption_activity()
 
     fu, data_objs, _ = bd.prepare_lca_inputs({activity: 1}, method=method, remapping=False)
-    if datapackage is not None:
-        data_objs += [datapackage]
+
+    if datapackages is not None:
+        if type(datapackages) is list:
+            data_objs += datapackages
+        else:
+            data_objs.append(datapackages)
 
     lca = bc.LCA(
         demand=fu,

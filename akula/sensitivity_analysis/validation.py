@@ -1,15 +1,21 @@
 from pathlib import Path
 import bw2calc as bc
-from gsa_framework.utils import read_hdf5_array, write_hdf5_array, write_pickle
-from gsa_framework.visualization.plotting import *
-from copy import deepcopy
-from gsa_framework.models import ModelBase
 
-# COLORS_DICT = {
-#     "all": "#636EFA",
-#     "influential": "#EF553B",
-#     "scatter": "#00CC96",
-# }
+from ..utils import read_pickle, write_pickle
+from ..monte_carlo import compute_consumption_lcia
+
+GSA_DIR = Path(__file__).parent.parent.parent.resolve() / "data" / "sensitivity-analysis"
+
+
+def run_mc_simulations_all_inputs(project, iterations, seed=42):
+    """Run Monte Carlo simulations when all model inputs vary."""
+    fp = GSA_DIR / f"scores.validation.all_inputs.{seed}.{iterations}.pickle"
+    if fp.exists():
+        scores = read_pickle(fp)
+    else:
+        scores = compute_consumption_lcia(project, iterations, seed, datapackages)
+        write_pickle(scores, fp)
+    return scores
 
 
 class LCAModelBW25(ModelBase):
