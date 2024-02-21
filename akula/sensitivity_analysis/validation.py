@@ -28,7 +28,7 @@ def create_all_datapackages(fp_ecoinvent, project, iterations, seed=42):
 
 def run_mc_simulations_all_inputs(project, fp_ecoinvent, iterations, seed=42):
     """Run Monte Carlo simulations when all model inputs vary."""
-    fp = GSA_DIR / f"scores.validation.all_inputs.{seed}.{iterations}.pickle"
+    fp = GSA_DIR / f"scores.all_inputs.{seed}.{iterations}.pickle"
     if fp.exists():
         scores = read_pickle(fp)
     else:
@@ -130,7 +130,7 @@ def create_lowinf_datapackage(project, factor, cutoff, max_calc):
 def run_mc_simulations_masked(project, fp_ecoinvent, datapackage_masked, iterations, seed=42, tag=""):
     """Run Monte Carlo simulations without non-influential inputs, but with all sampling modules."""
 
-    fp = GSA_DIR / f"scores.validation.{tag}.{seed}.{iterations}.pickle"
+    fp = GSA_DIR / f"scores.{tag}.{seed}.{iterations}.pickle"
 
     if fp.exists():
         scores = read_pickle(fp)
