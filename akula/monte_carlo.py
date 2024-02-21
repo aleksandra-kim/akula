@@ -53,7 +53,7 @@ def compute_scores(project, option, iterations, seed=42, datapackage=None):
     return scores
 
 
-def plot_sampling_modules(Y0, YS, offset=0):
+def plot_lcia_scores_from_two_cases(Y0, YS, offset=0):
 
     Y0 = np.array(Y0) + offset
     YS = np.array(YS) + offset

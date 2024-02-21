@@ -9,7 +9,7 @@ from akula.parameterization import generate_parameterization_datapackage
 from akula.combustion import generate_combustion_datapackage
 from akula.electricity import generate_entsoe_datapackage
 from akula.markets import generate_markets_datapackage
-from akula.monte_carlo import compute_scores, plot_sampling_modules
+from akula.monte_carlo import compute_scores, plot_lcia_scores_from_two_cases
 from akula.utils import compute_deterministic_score
 
 PROJECT = "GSA with correlations"
@@ -59,18 +59,18 @@ if __name__ == "__main__":
     print(exiobase_offset)
     # exiobase_offset = 703.1540208909953
 
-    figure = plot_sampling_modules(scores_no_sampling, scores_parameterization, exiobase_offset)
+    figure = plot_lcia_scores_from_two_cases(scores_no_sampling, scores_parameterization, exiobase_offset)
     figure.show()
     figure.write_image(FIGURES_DIR / "sampling_parameterization.pdf")
 
-    figure = plot_sampling_modules(scores_no_sampling, scores_combustion, exiobase_offset)
+    figure = plot_lcia_scores_from_two_cases(scores_no_sampling, scores_combustion, exiobase_offset)
     figure.show()
     figure.write_image(FIGURES_DIR / "sampling_combustion.pdf")
 
-    figure = plot_sampling_modules(scores_no_sampling, scores_entsoe, exiobase_offset)
+    figure = plot_lcia_scores_from_two_cases(scores_no_sampling, scores_entsoe, exiobase_offset)
     figure.show()
     figure.write_image(FIGURES_DIR / "sampling_entsoe.pdf")
 
-    figure = plot_sampling_modules(scores_no_sampling, scores_markets, exiobase_offset)
+    figure = plot_lcia_scores_from_two_cases(scores_no_sampling, scores_markets, exiobase_offset)
     figure.show()
     figure.write_image(FIGURES_DIR / "sampling_markets.pdf")
