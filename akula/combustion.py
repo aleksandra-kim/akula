@@ -8,6 +8,8 @@ import numpy as np
 import stats_arrays as sa
 from tqdm import tqdm
 
+from .utils import read_pickle, write_pickle
+
 DATA_DIR = Path(__file__).parent.parent.resolve() / "data" / "datapackages"
 
 
@@ -110,11 +112,20 @@ def get_liquid_fuels():
 
 
 def get_candidates(co2, ei_name='ecoinvent 3.8 cutoff'):
-    ei = bd.Database(ei_name)
-    candidate_codes = ED.select(ED.output_code).distinct().where(
-        (ED.input_code << {o['code'] for o in co2}) & (ED.output_database == ei_name)).tuples()
-    candidates = [ei.get(code=o[0]) for o in candidate_codes]
-    print("Found {} candidate activities".format(len(candidates)))
+
+    fp = DATA_DIR / "combustion.candidates.pickle"
+
+    if fp.exists():
+        candidates = read_pickle(fp)
+
+    else:
+        ei = bd.Database(ei_name)
+        candidate_codes = ED.select(ED.output_code).distinct().where(
+            (ED.input_code << {o['code'] for o in co2}) & (ED.output_database == ei_name)).tuples()
+        candidates = [ei.get(code=o[0]) for o in candidate_codes]
+        print("Found {} candidate activities".format(len(candidates)))
+        write_pickle(candidates, fp)
+
     return candidates
 
 

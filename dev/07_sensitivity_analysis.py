@@ -27,7 +27,6 @@ FP_ECOINVENT = "/home/aleksandrakim/LCAfiles/ecoinvent_38_cutoff/datasets"
 # Parameters for GSA
 SEED = 222201
 ITERATIONS_VALIDATION = 2000
-ITERATIONS_SCREENING = 1000
 CUTOFF = 1e-7
 MAX_CALC = 1e18
 FACTOR = 10
@@ -101,8 +100,10 @@ if __name__ == "__main__":
     # =========================================================================
     # 3. Run MC for high dimensional screening
     # =========================================================================
+    # iterations_screening = 2 * NUM_LOWINF
+    iterations_screening = 20
     scores_screening = run_mc_simulations_screening(
-        PROJECT, FP_ECOINVENT, FACTOR, CUTOFF, MAX_CALC, ITERATIONS_SCREENING, SEED
+        PROJECT, FP_ECOINVENT, FACTOR, CUTOFF, MAX_CALC, iterations_screening, SEED, NUM_LOWINF
     )
 
     # =========================================================================

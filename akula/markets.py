@@ -63,6 +63,7 @@ def find_markets(database, similarity_func):
 
 
 def find_entsoe_markets(similarity_func, fit_lognormal=False):
+
     dp = bwp.load_datapackage(ZipFS(str(DATA_DIR / "entsoe-timeseries.zip")))
 
     indices = dp.get_resource('timeseries ENTSO electricity values.indices')[0]

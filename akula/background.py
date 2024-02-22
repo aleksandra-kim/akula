@@ -35,77 +35,7 @@ def create_lca(demand, use_distributions=True, seed=42):
     return lca
 
 
-def create_background_datapackage(demand, matrix_type, name, indices, num_samples=SAMPLES, seed=42):
 
-    lca = create_lca(demand, seed=seed)
-
-    dp = bwp.create_datapackage(
-        fs=ZipFS(str(DATA_DIR / "xgboost" / f"{name}.zip"), write=True),
-        name=name,
-        seed=seed,
-        sequential=True,
-    )
-
-    if matrix_type == "technosphere":
-        num_resources = 4
-    else:
-        num_resources = 3
-
-    obj = getattr(lca, f"{matrix_type}_mm")
-    indices_array = np.hstack(
-        [
-            group.package.data[0] for group in obj.groups
-            if (not isinstance(group.rng, FakeRNG)) and (not group.empty) and (len(group.package.data) == num_resources)
-        ]
-    )
-
-    if len(indices_array) != len(indices):
-        mask = get_mask(indices_array, indices)
-    else:
-        if np.all(indices_array == indices):
-            mask = np.ones(len(indices_array), dtype=bool)
-        else:
-            mask = get_mask(indices_array, indices)
-
-    data = []
-    np.random.seed(seed)
-    for _ in range(num_samples):
-        next(obj)
-        idata = []
-        for group in obj.groups:
-            if (not isinstance(group.rng, FakeRNG)) and (not group.empty):
-                idata.append(group.rng.random_data)
-        data.append(np.hstack(idata)[mask])
-    data_array = np.vstack(data).T
-
-    if matrix_type == "technosphere":
-        flip_array = np.hstack(
-            [
-                group.flip for group in obj.groups
-                if (not isinstance(group.rng, FakeRNG)) and (not group.empty) and (len(group.package.data) == num_resources)
-            ]
-        )
-        dp.add_persistent_array(
-            matrix=f"{matrix_type}_matrix",
-            data_array=data_array,
-            # Resource group name that will show up in provenance
-            name=name,
-            indices_array=indices_array[mask],
-            flip_array=flip_array[mask],
-        )
-    else:
-        dp.add_persistent_array(
-            matrix=f"{matrix_type}_matrix",
-            data_array=data_array,
-            # Resource group name that will show up in provenance
-            name=name,
-            indices_array=indices_array[mask],
-        )
-    [
-        d.update({"global_index": 1}) for d in dp.metadata['resources']
-        if d['matrix'] == "characterization_matrix"
-    ]  # TODO Chris, is this correct?
-    return dp
 
 
 def generate_validation_datapackages(demand, matrix_type, indices, mask, num_samples=SAMPLES, seed=42):
