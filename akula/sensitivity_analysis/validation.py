@@ -41,7 +41,7 @@ def run_mc_simulations_all_inputs(project, fp_ecoinvent, iterations, seed=42):
 def create_masked_vector_datapackage(project, tmask, bmask, cmask, tag):
     """Create datapackages that exclude masked inputs."""
 
-    fp_datapackage = DATA_DIR / f"validation.mask.{tag}.zip"
+    fp_datapackage = DATA_DIR / f"validation.{tag}.zip"
 
     bd.projects.set_current(project)
 
@@ -97,31 +97,32 @@ def create_masked_vector_datapackage(project, tmask, bmask, cmask, tag):
 def create_noninf_datapackage(project, cutoff, max_calc):
 
     # Extract all masks without non-influential inputs
-    fp_tech = GSA_DIR / f"mask.tech.without_noninf.sct.cutoff_{cutoff:.0e}.maxcalc_{max_calc:.0e}.pickle"
+    tag = f"cutoff_{cutoff:.0e}.maxcalc_{max_calc:.0e}"
+    fp_tech = GSA_DIR / f"mask.tech.without_noninf.sct.{tag}.pickle"
     fp_bio = GSA_DIR / "mask.bio.without_noninf.pickle"
     fp_cf = GSA_DIR / "mask.cf.without_noninf.pickle"
     tmask = read_pickle(fp_tech)
     bmask = read_pickle(fp_bio)
     cmask = read_pickle(fp_cf)
 
-    tag = "noninf"
+    tag = "without_noninf"
     dp = create_masked_vector_datapackage(project, ~tmask, ~bmask, ~cmask, tag)
 
     return dp
 
 
-def create_lowinf_datapackage(project, factor, cutoff, max_calc):
+def create_lowinf_datapackage(project, factor, cutoff, max_calc, num_lowinf):
 
     # Extract all masks without non-influential inputs
     tag = f"cutoff_{cutoff:.0e}.maxcalc_{max_calc:.0e}"
-    fp_tech = GSA_DIR / f"mask.tech.without_lowinf.lsa.factor_{factor}.{tag}.pickle"
-    fp_bio = GSA_DIR / f"mask.bio.without_lowinf.lsa.factor_{factor}.{tag}.pickle"
-    fp_cf = GSA_DIR / f"mask.cf.without_lowinf.lsa.factor_{factor}.{tag}.pickle"
+    fp_tech = GSA_DIR / f"mask.tech.without_lowinf.{num_lowinf}.lsa.factor_{factor}.{tag}.pickle"
+    fp_bio = GSA_DIR / f"mask.bio.without_lowinf.{num_lowinf}.lsa.factor_{factor}.{tag}.pickle"
+    fp_cf = GSA_DIR / f"mask.cf.without_lowinf.{num_lowinf}.lsa.factor_{factor}.{tag}.pickle"
     tmask = read_pickle(fp_tech)
     bmask = read_pickle(fp_bio)
     cmask = read_pickle(fp_cf)
 
-    tag = "lowinf"
+    tag = f"without_lowinf.{num_lowinf}"
     dp = create_masked_vector_datapackage(project, ~tmask, ~bmask, ~cmask, tag)
 
     return dp
@@ -136,7 +137,7 @@ def run_mc_simulations_masked(project, fp_ecoinvent, datapackage_masked, iterati
         scores = read_pickle(fp)
     else:
         datapackages_sampling_modules = create_all_datapackages(fp_ecoinvent, project, iterations, seed)
-        datapackages = datapackages_sampling_modules + [datapackage_masked]
+        datapackages = [datapackage_masked] + datapackages_sampling_modules
         scores = compute_consumption_lcia(project, iterations, seed, datapackages)
 
         write_pickle(scores, fp)
@@ -144,15 +145,15 @@ def run_mc_simulations_masked(project, fp_ecoinvent, datapackage_masked, iterati
     return scores
 
 
-def run_mc_simulations_wo_noninf(project, fp_ecoinvent, cutoff, max_calc, iterations, seed):
+def run_mc_simulations_wo_noninf(project, fp_ecoinvent, cutoff, max_calc, iterations, seed, num_noninf=None):
     datapackage_noninf = create_noninf_datapackage(project, cutoff, max_calc)
-    tag = "wo_noninf"
+    tag = "without_noninf" if num_noninf is None else f"without_noninf.{num_noninf}"
     scores = run_mc_simulations_masked(project, fp_ecoinvent, datapackage_noninf, iterations, seed, tag)
     return scores
 
 
-def run_mc_simulations_wo_lowinf(project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed=42):
-    datapackage_lowinf = create_lowinf_datapackage(project, factor, cutoff, max_calc)
-    tag = "wo_lowinf"
+def run_mc_simulations_wo_lowinf(project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf):
+    datapackage_lowinf = create_lowinf_datapackage(project, factor, cutoff, max_calc, num_lowinf)
+    tag = f"without_lowinf.{num_lowinf}"
     scores = run_mc_simulations_masked(project, fp_ecoinvent, datapackage_lowinf, iterations, seed, tag)
     return scores

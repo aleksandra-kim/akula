@@ -6,4 +6,4 @@ from .validation import (
     run_mc_simulations_wo_lowinf,
     create_all_datapackages,
 )
-from high_dimensional_screening import run_mc_simulations_screening
+from .high_dimensional_screening import run_mc_simulations_screening

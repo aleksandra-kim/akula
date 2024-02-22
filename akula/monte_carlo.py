@@ -6,7 +6,6 @@ from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 import numpy as np
 
-# Local files
 from .utils import update_fig_axes, COLOR_PSI_BLUE, COLOR_DARKGRAY_HEX, get_consumption_activity
 
 MC_DIR = Path(__file__).parent.parent.resolve() / "data" / "monte-carlo" / "sampling-modules"
@@ -91,9 +90,6 @@ def plot_lcia_scores_from_two_cases(Y0, YS, offset=0):
         yaxis2=dict(tickmode="array", tickvals=tickvals),
         margin=dict(l=20, r=20, t=10, b=20),
     )
-
-    # Ymin = min(np.hstack([Y0, YS]))
-    # Ymax = max(np.hstack([Y0, YS]))
 
     fig.update_xaxes(title_text=r"$\text{Sample number}$", title_standoff=5, row=1, col=1)
     fig.update_yaxes(range=[-100, 100], title_text=r"$\Delta \text{ LCIA scores}$", title_standoff=5, row=1, col=1)

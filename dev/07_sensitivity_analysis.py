@@ -26,12 +26,12 @@ FP_ECOINVENT = "/home/aleksandrakim/LCAfiles/ecoinvent_38_cutoff/datasets"
 
 # Parameters for GSA
 SEED = 222201
-ITERATIONS_VALIDATION = 50
+ITERATIONS_VALIDATION = 2000
 ITERATIONS_SCREENING = 1000
 CUTOFF = 1e-7
 MAX_CALC = 1e18
 FACTOR = 10
-NUM_LOWINF = 10_000
+NUM_LOWINF = 25_000
 
 
 if __name__ == "__main__":
@@ -67,11 +67,12 @@ if __name__ == "__main__":
                                                                        "with Characterization Matrix Analysis\n")
 
     # Validate results
+    num_noninf = sum(tmask_wo_noninf) + sum(bmask_wo_noninf) + sum(cmask_wo_noninf)
     scores_wo_noninf = run_mc_simulations_wo_noninf(
-        PROJECT, FP_ECOINVENT, CUTOFF, MAX_CALC, ITERATIONS_VALIDATION, SEED
+        PROJECT, FP_ECOINVENT, CUTOFF, MAX_CALC, ITERATIONS_VALIDATION, SEED, num_noninf
     )
     figure = plot_lcia_scores_from_two_cases(scores_all, scores_wo_noninf, exiobase_offset)
-    figure.write_image(FIGURES_DIR / "validation_noninf.pdf")
+    figure.write_image(FIGURES_DIR / f"validation_noninf.{num_noninf}.pdf")
 
     # =========================================================================
     # 2. Remove LOWLY influential inputs with local sensitivity analysis
@@ -92,10 +93,10 @@ if __name__ == "__main__":
 
     # Validate results
     scores_wo_lowinf = run_mc_simulations_wo_lowinf(
-        PROJECT, FP_ECOINVENT, FACTOR, CUTOFF, MAX_CALC, ITERATIONS_VALIDATION, SEED
+        PROJECT, FP_ECOINVENT, FACTOR, CUTOFF, MAX_CALC, ITERATIONS_VALIDATION, SEED, NUM_LOWINF
     )
     figure = plot_lcia_scores_from_two_cases(scores_all, scores_wo_lowinf, exiobase_offset)
-    figure.write_image(FIGURES_DIR / "validation_lowinf.pdf")
+    figure.write_image(FIGURES_DIR / f"validation.wo_lowinf.{NUM_LOWINF}.{SEED}.{ITERATIONS_VALIDATION}.pdf")
 
     # =========================================================================
     # 3. Run MC for high dimensional screening

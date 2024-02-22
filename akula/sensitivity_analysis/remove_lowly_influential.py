@@ -4,6 +4,7 @@ import bw2calc as bc
 import bw_processing as bwp
 from copy import deepcopy
 from pathlib import Path
+
 from .utils import get_mask
 from ..utils import read_pickle, write_pickle, get_fu_pkgs, get_lca
 
@@ -327,9 +328,9 @@ def get_masks_wo_lowinf(project, factor, cutoff, max_calc, num_lowinf):
 
     tag = f"cutoff_{cutoff:.0e}.maxcalc_{max_calc:.0e}"
 
-    fp_mask_tech = GSA_DIR / f"mask.tech.without_lowinf.lsa.factor_{factor}.{tag}.pickle"
-    fp_mask_bio = GSA_DIR / f"mask.bio.without_lowinf.lsa.factor_{factor}.{tag}.pickle"
-    fp_mask_cf = GSA_DIR / f"mask.cf.without_lowinf.lsa.factor_{factor}.{tag}.pickle"
+    fp_mask_tech = GSA_DIR / f"mask.tech.without_lowinf.{num_lowinf}.lsa.factor_{factor}.{tag}.pickle"
+    fp_mask_bio = GSA_DIR / f"mask.bio.without_lowinf.{num_lowinf}.lsa.factor_{factor}.{tag}.pickle"
+    fp_mask_cf = GSA_DIR / f"mask.cf.without_lowinf.{num_lowinf}.lsa.factor_{factor}.{tag}.pickle"
     fp_masks = [fp_mask_tech, fp_mask_bio, fp_mask_cf]
 
     masks_exist = [fp.exists() for fp in fp_masks]
@@ -340,9 +341,9 @@ def get_masks_wo_lowinf(project, factor, cutoff, max_calc, num_lowinf):
         cmask_wo_lowinf = read_pickle(fp_mask_cf)
 
     else:
-        fp_inds_tech = GSA_DIR / f"indices.tech.without_lowinf.lsa.factor_{factor}.{tag}.pickle"
-        fp_inds_bio = GSA_DIR / f"indices.bio.without_lowinf.lsa.factor_{factor}.{tag}.pickle"
-        fp_inds_cf = GSA_DIR / f"indices.cf.without_lowinf.lsa.factor_{factor}.{tag}.pickle"
+        fp_inds_tech = GSA_DIR / f"indices.tech.without_lowinf.{num_lowinf}.lsa.factor_{factor}.{tag}.pickle"
+        fp_inds_bio = GSA_DIR / f"indices.bio.without_lowinf.{num_lowinf}.lsa.factor_{factor}.{tag}.pickle"
+        fp_inds_cf = GSA_DIR / f"indices.cf.without_lowinf.{num_lowinf}.lsa.factor_{factor}.{tag}.pickle"
         fp_inds = [fp_inds_tech, fp_inds_bio, fp_inds_cf]
 
         inds_exist = [fp.exists() for fp in fp_inds]
