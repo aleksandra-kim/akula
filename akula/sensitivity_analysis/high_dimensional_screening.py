@@ -9,6 +9,7 @@ from xgboost import XGBRegressor
 import shap
 import json
 
+from .utils import get_mask
 from ..utils import read_pickle, write_pickle, get_consumption_activity
 from ..sensitivity_analysis import create_all_datapackages, create_lowinf_datapackage
 
@@ -98,7 +99,7 @@ def create_background_datapackage(project, matrix_type, mask, num_samples, seed=
                 if d['matrix'] == "characterization_matrix"
             ]
 
-            dp.finalize_serialization()
+        dp.finalize_serialization()
 
     return dp
 
@@ -208,7 +209,7 @@ def get_y_scores(iterations, seed, num_lowinf):
 
 
 def get_x_data_technosphere(iterations, seed):
-    fp = SCREENING_DIR / f"technosphere-{seed}-{iterations}.zip"
+    fp = SCREENING_DIR / f"technosphere.{seed}.{iterations}.zip"
     dp = bwp.load_datapackage(ZipFS(str(fp)))
     indices = dp.get_resource("technosphere_matrix.indices")[0]
     data = dp.get_resource("technosphere_matrix.data")[0]
@@ -216,35 +217,44 @@ def get_x_data_technosphere(iterations, seed):
 
 
 def get_x_data_biosphere(iterations, seed):
-    fp = SCREENING_DIR / f"biosphere-{seed}-{iterations}.zip"
+    name = f"biosphere.{seed}.{iterations}"
+    fp = SCREENING_DIR / f"{name}.zip"
     dp = bwp.load_datapackage(ZipFS(str(fp)))
-    indices = dp.get_resource("biosphere_matrix.indices")[0]
-    data = dp.get_resource("biosphere_matrix.data")[0]
+    indices = dp.get_resource(f"{name}.indices")[0]
+    data = dp.get_resource(f"{name}.data")[0]
     return data, indices
 
 
 def get_x_data_characterization(iterations, seed):
-    fp = SCREENING_DIR / f"characterization-{seed}-{iterations}.zip"
+    name = f"characterization.{seed}.{iterations}"
+    fp = SCREENING_DIR / f"{name}.zip"
     dp = bwp.load_datapackage(ZipFS(str(fp)))
-    indices = dp.get_resource("characterization_matrix.indices")[0]
-    data = dp.get_resource("characterization_matrix.data")[0]
+    indices = dp.get_resource(f"{name}.indices")[0]
+    data = dp.get_resource(f"{name}.data")[0]
     return data, indices
 
 
 def get_x_data_parameterization(iterations, seed):
+    # Parameters
     fp = SCREENING_DIR / f"parameterization-parameters-{seed}-{iterations}.zip"
     dp = bwp.load_datapackage(ZipFS(str(fp)))
-    indices = dp.get_resource("ecoinvent-parameters.indices")[0]
-    data = dp.get_resource("ecoinvent-parameters.data")[0]
-    return data, indices
+    param_indices = dp.get_resource("ecoinvent-parameters.indices")[0]
+    param_data = dp.get_resource("ecoinvent-parameters.data")[0]
+    # Biosphere and technosphere exchanges
+    fp = SCREENING_DIR / f"parameterization-exchanges-{seed}-{iterations}.zip"
+    dp = bwp.load_datapackage(ZipFS(str(fp)))
+    tech_indices = dp.get_resource("parameterized-tech.indices")[0]
+    bio_indices = dp.get_resource("parameterized-bio.indices")[0]
+    return param_data, param_indices, tech_indices, bio_indices
 
 
 def get_x_data_combustion(iterations, seed):
     fp = SCREENING_DIR / f"combustion-{seed}-{iterations}.zip"
     dp = bwp.load_datapackage(ZipFS(str(fp)))
-    indices = dp.get_resource("combustion-tech.indices")[0]
-    data = dp.get_resource("combustion-tech.data")[0]
-    return data, indices
+    ctech_data = dp.get_resource("combustion-tech.data")[0]
+    ctech_indices = dp.get_resource("combustion-tech.indices")[0]
+    cbio_indices = dp.get_resource("combustion-bio.indices")[0]
+    return ctech_data, ctech_indices, cbio_indices
 
 
 def get_x_data_entsoe(iterations, seed):
@@ -282,32 +292,51 @@ def get_x_data(iterations, seed):
         tech_data, tech_indices = get_x_data_technosphere(current_iterations, seeds[i])
         bio_data, bio_indices = get_x_data_biosphere(current_iterations, seeds[i])
         cf_data, cf_indices = get_x_data_characterization(current_iterations, seeds[i])
-        pdata, pindices = get_x_data_parameterization(current_iterations, seeds[i])
-        cdata, cindices = get_x_data_combustion(current_iterations, seeds[i])
-        edata, eindices = get_x_data_entsoe(current_iterations, seeds[i])
-        mdata, mindices = get_x_data_markets(current_iterations, seeds[i])
+        pdata, pindices, ptech_indices, pbio_indices = get_x_data_parameterization(current_iterations, seeds[i])
+        ctech_data, ctech_indices, cbio_indices = get_x_data_combustion(current_iterations, seeds[i])
+        etech_data, etech_indices = get_x_data_entsoe(current_iterations, seeds[i])
+        mtech_data, mtech_indices = get_x_data_markets(current_iterations, seeds[i])
 
         data_technosphere.append(tech_data)
         data_biosphere.append(bio_data)
         data_characterization.append(cf_data)
         data_parameterization.append(pdata)
-        data_combustion.append(cdata)
-        data_entsoe.append(edata)
-        data_markets.append(mdata)
+        data_combustion.append(ctech_data)
+        data_entsoe.append(etech_data)
+        data_markets.append(mtech_data)
 
     data_technosphere = np.hstack(data_technosphere)
     data_biosphere = np.hstack(data_biosphere)
     data_characterization = np.hstack(data_characterization)
     data_parameterization = np.hstack(data_parameterization)
-    data_combustion = np.hstack(data_combustion)
-    data_entsoe = np.hstack(data_entsoe)
-    data_markets = np.hstack(data_markets)
 
-    data = np.vstack([data_technosphere, data_biosphere, data_characterization, data_parameterization])
+    # 1. Parameterized exchanges from technosphere and biosphere should be removed, because they are dependent inputs
+    ptech_mask = get_mask(tech_indices, ptech_indices)
+    pbio_mask = get_mask(bio_indices, pbio_indices)
+    # 2.1 Combustion biosphere exchanges should be removed, because they are dependent inputs
+    cbio_mask = get_mask(bio_indices, cbio_indices)
+    # 2.2 Combustion technosphere exchanges should replace respective technosphere exchanges
+    ctech_mask = get_mask(tech_indices, ctech_indices)
+    data_technosphere[ctech_mask] = data_combustion
+    # 3 Electricity data from ENTSOE should replace respective technosphere exchanges
+    etech_mask = get_mask(tech_indices, etech_indices)
+    data_technosphere[etech_mask] = data_entsoe
+    # 4 Market data should replace respective technosphere exchanges
+    mtech_mask = get_mask(tech_indices, mtech_indices)
+    data_technosphere[mtech_mask] = data_markets
+    # Collect masks from all sampling modules
+    tech_mask = ~ptech_mask
+    bio_mask = ~(pbio_mask or cbio_mask)
+
+    data = np.vstack([
+        data_technosphere[tech_mask, :],
+        data_biosphere[bio_mask, :],
+        data_characterization,
+        data_parameterization])
 
     indices = {
-        "technosphere": tech_indices,
-        "biosphere": bio_indices,
+        "technosphere": tech_indices[tech_mask],
+        "biosphere": bio_indices[bio_mask],
         "characterization": cf_indices,
         "parameterization": pindices,
     }
@@ -337,17 +366,21 @@ def train_xgboost_model(tag, iterations, seed, num_lowinf, train_test_split=0.2)
         # Define the model
         fp_params = SCREENING_DIR / f"xgboost.{tag}.params.json"
         params = dict(
-            n_estimators=10,
-            max_depth=4,
-            eta=0.1,
-            subsample=0.2,
-            colsample_bytree=0.9,
-            base_score=np.mean(Y_train),
-            booster='gbtree',
+            base_score=np.mean(Y_train),  # the initial prediction score of all instances, global bias
+            n_estimators=10,           # number of gradient boosted trees
+            max_depth=4,               # maximum tree depth for base learners
+            learning_rate=0.15,        # boosting learning rate, xgb's `eta`
+            verbosity=3,               # degree of verbosity, valid values are 0 (silent) - 3 (debug)
+            booster='gbtree',          # specify which booster to use: gbtree, gblinear or dart
+            gamma=0,                   # minimum loss reduction to make a further partition on a leaf node of the tree
+            subsample=0.3,             # subsample ratio of the training instance
+            colsample_bytree=0.2,      # subsample ratio of columns when constructing each tree
+            reg_alpha=0,               # L1 regularization term on weights (xgb’s alpha)
+            reg_lambda=0,              # L2 regularization term on weights (xgb’s lambda)
+            importance_type="gain",    # for tree models: “gain”, “weight”, “cover”, “total_gain” or “total_cover”
+            early_stopping_rounds=20,  # validation metric needs to improve at least once in every early_stopping_rounds
             #     tree_method="hist",
             #     objective='reg:linear',
-            verbose_eval=100,
-            early_stopping_rounds=20,
         )
         # Write params into a json file
         with open(fp_params, 'w') as f:

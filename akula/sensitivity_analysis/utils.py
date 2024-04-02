@@ -14,4 +14,5 @@ def get_mask(all_indices, use_indices, is_params=False):
     for indices in use_indices:
         mask_current = all_indices == indices
         mask = mask | mask_current
+    assert mask.sum() <= len(use_indices)
     return mask
