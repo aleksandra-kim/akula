@@ -14,14 +14,14 @@ GSA_DIR = Path(__file__).parent.parent.parent.resolve() / "data" / "sensitivity-
 DATA_DIR = Path(__file__).parent.parent.parent.resolve() / "data" / "datapackages"
 
 
-def create_all_datapackages(fp_ecoinvent, project, iterations, seed=42):
+def create_all_datapackages(fp_ecoinvent, project, iterations, seed=42, directory=None):
     bd.projects.set_current(project)
     _, dp_parameterization = generate_parameterization_datapackage(
-        fp_ecoinvent, "parameterization", iterations, seed
+        fp_ecoinvent, "parameterization", iterations, seed, directory=directory
     )
-    dp_combustion = generate_combustion_datapackage("combustion", iterations, seed)
-    dp_entsoe = generate_entsoe_datapackage("entsoe", iterations, seed)
-    dp_markets = generate_markets_datapackage("markets", iterations, seed)
+    dp_combustion = generate_combustion_datapackage("combustion", iterations, seed, directory=directory)
+    dp_entsoe = generate_entsoe_datapackage("entsoe", iterations, seed, directory=directory)
+    dp_markets = generate_markets_datapackage("markets", iterations, seed, directory=directory)
     datapackages = [dp_parameterization, dp_combustion, dp_entsoe, dp_markets]
     return datapackages
 
@@ -41,7 +41,7 @@ def run_mc_simulations_all_inputs(project, fp_ecoinvent, iterations, seed=42):
 def create_masked_vector_datapackage(project, tmask, bmask, cmask, tag):
     """Create datapackages that exclude masked inputs."""
 
-    fp_datapackage = DATA_DIR / f"validation.{tag}.zip"
+    fp_datapackage = DATA_DIR / f"vector_dp.{tag}.zip"
 
     bd.projects.set_current(project)
 
@@ -71,20 +71,20 @@ def create_masked_vector_datapackage(project, tmask, bmask, cmask, tag):
     dp.add_persistent_vector(
         matrix="technosphere_matrix",
         data_array=tdata[tmask],
-        name=f"validation.{tag}.tech",
+        name=f"{tag}.tech",
         indices_array=tindices[tmask],
         flip_array=tflip[tmask],
     )
     dp.add_persistent_vector(
         matrix="biosphere_matrix",
         data_array=bdata[bmask],
-        name=f"validation.{tag}.bio",
+        name=f"{tag}.bio",
         indices_array=bindices[bmask],
     )
     dp.add_persistent_vector(
         matrix="characterization_matrix",
         data_array=cdata[cmask],
-        name=f"validation.{tag}.cf",
+        name=f"{tag}.cf",
         indices_array=cindices[cmask],
     )
     [d.update({"global_index": 1}) for d in dp.metadata['resources']]

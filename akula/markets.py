@@ -188,12 +188,15 @@ def get_dirichlet_scales(markets):
     return dirichlet_scales
 
 
-def generate_markets_datapackage(name, num_samples, seed=42, for_entsoe=False, fit_lognormal=False):
-    fp_datapackage = DATA_DIR / f"{name}-{seed}-{num_samples}.zip"
+def generate_markets_datapackage(name, num_samples, seed=42, for_entsoe=False, fit_lognormal=False, directory=None):
+
+    directory = directory or DATA_DIR
+    fp_datapackage = directory / f"{name}-{seed}-{num_samples}.zip"
+    print(fp_datapackage)
 
     if not fp_datapackage.exists():
 
-        fp_markets = DATA_DIR / f"{name}.pickle"
+        fp_markets = directory / f"{name}.pickle"
         if fp_markets.exists():
             markets = read_pickle(fp_markets)
         else:

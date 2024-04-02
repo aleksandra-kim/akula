@@ -131,9 +131,11 @@ def create_timeseries_entso_datapackages(project, years=(2019, 2020, 2021)):
     dp.finalize_serialization()
 
 
-def generate_entsoe_datapackage(name, num_samples, seed=42):
+def generate_entsoe_datapackage(name, num_samples, seed=42, directory=None):
 
-    fp_datapackage = DATA_DIR / f"{name}-{seed}-{num_samples}.zip"
+    directory = directory or DATA_DIR
+
+    fp_datapackage = directory / f"{name}-{seed}-{num_samples}.zip"
 
     if not fp_datapackage.exists():
 

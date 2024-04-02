@@ -133,9 +133,10 @@ def get_co2():
     return [x for x in bd.Database('biosphere3') if x['name'] == 'Carbon dioxide, fossil']
 
 
-def generate_combustion_datapackage(name, num_samples, seed=42):
+def generate_combustion_datapackage(name, num_samples, seed=42, directory=None):
 
-    fp_datapackage = DATA_DIR / f"{name}-{seed}-{num_samples}.zip"
+    directory = directory or DATA_DIR
+    fp_datapackage = directory / f"{name}-{seed}-{num_samples}.zip"
 
     if not fp_datapackage.exists():
 
@@ -143,9 +144,9 @@ def generate_combustion_datapackage(name, num_samples, seed=42):
         co2 = get_co2()
         candidates = get_candidates(co2)
 
-        processed_log = open(DATA_DIR / "combustion.processed.log", "w")
-        unbalanced_log = open(DATA_DIR / "combustion.unbalanced.log", "w")
-        error_log = open(DATA_DIR / "combustion.error.log", "w")
+        processed_log = open(directory / "combustion.processed.log", "w")
+        unbalanced_log = open(directory / "combustion.unbalanced.log", "w")
+        error_log = open(directory / "combustion.error.log", "w")
 
         indices_tech, flip_tech, data_tech = [], [], []
         indices_bio, data_bio = [], []

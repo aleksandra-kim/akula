@@ -462,10 +462,12 @@ def generate_local_sa_datapackage(input_data, const_factor=10.0):
     dp.finalize_serialization()
 
 
-def generate_parameterization_datapackage(filepath, name, num_samples, seed=42):
+def generate_parameterization_datapackage(filepath, name, num_samples, seed=42, directory=None):
 
-    fp_parameters_datapackage = DATA_DIR / f"{name}-parameters-{seed}-{num_samples}.zip"
-    fp_exchanges_datapackage = DATA_DIR / f"{name}-exchanges-{seed}-{num_samples}.zip"
+    directory = directory or DATA_DIR
+
+    fp_parameters_datapackage = directory / f"{name}-parameters-{seed}-{num_samples}.zip"
+    fp_exchanges_datapackage = directory / f"{name}-exchanges-{seed}-{num_samples}.zip"
 
     if not fp_parameters_datapackage.exists() or not fp_exchanges_datapackage.exists():
 

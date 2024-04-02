@@ -13,6 +13,7 @@ from akula.sensitivity_analysis import (
     run_mc_simulations_wo_noninf,
     run_mc_simulations_wo_lowinf,
     run_mc_simulations_screening,
+    train_xgboost_model,
 )
 from akula.utils import compute_deterministic_score
 from akula.monte_carlo import plot_lcia_scores_from_two_cases
@@ -26,12 +27,13 @@ FP_ECOINVENT = "/home/aleksandrakim/LCAfiles/ecoinvent_38_cutoff/datasets"
 
 # Parameters for GSA
 SEED = 222201
-ITERATIONS_VALIDATION = 2000
 CUTOFF = 1e-7
 MAX_CALC = 1e18
 FACTOR = 10
+ITERATIONS_VALIDATION = 2_000
+ITERATIONS_SCREENING = 20_000
 NUM_LOWINF = 25_000
-
+NUM_INF = 100
 
 if __name__ == "__main__":
 
@@ -39,7 +41,7 @@ if __name__ == "__main__":
     # 0. Setups
     # =========================================================================
     # 0.1 Compute LCIA score offset when exiobase is used
-    compute = False  # purely ouf of impatience
+    compute = False  # purely out of impatience
     if compute:
         exiobase_lcia = compute_deterministic_score(PROJECT_EXIOBASE)
         no_exiobase_lcia = compute_deterministic_score(PROJECT)
@@ -100,15 +102,11 @@ if __name__ == "__main__":
     # =========================================================================
     # 3. Run MC for high dimensional screening
     # =========================================================================
-    # iterations_screening = 2 * NUM_LOWINF
-    iterations_screening = 20
     scores_screening = run_mc_simulations_screening(
-        PROJECT, FP_ECOINVENT, FACTOR, CUTOFF, MAX_CALC, iterations_screening, SEED, NUM_LOWINF
+        PROJECT, FP_ECOINVENT, FACTOR, CUTOFF, MAX_CALC, ITERATIONS_SCREENING, SEED, NUM_LOWINF
     )
-
-    # =========================================================================
-    # 4. Check model linearity
-    # =========================================================================
+    # tag = "0"
+    # model = train_xgboost_model(tag, ITERATIONS_SCREENING, SEED, NUM_LOWINF)
 
     # =========================================================================
     # 5. Factor fixing with XGBoost
