@@ -204,15 +204,16 @@ def run_mc_simulations_screening(project, fp_ecoinvent, factor, cutoff, max_calc
 
 def get_y_scores(iterations, seed, num_lowinf):
     fp = SCREENING_DIR / f"scores.without_lowinf.{num_lowinf}.{seed}.{iterations}.pickle"
-    scores = read_pickle(fp).flatten()
+    scores = np.array(read_pickle(fp))
     return scores
 
 
 def get_x_data_technosphere(iterations, seed):
-    fp = SCREENING_DIR / f"technosphere.{seed}.{iterations}.zip"
+    name = f"technosphere.{seed}.{iterations}"
+    fp = SCREENING_DIR / f"{name}.zip"
     dp = bwp.load_datapackage(ZipFS(str(fp)))
-    indices = dp.get_resource("technosphere_matrix.indices")[0]
-    data = dp.get_resource("technosphere_matrix.data")[0]
+    indices = dp.get_resource(f"{name}.indices")[0]
+    data = dp.get_resource(f"{name}.data")[0]
     return data, indices
 
 
@@ -309,6 +310,9 @@ def get_x_data(iterations, seed):
     data_biosphere = np.hstack(data_biosphere)
     data_characterization = np.hstack(data_characterization)
     data_parameterization = np.hstack(data_parameterization)
+    data_combustion = np.hstack(data_combustion)
+    data_entsoe = np.hstack(data_entsoe)
+    data_markets = np.hstack(data_markets)
 
     # 1. Parameterized exchanges from technosphere and biosphere should be removed, because they are dependent inputs
     ptech_mask = get_mask(tech_indices, ptech_indices)
@@ -317,26 +321,29 @@ def get_x_data(iterations, seed):
     cbio_mask = get_mask(bio_indices, cbio_indices)
     # 2.2 Combustion technosphere exchanges should replace respective technosphere exchanges
     ctech_mask = get_mask(tech_indices, ctech_indices)
-    data_technosphere[ctech_mask] = data_combustion
     # 3 Electricity data from ENTSOE should replace respective technosphere exchanges
     etech_mask = get_mask(tech_indices, etech_indices)
-    data_technosphere[etech_mask] = data_entsoe
     # 4 Market data should replace respective technosphere exchanges
     mtech_mask = get_mask(tech_indices, mtech_indices)
-    data_technosphere[mtech_mask] = data_markets
     # Collect masks from all sampling modules
-    tech_mask = ~ptech_mask
-    bio_mask = ~(pbio_mask or cbio_mask)
+    tech_mask = ~(ptech_mask | ctech_mask | etech_mask | mtech_mask)
+    bio_mask = ~(pbio_mask | cbio_mask)
 
+    data_technosphere = np.vstack([data_technosphere[tech_mask, :], data_combustion, data_entsoe, data_markets])
+    data_biosphere = data_biosphere[bio_mask, :]
     data = np.vstack([
-        data_technosphere[tech_mask, :],
-        data_biosphere[bio_mask, :],
+        data_technosphere,
+        data_biosphere,
         data_characterization,
-        data_parameterization])
+        data_parameterization
+    ])
 
+    tech_indices = np.hstack([tech_indices[tech_mask], ctech_indices, etech_indices, mtech_indices],
+                             dtype=bwp.INDICES_DTYPE)
+    bio_indices = bio_indices[bio_mask]
     indices = {
-        "technosphere": tech_indices[tech_mask],
-        "biosphere": bio_indices[bio_mask],
+        "technosphere": tech_indices,
+        "biosphere": bio_indices,
         "characterization": cf_indices,
         "parameterization": pindices,
     }
@@ -351,6 +358,7 @@ def train_xgboost_model(tag, iterations, seed, num_lowinf, train_test_split=0.2)
 
     # Read X and Y data
     X, _ = get_x_data(iterations, seed)
+    X = X.T
     Y = get_y_scores(iterations, seed, num_lowinf)
     split = int(train_test_split * X.shape[0])
     X_train = X[:-split, :]
@@ -367,18 +375,20 @@ def train_xgboost_model(tag, iterations, seed, num_lowinf, train_test_split=0.2)
         fp_params = SCREENING_DIR / f"xgboost.{tag}.params.json"
         params = dict(
             base_score=np.mean(Y_train),  # the initial prediction score of all instances, global bias
-            n_estimators=10,           # number of gradient boosted trees
-            max_depth=4,               # maximum tree depth for base learners
+            n_estimators=300,           # number of gradient boosted trees
+            max_depth=6,               # maximum tree depth for base learners
             learning_rate=0.15,        # boosting learning rate, xgb's `eta`
             verbosity=3,               # degree of verbosity, valid values are 0 (silent) - 3 (debug)
             booster='gbtree',          # specify which booster to use: gbtree, gblinear or dart
             gamma=0,                   # minimum loss reduction to make a further partition on a leaf node of the tree
             subsample=0.3,             # subsample ratio of the training instance
-            colsample_bytree=0.2,      # subsample ratio of columns when constructing each tree
+            colsample_bytree=0.9,      # subsample ratio of columns when constructing each tree
             reg_alpha=0,               # L1 regularization term on weights (xgb’s alpha)
             reg_lambda=0,              # L2 regularization term on weights (xgb’s lambda)
             importance_type="gain",    # for tree models: “gain”, “weight”, “cover”, “total_gain” or “total_cover”
-            early_stopping_rounds=20,  # validation metric needs to improve at least once in every early_stopping_rounds
+            early_stopping_rounds=30,  # validation metric needs to improve at least once in every early_stopping_rounds
+            eval_metric=["error", "rmse"],
+            random_state=seed,
             #     tree_method="hist",
             #     objective='reg:linear',
         )
@@ -389,7 +399,9 @@ def train_xgboost_model(tag, iterations, seed, num_lowinf, train_test_split=0.2)
         # Define the model and train it
         model = XGBRegressor(**params)
         eval_set = [(X_train, Y_train), (X_test, Y_test)]
-        model.fit(X_train, Y_train, eval_metric=["error", "rmse"], eval_set=eval_set, verbose=True)
+        model.fit(X_train, Y_train,  eval_set=eval_set, verbose=True)
+
+        write_pickle(model, fp)
 
     # Print results
     score_train = model.score(X_train, Y_train)
