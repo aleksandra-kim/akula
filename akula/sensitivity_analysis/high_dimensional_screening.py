@@ -5,8 +5,9 @@ import bw2data as bd
 import bw2calc as bc
 from fs.zipfs import ZipFS
 from matrix_utils.resource_group import FakeRNG
-from xgboost import XGBRegressor
-import shap
+import xgboost as xgb
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score, explained_variance_score
 import json
 
 from .utils import get_mask
@@ -126,9 +127,8 @@ def create_tech_bio_cf_datapackages(project, factor, cutoff, max_calc, iteration
 def get_datapackages_screening(project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf):
     """Create all datapackages for high-dimensional screening."""
     dp_base = create_tech_bio_cf_datapackages(project, factor, cutoff, max_calc, iterations, seed, num_lowinf)
-    dp_without_lowinf = create_lowinf_datapackage(project, factor, cutoff, max_calc, num_lowinf)
     dp_modules = create_all_datapackages(fp_ecoinvent, project, iterations, seed, SCREENING_DIR)
-    dps = dp_base + [dp_without_lowinf] + dp_modules
+    dps = dp_base + dp_modules
     return dps
 
 
@@ -159,7 +159,7 @@ def compute_consumption_lcia_screening(project, fp_ecoinvent, factor, cutoff, ma
     return scores
 
 
-def get_seeds(iterations, seed):
+def get_random_seeds(iterations, seed):
     """Generate random seeds for running MC simulations in batches."""
     starts = np.arange(0, iterations, MC_BATCH_SIZE)
     n_batches = len(starts)
@@ -179,7 +179,7 @@ def run_mc_simulations_screening(project, fp_ecoinvent, factor, cutoff, max_calc
 
     else:
         scores = []
-        starts, n_batches, seeds = get_seeds(iterations, seed)
+        starts, n_batches, seeds = get_random_seeds(iterations, seed)
 
         for i in range(n_batches):
             current_iterations = MC_BATCH_SIZE if i < n_batches - 1 else iterations - starts[i]
@@ -277,7 +277,7 @@ def get_x_data_markets(iterations, seed):
 def get_x_data(iterations, seed):
     """Read input data from datapackages and return indices and data."""
 
-    starts, n_batches, seeds = get_seeds(iterations, seed)
+    starts, n_batches, seeds = get_random_seeds(iterations, seed)
 
     data_technosphere = []
     data_biosphere = []
@@ -289,6 +289,9 @@ def get_x_data(iterations, seed):
 
     for i in range(n_batches):
         current_iterations = MC_BATCH_SIZE if i < n_batches - 1 else iterations - starts[i]
+
+        # if i < 5:
+        #     continue
 
         tech_data, tech_indices = get_x_data_technosphere(current_iterations, seeds[i])
         bio_data, bio_indices = get_x_data_biosphere(current_iterations, seeds[i])
@@ -337,7 +340,6 @@ def get_x_data(iterations, seed):
         data_characterization,
         data_parameterization
     ])
-
     tech_indices = np.hstack([tech_indices[tech_mask], ctech_indices, etech_indices, mtech_indices],
                              dtype=bwp.INDICES_DTYPE)
     bio_indices = bio_indices[bio_mask]
@@ -351,7 +353,72 @@ def get_x_data(iterations, seed):
     return data, indices
 
 
-def train_xgboost_model(tag, iterations, seed, num_lowinf, train_test_split=0.2):
+def get_x_data_v2(iterations, seed):
+    """Read input data from datapackages and return indices and data."""
+
+    starts, n_batches, seeds = get_random_seeds(iterations, seed)
+
+    data_technosphere = []
+    data_biosphere = []
+    data_characterization = []
+    data_parameterization = []
+    data_combustion = []
+    data_entsoe = []
+    data_markets = []
+
+    for i in range(n_batches):
+        current_iterations = MC_BATCH_SIZE if i < n_batches - 1 else iterations - starts[i]
+
+        if i < 20:
+            continue
+
+        print(i)
+
+        tech_data, tech_indices = get_x_data_technosphere(current_iterations, seeds[i])
+        bio_data, bio_indices = get_x_data_biosphere(current_iterations, seeds[i])
+        cf_data, cf_indices = get_x_data_characterization(current_iterations, seeds[i])
+        pdata, pindices, ptech_indices, pbio_indices = get_x_data_parameterization(current_iterations, seeds[i])
+        ctech_data, ctech_indices, cbio_indices = get_x_data_combustion(current_iterations, seeds[i])
+        etech_data, etech_indices = get_x_data_entsoe(current_iterations, seeds[i])
+        mtech_data, mtech_indices = get_x_data_markets(current_iterations, seeds[i])
+
+        data_technosphere.append(tech_data)
+        data_biosphere.append(bio_data)
+        data_characterization.append(cf_data)
+        data_parameterization.append(pdata)
+        data_combustion.append(ctech_data)
+        data_entsoe.append(etech_data)
+        data_markets.append(mtech_data)
+
+    data_technosphere = np.hstack(data_technosphere)
+    data_biosphere = np.hstack(data_biosphere)
+    data_characterization = np.hstack(data_characterization)
+    data_parameterization = np.hstack(data_parameterization)
+    data_combustion = np.hstack(data_combustion)
+    data_entsoe = np.hstack(data_entsoe)
+    data_markets = np.hstack(data_markets)
+
+    data_technosphere = np.vstack([data_technosphere, data_combustion, data_entsoe, data_markets])
+    data = np.vstack([
+        data_technosphere,
+        data_biosphere,
+        data_characterization,
+        data_parameterization
+    ])
+    tech_indices = np.hstack([tech_indices, ctech_indices, etech_indices, mtech_indices],
+                             dtype=bwp.INDICES_DTYPE)
+    bio_indices = bio_indices
+    indices = {
+        "technosphere": tech_indices,
+        "biosphere": bio_indices,
+        "characterization": cf_indices,
+        "parameterization": pindices,
+    }
+
+    return data, indices
+
+
+def train_xgboost_model(tag, iterations, seed, num_lowinf, test_size=0.2):
     """Train gradient boosted tree regressor."""
 
     fp = SCREENING_DIR / f"xgboost.{tag}.pickle"
@@ -360,12 +427,13 @@ def train_xgboost_model(tag, iterations, seed, num_lowinf, train_test_split=0.2)
     X, _ = get_x_data(iterations, seed)
     X = X.T
     Y = get_y_scores(iterations, seed, num_lowinf)
-    split = int(train_test_split * X.shape[0])
-    X_train = X[:-split, :]
-    X_test = X[-split:, :]
-    Y_train = Y[:-split]
-    Y_test = Y[-split:]
+    write_pickle(X, SCREENING_DIR / "X_100_125.pickle")
+    X_train, X_test, Y_train, Y_test = train_test_split(
+        X, Y, test_size=test_size, random_state=seed, shuffle=False,
+    )
     del X, Y
+    dtrain = xgb.DMatrix(X_train, Y_train)
+    X_dtest = xgb.DMatrix(X_test)
 
     if fp.exists():
         model = read_pickle(fp)
@@ -375,49 +443,59 @@ def train_xgboost_model(tag, iterations, seed, num_lowinf, train_test_split=0.2)
         fp_params = SCREENING_DIR / f"xgboost.{tag}.params.json"
         params = dict(
             base_score=np.mean(Y_train),  # the initial prediction score of all instances, global bias
-            n_estimators=300,           # number of gradient boosted trees
-            max_depth=6,               # maximum tree depth for base learners
+            n_estimators=600,           # number of gradient boosted trees
+            max_depth=4,               # maximum tree depth for base learners
             learning_rate=0.15,        # boosting learning rate, xgb's `eta`
             verbosity=3,               # degree of verbosity, valid values are 0 (silent) - 3 (debug)
-            booster='gbtree',          # specify which booster to use: gbtree, gblinear or dart
+            # booster='gbtree',          # specify which booster to use: gbtree, gblinear or dart
             gamma=0,                   # minimum loss reduction to make a further partition on a leaf node of the tree
             subsample=0.3,             # subsample ratio of the training instance
             colsample_bytree=0.9,      # subsample ratio of columns when constructing each tree
             reg_alpha=0,               # L1 regularization term on weights (xgb’s alpha)
             reg_lambda=0,              # L2 regularization term on weights (xgb’s lambda)
-            importance_type="gain",    # for tree models: “gain”, “weight”, “cover”, “total_gain” or “total_cover”
-            early_stopping_rounds=30,  # validation metric needs to improve at least once in every early_stopping_rounds
-            eval_metric=["error", "rmse"],
+            # importance_type="gain",    # for tree models: “gain”, “weight”, “cover”, “total_gain” or “total_cover”
+            # early_stopping_rounds=30,  # validation metric needs to improve at least once in every early_stopping_rounds
+            # eval_metric=["error", "rmse"],
             random_state=seed,
-            #     tree_method="hist",
-            #     objective='reg:linear',
+            # tree_method="hist",
+            # objective='reg:linear',
+            min_child_weight=300,
         )
         # Write params into a json file
         with open(fp_params, 'w') as f:
             json.dump(params, f)
 
-        # Define the model and train it
-        model = XGBRegressor(**params)
-        eval_set = [(X_train, Y_train), (X_test, Y_test)]
-        model.fit(X_train, Y_train,  eval_set=eval_set, verbose=True)
-
+        # Train the model
+        model = xgb.train(params, dtrain, num_boost_round=params["n_estimators"])
         write_pickle(model, fp)
 
     # Print results
-    score_train = model.score(X_train, Y_train)
-    score_test = model.score(X_test, Y_test)
-    print(f"{score_train:4.3f}  train score")
-    print(f"{score_test:4.3f}  test score")
+    # score_train = model.score(X_train, Y_train)
+    # score_test = model.score(X_test, Y_test)
+    # print(f"{score_train:4.3f}  train score")
+    # print(f"{score_test:4.3f}  test score")
+    y_pred = model.predict(X_dtest)
+    r2 = r2_score(Y_test, y_pred)
+    explained_variance = explained_variance_score(Y_test, y_pred)
+    print(r2, explained_variance)
+    #
+    # eval_set = [(X_train, Y_train), (X_test, Y_test)]
+    # model.fit(X_train, Y_train,  eval_set=eval_set, verbose=True)
 
     return model
 
 
-def compute_shap_values(tag, iterations, seed, num_inf):
+def get_masks_inf(tag, project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf, num_inf):
+    # XGBoost model
     fp = SCREENING_DIR / f"xgboost.{tag}.pickle"
     model = read_pickle(fp)
-    explainer = shap.TreeExplainer(model)
-    X, indices = get_x_data(iterations, seed)
-    shap_values = explainer.shap_values(X)
-    where = np.argsort(shap_values)[:num_inf]
-    print(shap_values[where])
-    print(indices[where])
+    feature_importances = model.feature_importances
+    where = np.argsort(feature_importances)[:num_inf]
+    # Determine which model inputs are influential
+    _, indices = get_x_data(iterations, seed)
+    indices_all = np.hstack([inds for inds in indices.values()])
+
+    len_tech = indices["technosphere"]
+    where_tech = where < len_tech
+    inds_tech = indices["technosphere"][where_tech]
+    return

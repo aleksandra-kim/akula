@@ -192,7 +192,6 @@ def generate_markets_datapackage(name, num_samples, seed=42, for_entsoe=False, f
 
     directory = directory or DATA_DIR
     fp_datapackage = directory / f"{name}-{seed}-{num_samples}.zip"
-    print(fp_datapackage)
 
     if not fp_datapackage.exists():
 

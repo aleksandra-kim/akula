@@ -9,13 +9,15 @@ from akula.sensitivity_analysis import (
     get_bmask_wo_noninf,
     get_cmask_wo_noninf,
     get_masks_wo_lowinf,
+    get_masks_inf,
     run_mc_simulations_all_inputs,
     run_mc_simulations_wo_noninf,
     run_mc_simulations_wo_lowinf,
     run_mc_simulations_screening,
     train_xgboost_model,
+    get_x_data, get_x_data_v2,
 )
-from akula.utils import compute_deterministic_score
+from akula.utils import compute_deterministic_score, write_pickle
 from akula.monte_carlo import plot_lcia_scores_from_two_cases
 
 PROJECT = "GSA with correlations"
@@ -31,12 +33,19 @@ CUTOFF = 1e-7
 MAX_CALC = 1e18
 FACTOR = 10
 ITERATIONS_VALIDATION = 2_000
-ITERATIONS_SCREENING = 20_000
+ITERATIONS_SCREENING = 125_000
 NUM_LOWINF = 25_000
 NUM_INF = 100
 
+GSA_DIR = Path(__file__).parent.parent.resolve() / "data" / "sensitivity-analysis"
+SCREENING_DIR = GSA_DIR / "high-dimensional-screening"
+
 
 if __name__ == "__main__":
+
+    X, indices = get_x_data_v2(ITERATIONS_SCREENING, SEED)
+    print(X.shape)
+    write_pickle(X, SCREENING_DIR / "X_100_125.pickle")
 
     # =========================================================================
     # 0. Setups
@@ -55,17 +64,19 @@ if __name__ == "__main__":
 
     # =========================================================================
     # 1. Remove NON-influential inputs
+    # - Takes ~25 min for technosphere with cutoff=1e-7, max_calc=1e18
+    # - Tweak CUTOFF and MAX_CALC to get the desired number of technosphere inputs based on validation results.
     # =========================================================================
-    tmask_wo_noninf = get_tmask_wo_noninf(PROJECT, CUTOFF, MAX_CALC)  # takes ~25 min for cutoff=1e-7, max_calc=1e18
+    tmask_wo_noninf = get_tmask_wo_noninf(PROJECT, CUTOFF, MAX_CALC)
     bmask_wo_noninf = get_bmask_wo_noninf(PROJECT)
     cmask_wo_noninf = get_cmask_wo_noninf(PROJECT)
 
     print()
-    print(f"{sum(tmask_wo_noninf):6d} / {len(tmask_wo_noninf):6d} TECH inputs after removing NON influential "
+    print(f"{sum(tmask_wo_noninf):6d} / {len(tmask_wo_noninf):6d} TECH INPUTS after removing NON influential "
                                                                        "with Supply Chain Traversal")
-    print(f"{sum(bmask_wo_noninf):6d} / {len(bmask_wo_noninf):6d}  BIO inputs after removing NON influential "
+    print(f"{sum(bmask_wo_noninf):6d} / {len(bmask_wo_noninf):6d}  BIO INPUTS after removing NON influential "
                                                                        "with Biosphere Matrix Analysis")
-    print(f"{sum(cmask_wo_noninf):6d} / {len(cmask_wo_noninf):6d}   CF inputs after removing NON influential "
+    print(f"{sum(cmask_wo_noninf):6d} / {len(cmask_wo_noninf):6d}   CF INPUTS after removing NON influential "
                                                                        "with Characterization Matrix Analysis\n")
 
     # Validate results
@@ -86,11 +97,11 @@ if __name__ == "__main__":
         PROJECT, FACTOR, CUTOFF, MAX_CALC, NUM_LOWINF
     )
 
-    print(f"{sum(tmask_wo_lowinf):6d} / {len(tmask_wo_lowinf):6d} TECH inputs after removing LOWLY influential "
+    print(f"{sum(tmask_wo_lowinf):6d} / {len(tmask_wo_lowinf):6d} TECH INPUTS after removing LOWLY influential "
                                                                        "with Local Sensitivity Analysis")
-    print(f"{sum(bmask_wo_lowinf):6d} / {len(bmask_wo_lowinf):6d}  BIO inputs after removing LOWLY influential "
+    print(f"{sum(bmask_wo_lowinf):6d} / {len(bmask_wo_lowinf):6d}  BIO INPUTS after removing LOWLY influential "
                                                                        "with Local Sensitivity Analysis")
-    print(f"{sum(cmask_wo_lowinf):6d} / {len(cmask_wo_lowinf):6d}   CF inputs after removing LOWLY influential "
+    print(f"{sum(cmask_wo_lowinf):6d} / {len(cmask_wo_lowinf):6d}   CF INPUTS after removing LOWLY influential "
                                                                        "with Local Sensitivity Analysis\n")
 
     # Validate results
@@ -103,15 +114,31 @@ if __name__ == "__main__":
     # =========================================================================
     # 3. Run MC for high dimensional screening
     # =========================================================================
+    # - Takes 40 min per 5000 MC simulations
+    # - Sufficient number of MC simulations is in the order of 2*NUM_LOWINF
+    # =========================================================================
     scores_screening = run_mc_simulations_screening(
         PROJECT, FP_ECOINVENT, FACTOR, CUTOFF, MAX_CALC, ITERATIONS_SCREENING, SEED, NUM_LOWINF
     )
-    # tag = "0"
-    # model = train_xgboost_model(tag, ITERATIONS_SCREENING, SEED, NUM_LOWINF)
+    print(scores_screening)
 
     # =========================================================================
-    # 5. Factor fixing with XGBoost
+    # 4. Remove LOWLY influential inputs based on trained XGBoost model and feature importance
     # =========================================================================
+    # tag = "2"
+    # model = train_xgboost_model(tag, ITERATIONS_SCREENING, SEED, NUM_LOWINF)
+    # tmask_inf, bmask_inf, cmask_inf, pmask_inf = get_masks_inf(
+    #     tag, PROJECT, FP_ECOINVENT, FACTOR, CUTOFF, MAX_CALC, ITERATIONS_SCREENING, SEED, NUM_LOWINF, NUM_INF
+    # )
+    #
+    # print(f"{sum(tmask_inf):6d} / {len(tmask_wo_lowinf):6d} TECH INPUTS after removing LOWLY influential "
+    #                                                             "with Gradient Boosting")
+    # print(f"{sum(bmask_inf):6d} / {len(bmask_wo_lowinf):6d}  BIO INPUTS after removing LOWLY influential "
+    #                                                             "with Gradient Boosting")
+    # print(f"{sum(cmask_inf):6d} / {len(cmask_wo_lowinf):6d}   CF INPUTS after removing LOWLY influential "
+    #                                                             "with Gradient Boosting")
+    # print(f"{sum(pmask_inf):6d} / {len(pmask_inf):6d}        PARAMETERS after removing LOWLY influential "
+    #                                                             "with Gradient Boosting\n")
 
     # Validate results
 
