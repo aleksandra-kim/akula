@@ -154,6 +154,8 @@ def compute_consumption_lcia_screening(project, fp_ecoinvent, factor, cutoff, ma
     lca.lci()
     lca.lcia()
 
+    lca.keep_first_iteration()
+
     scores = [lca.score for _ in zip(range(iterations), lca)]
 
     return scores
@@ -353,71 +355,6 @@ def get_x_data(iterations, seed):
     return data, indices
 
 
-def get_x_data_v2(iterations, seed):
-    """Read input data from datapackages and return indices and data."""
-
-    starts, n_batches, seeds = get_random_seeds(iterations, seed)
-
-    data_technosphere = []
-    data_biosphere = []
-    data_characterization = []
-    data_parameterization = []
-    data_combustion = []
-    data_entsoe = []
-    data_markets = []
-
-    for i in range(n_batches):
-        current_iterations = MC_BATCH_SIZE if i < n_batches - 1 else iterations - starts[i]
-
-        if i < 20:
-            continue
-
-        print(i)
-
-        tech_data, tech_indices = get_x_data_technosphere(current_iterations, seeds[i])
-        bio_data, bio_indices = get_x_data_biosphere(current_iterations, seeds[i])
-        cf_data, cf_indices = get_x_data_characterization(current_iterations, seeds[i])
-        pdata, pindices, ptech_indices, pbio_indices = get_x_data_parameterization(current_iterations, seeds[i])
-        ctech_data, ctech_indices, cbio_indices = get_x_data_combustion(current_iterations, seeds[i])
-        etech_data, etech_indices = get_x_data_entsoe(current_iterations, seeds[i])
-        mtech_data, mtech_indices = get_x_data_markets(current_iterations, seeds[i])
-
-        data_technosphere.append(tech_data)
-        data_biosphere.append(bio_data)
-        data_characterization.append(cf_data)
-        data_parameterization.append(pdata)
-        data_combustion.append(ctech_data)
-        data_entsoe.append(etech_data)
-        data_markets.append(mtech_data)
-
-    data_technosphere = np.hstack(data_technosphere)
-    data_biosphere = np.hstack(data_biosphere)
-    data_characterization = np.hstack(data_characterization)
-    data_parameterization = np.hstack(data_parameterization)
-    data_combustion = np.hstack(data_combustion)
-    data_entsoe = np.hstack(data_entsoe)
-    data_markets = np.hstack(data_markets)
-
-    data_technosphere = np.vstack([data_technosphere, data_combustion, data_entsoe, data_markets])
-    data = np.vstack([
-        data_technosphere,
-        data_biosphere,
-        data_characterization,
-        data_parameterization
-    ])
-    tech_indices = np.hstack([tech_indices, ctech_indices, etech_indices, mtech_indices],
-                             dtype=bwp.INDICES_DTYPE)
-    bio_indices = bio_indices
-    indices = {
-        "technosphere": tech_indices,
-        "biosphere": bio_indices,
-        "characterization": cf_indices,
-        "parameterization": pindices,
-    }
-
-    return data, indices
-
-
 def train_xgboost_model(tag, iterations, seed, num_lowinf, test_size=0.2):
     """Train gradient boosted tree regressor."""
 
@@ -454,7 +391,7 @@ def train_xgboost_model(tag, iterations, seed, num_lowinf, test_size=0.2):
             reg_alpha=0,               # L1 regularization term on weights (xgb’s alpha)
             reg_lambda=0,              # L2 regularization term on weights (xgb’s lambda)
             # importance_type="gain",    # for tree models: “gain”, “weight”, “cover”, “total_gain” or “total_cover”
-            # early_stopping_rounds=30,  # validation metric needs to improve at least once in every early_stopping_rounds
+            # early_stopping_rounds=30,  # improve validation metric at least once in every early_stopping_rounds
             # eval_metric=["error", "rmse"],
             random_state=seed,
             # tree_method="hist",
@@ -485,17 +422,17 @@ def train_xgboost_model(tag, iterations, seed, num_lowinf, test_size=0.2):
     return model
 
 
-def get_masks_inf(tag, project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf, num_inf):
-    # XGBoost model
-    fp = SCREENING_DIR / f"xgboost.{tag}.pickle"
-    model = read_pickle(fp)
-    feature_importances = model.feature_importances
-    where = np.argsort(feature_importances)[:num_inf]
-    # Determine which model inputs are influential
-    _, indices = get_x_data(iterations, seed)
-    indices_all = np.hstack([inds for inds in indices.values()])
-
-    len_tech = indices["technosphere"]
-    where_tech = where < len_tech
-    inds_tech = indices["technosphere"][where_tech]
-    return
+# def get_masks_inf(tag, project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf, num_inf):
+#     # XGBoost model
+#     fp = SCREENING_DIR / f"xgboost.{tag}.pickle"
+#     model = read_pickle(fp)
+#     feature_importances = model.feature_importances
+#     where = np.argsort(feature_importances)[:num_inf]
+#     # Determine which model inputs are influential
+#     _, indices = get_x_data(iterations, seed)
+#     indices_all = np.hstack([inds for inds in indices.values()])
+#
+#     len_tech = indices["technosphere"]
+#     where_tech = where < len_tech
+#     inds_tech = indices["technosphere"][where_tech]
+#     return

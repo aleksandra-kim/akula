@@ -1,54 +1,28 @@
-import bw2data as bd
-import bw2calc as bc
-import bw_processing as bwp
-from fs.zipfs import ZipFS
-from pathlib import Path
-import sys
-import plotly.graph_objects as go
 import numpy as np
+from pathlib import Path
 
-PROJECT = "GSA with correlations"
-PROJECT_DIR = Path(__file__).parent.parent.resolve()
-sys.path.append(str(PROJECT_DIR))
+import os
+os.environ["ENTSOE_API_TOKEN"] = "0d6ea062-f603-43d3-bc60-176159803035"
+os.environ["BENTSO_DATA_DIR"] = "/home/aleksandrakim/LCAfiles/bentso_data"
 
-from akula.electricity import get_one_activity
-
-
-def plot(data):
-    fig = go.Figure()
-    fig.add_trace(go.Histogram(data))
-    return fig
+from akula.utils import read_pickle, write_pickle
+from akula.sensitivity_analysis import get_random_seeds
 
 
-if __name__ == "__main__":
+iterations = 125_000
+seed = 222201
+_, _, seeds = get_random_seeds(iterations, seed)
 
-    bd.projects.set_current(PROJECT)
-    method = ("IPCC 2013", "climate change", "GWP 100a", "uncertain")
-    co = bd.Database("swiss consumption 1.0")
+fp = Path('/home/aleksandrakim/ProjectsPycharm/akula/data/sensitivity-analysis/high-dimensional-screening')
+# fp_new = fp / "server"
+# for seed in seeds:
+#     fn = f"scores.without_lowinf.25000.{seed}.5000.pickle"
+#     Y = read_pickle(fp/fn)
+#     Y_new = np.hstack([Y[-1], Y[:-1]])
+#     write_pickle(Y_new, fp_new / fn)
 
-    dp = bwp.load_datapackage(ZipFS(str(PROJECT_DIR / "akula" / "data" / "entsoe-timeseries.zip")))
-
-    data = dp.get_resource("timeseries ENTSO electricity values.data")[0]
-    indices = dp.get_resource("timeseries ENTSO electricity values.indices")[0]
-
-    # Check sums
-    cols = np.unique(indices["col"])
-    sums = dict()
-    for col in cols:
-        country_mask = indices["col"] == col
-        country_data = data[country_mask, :]
-        sums[col] = np.array(list(set(np.sum(country_data, axis=0))))
-        if not np.allclose(sums[col], 1):
-            print(col, sum(np.sum(country_data, axis=0) < 0.95))
-
-    activity = get_one_activity("ecoinvent 3.8 cutoff", name="market for electricity, low voltage", location="CH")
-    #
-    # ch_mix = indices["col"] == activity.id
-    # ch_data = data[ch_mix, :]
-    # ch_inds = indices[ch_mix]
-    # inputs = [(bd.get_activity(row)['name'], bd.get_activity(row)['location']) for row in ch_inds["row"]]
-    #
-    #
-    #
-    # fig = plot(ch_data[:, 0])
-    # fig.show()
+for seed in seeds:
+    fn = f"scores.without_lowinf.25000.{seed}.5000.pickle"
+    Y = read_pickle(fp/fn)
+    Y_new = Y.tolist()
+    write_pickle(Y_new, fp / fn)

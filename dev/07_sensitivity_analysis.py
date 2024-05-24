@@ -9,13 +9,13 @@ from akula.sensitivity_analysis import (
     get_bmask_wo_noninf,
     get_cmask_wo_noninf,
     get_masks_wo_lowinf,
-    get_masks_inf,
+    # get_masks_inf,
     run_mc_simulations_all_inputs,
     run_mc_simulations_wo_noninf,
     run_mc_simulations_wo_lowinf,
     run_mc_simulations_screening,
     train_xgboost_model,
-    get_x_data, get_x_data_v2,
+    # get_x_data, get_x_data_v2,
 )
 from akula.utils import compute_deterministic_score, write_pickle
 from akula.monte_carlo import plot_lcia_scores_from_two_cases
@@ -33,7 +33,7 @@ CUTOFF = 1e-7
 MAX_CALC = 1e18
 FACTOR = 10
 ITERATIONS_VALIDATION = 2_000
-ITERATIONS_SCREENING = 125_000
+ITERATIONS_SCREENING = 10_000
 NUM_LOWINF = 25_000
 NUM_INF = 100
 
@@ -42,10 +42,6 @@ SCREENING_DIR = GSA_DIR / "high-dimensional-screening"
 
 
 if __name__ == "__main__":
-
-    X, indices = get_x_data_v2(ITERATIONS_SCREENING, SEED)
-    print(X.shape)
-    write_pickle(X, SCREENING_DIR / "X_100_125.pickle")
 
     # =========================================================================
     # 0. Setups
@@ -120,8 +116,6 @@ if __name__ == "__main__":
     scores_screening = run_mc_simulations_screening(
         PROJECT, FP_ECOINVENT, FACTOR, CUTOFF, MAX_CALC, ITERATIONS_SCREENING, SEED, NUM_LOWINF
     )
-    print(scores_screening)
-
     # =========================================================================
     # 4. Remove LOWLY influential inputs based on trained XGBoost model and feature importance
     # =========================================================================
