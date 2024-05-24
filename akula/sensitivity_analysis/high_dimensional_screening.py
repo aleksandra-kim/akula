@@ -358,66 +358,73 @@ def get_x_data(iterations, seed):
 def train_xgboost_model(tag, iterations, seed, num_lowinf, test_size=0.2):
     """Train gradient boosted tree regressor."""
 
-    fp = SCREENING_DIR / f"xgboost.{tag}.pickle"
+    fp = SCREENING_DIR / f"xgboost_model.{tag}.pickle"
 
     # Read X and Y data
     X, _ = get_x_data(iterations, seed)
     X = X.T
     Y = get_y_scores(iterations, seed, num_lowinf)
-    write_pickle(X, SCREENING_DIR / "X_100_125.pickle")
     X_train, X_test, Y_train, Y_test = train_test_split(
         X, Y, test_size=test_size, random_state=seed, shuffle=False,
     )
     del X, Y
+
     dtrain = xgb.DMatrix(X_train, Y_train)
+    dtest = xgb.DMatrix(X_test, Y_test)
+    X_dtrain = xgb.DMatrix(X_train)
     X_dtest = xgb.DMatrix(X_test)
 
     if fp.exists():
-        model = read_pickle(fp)
+        model = xgb.Booster()
+        model.load_model(fp)
 
     else:
         # Define the model
-        fp_params = SCREENING_DIR / f"xgboost.{tag}.params.json"
+        fp_params = SCREENING_DIR / f"xgboost_model.{tag}.params.json"
         params = dict(
             base_score=np.mean(Y_train),  # the initial prediction score of all instances, global bias
-            n_estimators=600,           # number of gradient boosted trees
-            max_depth=4,               # maximum tree depth for base learners
-            learning_rate=0.15,        # boosting learning rate, xgb's `eta`
-            verbosity=3,               # degree of verbosity, valid values are 0 (silent) - 3 (debug)
-            # booster='gbtree',          # specify which booster to use: gbtree, gblinear or dart
-            gamma=0,                   # minimum loss reduction to make a further partition on a leaf node of the tree
-            subsample=0.3,             # subsample ratio of the training instance
-            colsample_bytree=0.9,      # subsample ratio of columns when constructing each tree
-            reg_alpha=0,               # L1 regularization term on weights (xgb’s alpha)
-            reg_lambda=0,              # L2 regularization term on weights (xgb’s lambda)
-            # importance_type="gain",    # for tree models: “gain”, “weight”, “cover”, “total_gain” or “total_cover”
-            # early_stopping_rounds=30,  # improve validation metric at least once in every early_stopping_rounds
-            # eval_metric=["error", "rmse"],
+            n_estimators=600,             # number of gradient boosted trees
+            max_depth=4,                  # maximum tree depth for base learners
+            learning_rate=0.15,           # boosting learning rate, xgb's `eta`
+            verbosity=3,                  # degree of verbosity, valid values are 0 (silent) - 3 (debug)
+            # booster='gbtree',           # specify which booster to use: gbtree, gblinear or dart
+            gamma=0,                      # minimum loss reduction to make further partition on a leaf node of the tree
+            subsample=0.3,                # subsample ratio of the training instance
+            colsample_bytree=0.2,         # subsample ratio of columns when constructing each tree
+            reg_alpha=0,                  # L1 regularization term on weights (xgb’s alpha)
+            reg_lambda=0,                 # L2 regularization term on weights (xgb’s lambda)
+            # importance_type="gain",     # for tree models: “gain”, “weight”, “cover”, “total_gain” or “total_cover”
+            early_stopping_rounds=30,     # improve validation metric at least once in every early_stopping_rounds
+            # eval_metric=["rmse"],
             random_state=seed,
             # tree_method="hist",
-            # objective='reg:linear',
+            objective='reg:squarederror',
             min_child_weight=300,
         )
+
         # Write params into a json file
         with open(fp_params, 'w') as f:
             json.dump(params, f)
 
         # Train the model
-        model = xgb.train(params, dtrain, num_boost_round=params["n_estimators"])
-        write_pickle(model, fp)
+        print("Training the model")
+        watchlist = [(dtest, "eval"), (dtrain, "train")]
+        model = xgb.train(params, dtrain, num_boost_round=params["n_estimators"], evals=watchlist,
+                          verbose_eval=True, early_stopping_rounds=params["early_stopping_rounds"])
+
+        model.save_model(fp)
 
     # Print results
-    # score_train = model.score(X_train, Y_train)
-    # score_test = model.score(X_test, Y_test)
-    # print(f"{score_train:4.3f}  train score")
-    # print(f"{score_test:4.3f}  test score")
-    y_pred = model.predict(X_dtest)
-    r2 = r2_score(Y_test, y_pred)
-    explained_variance = explained_variance_score(Y_test, y_pred)
-    print(r2, explained_variance)
-    #
-    # eval_set = [(X_train, Y_train), (X_test, Y_test)]
-    # model.fit(X_train, Y_train,  eval_set=eval_set, verbose=True)
+    y_prediction_train = model.predict(X_dtrain)
+    y_prediction_test = model.predict(X_dtest)
+    R2_train = r2_score(Y_train, y_prediction_train)
+    R2_test = r2_score(Y_test, y_prediction_test)
+    explained_variance_train = explained_variance_score(Y_train, y_prediction_train)
+    explained_variance_test = explained_variance_score(Y_test, y_prediction_test)
+    print("\n===================")
+    print(f"Training --> R2: {R2_train}, explained variance: {explained_variance_train}")
+    print(f"Testing  --> R2: {R2_test}, explained variance: {explained_variance_test}")
+    print("===================\n")
 
     return model
 

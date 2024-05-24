@@ -119,8 +119,8 @@ if __name__ == "__main__":
     # =========================================================================
     # 4. Remove LOWLY influential inputs based on trained XGBoost model and feature importance
     # =========================================================================
-    # tag = "2"
-    # model = train_xgboost_model(tag, ITERATIONS_SCREENING, SEED, NUM_LOWINF)
+    tag = "1"
+    model = train_xgboost_model(tag, ITERATIONS_SCREENING, SEED, NUM_LOWINF)
     # tmask_inf, bmask_inf, cmask_inf, pmask_inf = get_masks_inf(
     #     tag, PROJECT, FP_ECOINVENT, FACTOR, CUTOFF, MAX_CALC, ITERATIONS_SCREENING, SEED, NUM_LOWINF, NUM_INF
     # )
