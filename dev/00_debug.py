@@ -6,23 +6,16 @@ os.environ["ENTSOE_API_TOKEN"] = "0d6ea062-f603-43d3-bc60-176159803035"
 os.environ["BENTSO_DATA_DIR"] = "/home/aleksandrakim/LCAfiles/bentso_data"
 
 from akula.utils import read_pickle, write_pickle
-from akula.sensitivity_analysis import get_random_seeds
+from akula.sensitivity_analysis import create_all_datapackages
+from akula.monte_carlo import compute_consumption_lcia
 
 
-iterations = 125_000
+iterations = 2_000
 seed = 222201
-_, _, seeds = get_random_seeds(iterations, seed)
 
-fp = Path('/home/aleksandrakim/ProjectsPycharm/akula/data/sensitivity-analysis/high-dimensional-screening')
-# fp_new = fp / "server"
-# for seed in seeds:
-#     fn = f"scores.without_lowinf.25000.{seed}.5000.pickle"
-#     Y = read_pickle(fp/fn)
-#     Y_new = np.hstack([Y[-1], Y[:-1]])
-#     write_pickle(Y_new, fp_new / fn)
+FP_ECOINVENT = "/home/aleksandrakim/LCAfiles/ecoinvent_38_cutoff/datasets"
+PROJECT = "GSA with correlations"
 
-for seed in seeds:
-    fn = f"scores.without_lowinf.25000.{seed}.5000.pickle"
-    Y = read_pickle(fp/fn)
-    Y_new = Y.tolist()
-    write_pickle(Y_new, fp / fn)
+if __name__ == "__main__":
+    dps = create_all_datapackages(FP_ECOINVENT, PROJECT, iterations, seed)
+    compute_consumption_lcia(PROJECT, iterations, seed, datapackages=dps)

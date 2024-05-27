@@ -8,16 +8,16 @@ from akula.sensitivity_analysis import (
     get_tmask_wo_noninf,
     get_bmask_wo_noninf,
     get_cmask_wo_noninf,
-    get_masks_wo_lowinf,
-    # get_masks_inf,
+    get_masks_wo_lowinf_lsa,
+    get_masks_wo_lowinf_xgb,
     run_mc_simulations_all_inputs,
     run_mc_simulations_wo_noninf,
-    run_mc_simulations_wo_lowinf,
+    run_mc_simulations_wo_lowinf_lsa,
+    run_mc_simulations_wo_lowinf_xgb,
     run_mc_simulations_screening,
     train_xgboost_model,
-    # get_x_data, get_x_data_v2,
 )
-from akula.utils import compute_deterministic_score, write_pickle
+from akula.utils import compute_deterministic_score
 from akula.monte_carlo import plot_lcia_scores_from_two_cases
 
 PROJECT = "GSA with correlations"
@@ -34,8 +34,8 @@ MAX_CALC = 1e18
 FACTOR = 10
 ITERATIONS_VALIDATION = 2_000
 ITERATIONS_SCREENING = 10_000
-NUM_LOWINF = 25_000
-NUM_INF = 100
+NUM_LOWINF_LSA = 25_000
+NUM_LOWINF_XGB = 2_000
 
 GSA_DIR = Path(__file__).parent.parent.resolve() / "data" / "sensitivity-analysis"
 SCREENING_DIR = GSA_DIR / "high-dimensional-screening"
@@ -81,7 +81,7 @@ if __name__ == "__main__":
         PROJECT, FP_ECOINVENT, CUTOFF, MAX_CALC, ITERATIONS_VALIDATION, SEED, num_noninf
     )
     figure = plot_lcia_scores_from_two_cases(scores_all, scores_wo_noninf, exiobase_offset)
-    figure.write_image(FIGURES_DIR / f"validation_noninf.{num_noninf}.pdf")
+    figure.write_image(FIGURES_DIR / f"validation_noninf.{num_noninf}.{SEED}.{ITERATIONS_VALIDATION}.pdf")
 
     # =========================================================================
     # 2. Remove LOWLY influential inputs with local sensitivity analysis
@@ -89,23 +89,23 @@ if __name__ == "__main__":
     # - LSA takes 14h for technosphere, 15 min for biosphere, and seconds for characterization inputs.
     # - Tweak NUM_LOWINF to get the desired number of inputs to be removed based on validation results.
     # =========================================================================
-    tmask_wo_lowinf, bmask_wo_lowinf, cmask_wo_lowinf = get_masks_wo_lowinf(
-        PROJECT, FACTOR, CUTOFF, MAX_CALC, NUM_LOWINF
+    tmask_wo_lowinf_lsa, bmask_wo_lowinf_lsa, cmask_wo_lowinf_lsa = get_masks_wo_lowinf_lsa(
+        PROJECT, FACTOR, CUTOFF, MAX_CALC, NUM_LOWINF_LSA
     )
 
-    print(f"{sum(tmask_wo_lowinf):6d} / {len(tmask_wo_lowinf):6d} TECH INPUTS after removing LOWLY influential "
+    print(f"{sum(tmask_wo_lowinf_lsa):6d} / {len(tmask_wo_lowinf_lsa):6d} TECH INPUTS after removing LOWLY influential "
                                                                        "with Local Sensitivity Analysis")
-    print(f"{sum(bmask_wo_lowinf):6d} / {len(bmask_wo_lowinf):6d}  BIO INPUTS after removing LOWLY influential "
+    print(f"{sum(bmask_wo_lowinf_lsa):6d} / {len(bmask_wo_lowinf_lsa):6d}  BIO INPUTS after removing LOWLY influential "
                                                                        "with Local Sensitivity Analysis")
-    print(f"{sum(cmask_wo_lowinf):6d} / {len(cmask_wo_lowinf):6d}   CF INPUTS after removing LOWLY influential "
+    print(f"{sum(cmask_wo_lowinf_lsa):6d} / {len(cmask_wo_lowinf_lsa):6d}   CF INPUTS after removing LOWLY influential "
                                                                        "with Local Sensitivity Analysis\n")
 
     # Validate results
-    scores_wo_lowinf = run_mc_simulations_wo_lowinf(
-        PROJECT, FP_ECOINVENT, FACTOR, CUTOFF, MAX_CALC, ITERATIONS_VALIDATION, SEED, NUM_LOWINF
+    scores_wo_lowinf_lsa = run_mc_simulations_wo_lowinf_lsa(
+        PROJECT, FP_ECOINVENT, FACTOR, CUTOFF, MAX_CALC, ITERATIONS_VALIDATION, SEED, NUM_LOWINF_LSA
     )
-    figure = plot_lcia_scores_from_two_cases(scores_all, scores_wo_lowinf, exiobase_offset)
-    figure.write_image(FIGURES_DIR / f"validation.wo_lowinf.{NUM_LOWINF}.{SEED}.{ITERATIONS_VALIDATION}.pdf")
+    figure = plot_lcia_scores_from_two_cases(scores_all, scores_wo_lowinf_lsa, exiobase_offset)
+    figure.write_image(FIGURES_DIR / f"validation.wo_lowinf_lsa.{NUM_LOWINF_LSA}.{SEED}.{ITERATIONS_VALIDATION}.pdf")
 
     # =========================================================================
     # 3. Run MC for high dimensional screening
@@ -114,27 +114,35 @@ if __name__ == "__main__":
     # - Sufficient number of MC simulations is in the order of 2*NUM_LOWINF
     # =========================================================================
     scores_screening = run_mc_simulations_screening(
-        PROJECT, FP_ECOINVENT, FACTOR, CUTOFF, MAX_CALC, ITERATIONS_SCREENING, SEED, NUM_LOWINF
+        PROJECT, FP_ECOINVENT, FACTOR, CUTOFF, MAX_CALC, ITERATIONS_SCREENING, SEED, NUM_LOWINF_LSA
     )
     # =========================================================================
     # 4. Remove LOWLY influential inputs based on trained XGBoost model and feature importance
     # =========================================================================
-    tag = "1"
-    model = train_xgboost_model(tag, ITERATIONS_SCREENING, SEED, NUM_LOWINF)
-    # tmask_inf, bmask_inf, cmask_inf, pmask_inf = get_masks_inf(
-    #     tag, PROJECT, FP_ECOINVENT, FACTOR, CUTOFF, MAX_CALC, ITERATIONS_SCREENING, SEED, NUM_LOWINF, NUM_INF
-    # )
-    #
-    # print(f"{sum(tmask_inf):6d} / {len(tmask_wo_lowinf):6d} TECH INPUTS after removing LOWLY influential "
-    #                                                             "with Gradient Boosting")
-    # print(f"{sum(bmask_inf):6d} / {len(bmask_wo_lowinf):6d}  BIO INPUTS after removing LOWLY influential "
-    #                                                             "with Gradient Boosting")
-    # print(f"{sum(cmask_inf):6d} / {len(cmask_wo_lowinf):6d}   CF INPUTS after removing LOWLY influential "
-    #                                                             "with Gradient Boosting")
-    # print(f"{sum(pmask_inf):6d} / {len(pmask_inf):6d}        PARAMETERS after removing LOWLY influential "
-    #                                                             "with Gradient Boosting\n")
+    xgb_model_tag = "1"
+    model = train_xgboost_model(xgb_model_tag, ITERATIONS_SCREENING, SEED, NUM_LOWINF_LSA)
+    tmask_wo_lowinf_xgb, bmask_wo_lowinf_xgb, cmask_wo_lowinf_xgb, pmask_wo_lowinf_xgb = get_masks_wo_lowinf_xgb(
+        PROJECT, xgb_model_tag, ITERATIONS_SCREENING, ITERATIONS_VALIDATION, SEED, NUM_LOWINF_XGB
+    )
+
+    print(f"{sum(tmask_wo_lowinf_xgb):6d} / {len(tmask_wo_lowinf_xgb):6d} TECH INPUTS after removing LOWLY influential "
+                                                                "with Gradient Boosting")
+    print(f"{sum(bmask_wo_lowinf_xgb):6d} / {len(bmask_wo_lowinf_xgb):6d}  BIO INPUTS after removing LOWLY influential "
+                                                                "with Gradient Boosting")
+    print(f"{sum(cmask_wo_lowinf_xgb):6d} / {len(cmask_wo_lowinf_xgb):6d}   CF INPUTS after removing LOWLY influential "
+                                                                "with Gradient Boosting")
+    print(f"{sum(pmask_wo_lowinf_xgb):6d} / {len(pmask_wo_lowinf_xgb):6d}  PARAMETERS after removing LOWLY influential "
+                                                                "with Gradient Boosting\n")
 
     # Validate results
+    scores_wo_lowinf_xgb = run_mc_simulations_wo_lowinf_xgb(
+        PROJECT, FP_ECOINVENT, xgb_model_tag, ITERATIONS_VALIDATION, SEED, NUM_LOWINF_XGB
+    )
+    figure = plot_lcia_scores_from_two_cases(scores_all, scores_wo_lowinf_xgb, exiobase_offset)
+    figure.write_image(
+        FIGURES_DIR /
+        f"validation.wo_lowinf_xgb.model_{xgb_model_tag}.{NUM_LOWINF_XGB}.{SEED}.{ITERATIONS_VALIDATION}.pdf"
+    )
 
     # =========================================================================
     # 6. Factor prioritization with Shapley values

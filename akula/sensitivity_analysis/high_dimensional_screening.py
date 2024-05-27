@@ -12,7 +12,8 @@ import json
 
 from .utils import get_mask
 from ..utils import read_pickle, write_pickle, get_consumption_activity
-from ..sensitivity_analysis import create_all_datapackages, create_lowinf_datapackage
+from ..sensitivity_analysis import create_all_datapackages
+from .remove_lowly_influential import get_tmask_wo_lowinf, get_bmask_wo_lowinf, get_cmask_wo_lowinf, get_pmask_wo_lowinf
 
 GSA_DIR = Path(__file__).parent.parent.parent.resolve() / "data" / "sensitivity-analysis"
 SCREENING_DIR = GSA_DIR / "high-dimensional-screening"
@@ -383,23 +384,23 @@ def train_xgboost_model(tag, iterations, seed, num_lowinf, test_size=0.2):
         fp_params = SCREENING_DIR / f"xgboost_model.{tag}.params.json"
         params = dict(
             base_score=np.mean(Y_train),  # the initial prediction score of all instances, global bias
-            n_estimators=600,             # number of gradient boosted trees
+            n_estimators=1000,             # number of gradient boosted trees
             max_depth=4,                  # maximum tree depth for base learners
             learning_rate=0.15,           # boosting learning rate, xgb's `eta`
             verbosity=3,                  # degree of verbosity, valid values are 0 (silent) - 3 (debug)
             # booster='gbtree',           # specify which booster to use: gbtree, gblinear or dart
             gamma=0,                      # minimum loss reduction to make further partition on a leaf node of the tree
-            subsample=0.3,                # subsample ratio of the training instance
-            colsample_bytree=0.2,         # subsample ratio of columns when constructing each tree
-            reg_alpha=0,                  # L1 regularization term on weights (xgb’s alpha)
-            reg_lambda=0,                 # L2 regularization term on weights (xgb’s lambda)
+            subsample=0.5,                # subsample ratio of the training instance
+            colsample_bytree=0.1,           # subsample ratio of columns when constructing each tree
+            reg_alpha=0.2,                  # L1 regularization term on weights (xgb’s alpha)
+            reg_lambda=0.5,                 # L2 regularization term on weights (xgb’s lambda)
             # importance_type="gain",     # for tree models: “gain”, “weight”, “cover”, “total_gain” or “total_cover”
             early_stopping_rounds=30,     # improve validation metric at least once in every early_stopping_rounds
             # eval_metric=["rmse"],
             random_state=seed,
             # tree_method="hist",
             objective='reg:squarederror',
-            min_child_weight=300,
+            min_child_weight=600,
         )
 
         # Write params into a json file
@@ -429,17 +430,91 @@ def train_xgboost_model(tag, iterations, seed, num_lowinf, test_size=0.2):
     return model
 
 
-# def get_masks_inf(tag, project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf, num_inf):
-#     # XGBoost model
-#     fp = SCREENING_DIR / f"xgboost.{tag}.pickle"
-#     model = read_pickle(fp)
-#     feature_importances = model.feature_importances
-#     where = np.argsort(feature_importances)[:num_inf]
-#     # Determine which model inputs are influential
-#     _, indices = get_x_data(iterations, seed)
-#     indices_all = np.hstack([inds for inds in indices.values()])
-#
-#     len_tech = indices["technosphere"]
-#     where_tech = where < len_tech
-#     inds_tech = indices["technosphere"][where_tech]
-#     return
+def get_inds_wo_lowinf_xgb(tag, iterations, seed, num_lowinf_xgb):
+
+    fp_inds_tech = GSA_DIR / f"indices.tech.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_inds_bio = GSA_DIR / f"indices.bio.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_inds_cf = GSA_DIR / f"indices.cf.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_inds_param = GSA_DIR / f"indices.param.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_inds = [fp_inds_tech, fp_inds_bio, fp_inds_cf, fp_inds_param]
+
+    inds_exist = [fp.exists() for fp in fp_inds]
+
+    if all(inds_exist):
+        tindices = read_pickle(fp_inds_tech)
+        bindices = read_pickle(fp_inds_bio)
+        cindices = read_pickle(fp_inds_cf)
+        pindices = read_pickle(fp_inds_param)
+
+    else:
+        # Load XGBoost model
+        fp = SCREENING_DIR / f"xgboost_model.{tag}.pickle"
+        model = xgb.Booster()
+        model.load_model(fp)
+
+        # Determine top `num_lowinf_xgb` influential model inputs
+        dict_inf = model.get_score(importance_type="total_gain")
+        dict_inf = {int(key[1:]): value for key, value in dict_inf.items()}
+        list_inf = sorted(dict_inf.items(), key=lambda item: item[1], reverse=True)[:num_lowinf_xgb]
+        where_inf = np.array([element[0] for element in list_inf])
+
+        # Attribute influential inputs to correct input types
+        _, indices = get_x_data(iterations, seed)
+        start = 0
+        indices_inf = dict()
+        for key, inds in indices.items():
+            size = len(inds)
+            mask = np.logical_and(where_inf >= start, where_inf < start + size)
+            where = where_inf[mask] - start
+            indices_inf[key] = np.sort(inds[where])
+            start += size
+
+        tindices = indices_inf["technosphere"]
+        bindices = indices_inf["biosphere"]
+        cindices = indices_inf["characterization"]
+        pindices = indices_inf["parameterization"]
+
+        write_pickle(tindices, fp_inds_tech)
+        write_pickle(bindices, fp_inds_bio)
+        write_pickle(cindices, fp_inds_cf)
+        write_pickle(pindices, fp_inds_param)
+
+    return tindices, bindices, cindices, pindices
+
+
+def get_masks_wo_lowinf_xgb(project, tag, iterations_screening, iterations_validation, seed, num_lowinf_xgb):
+
+    fp_mask_tech = GSA_DIR / f"mask.tech.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_mask_bio = GSA_DIR / f"mask.bio.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_mask_cf = GSA_DIR / f"mask.cf.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_mask_param = GSA_DIR / f"mask.param.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_masks = [fp_mask_tech, fp_mask_bio, fp_mask_cf, fp_mask_param]
+
+    masks_exist = [fp.exists() for fp in fp_masks]
+
+    if all(masks_exist):
+        tmask_wo_lowinf = read_pickle(fp_mask_tech)
+        bmask_wo_lowinf = read_pickle(fp_mask_bio)
+        cmask_wo_lowinf = read_pickle(fp_mask_cf)
+        pmask_wo_lowinf = read_pickle(fp_mask_param)
+
+    else:
+        tindices_wo_lowinf, bindices_wo_lowinf, cindices_wo_lowinf, pindices_wo_lowinf = get_inds_wo_lowinf_xgb(
+            tag, iterations_screening, seed, num_lowinf_xgb
+        )
+
+        # Derive masks
+        tmask_wo_lowinf = get_tmask_wo_lowinf(project, tindices_wo_lowinf)
+        bmask_wo_lowinf = get_bmask_wo_lowinf(project, bindices_wo_lowinf)
+        cmask_wo_lowinf = get_cmask_wo_lowinf(project, cindices_wo_lowinf)
+        pmask_wo_lowinf = get_pmask_wo_lowinf(iterations_validation, seed, pindices_wo_lowinf)
+
+        # assert (tmask_wo_lowinf.sum() + bmask_wo_lowinf.sum() + cmask_wo_lowinf.sum() + pmask_wo_lowinf.sum() ==
+        #         num_lowinf_xgb)
+
+        write_pickle(tmask_wo_lowinf, fp_mask_tech)
+        write_pickle(bmask_wo_lowinf, fp_mask_bio)
+        write_pickle(cmask_wo_lowinf, fp_mask_cf)
+        write_pickle(pmask_wo_lowinf, fp_mask_param)
+
+    return tmask_wo_lowinf, bmask_wo_lowinf, cmask_wo_lowinf, pmask_wo_lowinf

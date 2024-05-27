@@ -2,13 +2,17 @@ import numpy as np
 import bw2data as bd
 import bw2calc as bc
 import bw_processing as bwp
+from fs.zipfs import ZipFS
 from copy import deepcopy
 from pathlib import Path
 
 from .utils import get_mask
 from ..utils import read_pickle, write_pickle, get_fu_pkgs, get_lca
 
-GSA_DIR = Path(__file__).parent.parent.parent.resolve() / "data" / "sensitivity-analysis"
+
+DATA_DIR = Path(__file__).parent.parent.parent.resolve() / "data"
+GSA_DIR = DATA_DIR / "sensitivity-analysis"
+DP_DIR = DATA_DIR / "datapackages"
 
 
 class LocalSensitivityAnalysisSampler:
@@ -323,7 +327,7 @@ def get_indices_high_variance(variances, variance_threshold):
     return selected
 
 
-def get_masks_wo_lowinf(project, factor, cutoff, max_calc, num_lowinf):
+def get_masks_wo_lowinf_lsa(project, factor, cutoff, max_calc, num_lowinf):
     """Wrapper function that collects all masks for TECH, BIO, and CF after removing lowly influential inputs."""
 
     tag = f"cutoff_{cutoff:.0e}.maxcalc_{max_calc:.0e}"
@@ -401,6 +405,14 @@ def get_cmask_wo_lowinf(project, cindices_wo_lowinf):
     cf = bd.Method(("IPCC 2013", "climate change", "GWP 100a", "uncertain")).datapackage()
     cindices = cf.get_resource('IPCC_2013_climate_change_GWP_100a_uncertain_matrix_data.indices')[0]
     mask = get_mask(cindices, cindices_wo_lowinf)
+    return mask
+
+
+def get_pmask_wo_lowinf(iterations, seed, pindices_wo_lowinf):
+    fp = DP_DIR / f"parameterization-parameters-{seed}-{iterations}.zip"
+    dp = bwp.load_datapackage(ZipFS(fp))
+    pindices = dp.get_resource('ecoinvent-parameters.indices')[0]
+    mask = get_mask(pindices, pindices_wo_lowinf)
     return mask
 
 

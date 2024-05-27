@@ -1,9 +1,10 @@
+import numpy as np
 from pathlib import Path
 import bw2data as bd
 import bw_processing as bwp
 from fs.zipfs import ZipFS
 
-from ..utils import read_pickle, write_pickle
+from ..utils import read_pickle, write_pickle, get_lca_score_shift
 from ..monte_carlo import compute_consumption_lcia
 from ..parameterization import generate_parameterization_datapackage
 from ..combustion import generate_combustion_datapackage
@@ -35,6 +36,12 @@ def run_mc_simulations_all_inputs(project, fp_ecoinvent, iterations, seed=42):
         datapackages = create_all_datapackages(fp_ecoinvent, project, iterations, seed)
         scores = compute_consumption_lcia(project, iterations, seed, datapackages)
         write_pickle(scores, fp)
+
+    masks = {"technosphere": None, "biosphere": None, "characterization": None}
+    offset = get_lca_score_shift(project, masks)
+
+    scores = np.array(scores) + offset
+
     return scores
 
 
@@ -108,10 +115,13 @@ def create_noninf_datapackage(project, cutoff, max_calc):
     tag = "without_noninf"
     dp = create_masked_vector_datapackage(project, ~tmask, ~bmask, ~cmask, tag)
 
-    return dp
+    masks = {"technosphere": tmask, "biosphere": bmask, "characterization": cmask}
+    offset = get_lca_score_shift(project, masks)
+
+    return dp, offset
 
 
-def create_lowinf_datapackage(project, factor, cutoff, max_calc, num_lowinf):
+def create_lowinf_lsa_datapackage(project, factor, cutoff, max_calc, num_lowinf):
 
     # Extract all masks without non-influential inputs
     tag = f"cutoff_{cutoff:.0e}.maxcalc_{max_calc:.0e}"
@@ -122,10 +132,32 @@ def create_lowinf_datapackage(project, factor, cutoff, max_calc, num_lowinf):
     bmask = read_pickle(fp_bio)
     cmask = read_pickle(fp_cf)
 
-    tag = f"without_lowinf.{num_lowinf}"
+    tag = f"without_lowinf_lsa.{num_lowinf}"
     dp = create_masked_vector_datapackage(project, ~tmask, ~bmask, ~cmask, tag)
 
-    return dp
+    masks = {"technosphere": tmask, "biosphere": bmask, "characterization": cmask}
+    offset = get_lca_score_shift(project, masks)
+
+    return dp, offset
+
+
+def create_lowinf_xgb_datapackage(project, num_lowinf, xgb_model_tag):
+
+    # Extract all masks without non-influential inputs
+    fp_tech = GSA_DIR / f"mask.tech.without_lowinf.{num_lowinf}.xgb.model_{xgb_model_tag}.pickle"
+    fp_bio = GSA_DIR / f"mask.bio.without_lowinf.{num_lowinf}.xgb.model_{xgb_model_tag}.pickle"
+    fp_cf = GSA_DIR / f"mask.cf.without_lowinf.{num_lowinf}.xgb.model_{xgb_model_tag}.pickle"
+    tmask = read_pickle(fp_tech)
+    bmask = read_pickle(fp_bio)
+    cmask = read_pickle(fp_cf)
+
+    tag = f"without_lowinf_xgb.{num_lowinf}"
+    dp = create_masked_vector_datapackage(project, ~tmask, ~bmask, ~cmask, tag)
+
+    masks = {"technosphere": tmask, "biosphere": bmask, "characterization": cmask}
+    offset = get_lca_score_shift(project, masks)
+
+    return dp, offset
 
 
 def run_mc_simulations_masked(project, fp_ecoinvent, datapackage_masked, iterations, seed=42, tag=""):
@@ -146,14 +178,24 @@ def run_mc_simulations_masked(project, fp_ecoinvent, datapackage_masked, iterati
 
 
 def run_mc_simulations_wo_noninf(project, fp_ecoinvent, cutoff, max_calc, iterations, seed, num_noninf=None):
-    datapackage_noninf = create_noninf_datapackage(project, cutoff, max_calc)
+    datapackage_noninf, offset = create_noninf_datapackage(project, cutoff, max_calc)
     tag = "without_noninf" if num_noninf is None else f"without_noninf.{num_noninf}"
     scores = run_mc_simulations_masked(project, fp_ecoinvent, datapackage_noninf, iterations, seed, tag)
+    scores = np.array(scores) + offset
     return scores
 
 
-def run_mc_simulations_wo_lowinf(project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf):
-    datapackage_lowinf = create_lowinf_datapackage(project, factor, cutoff, max_calc, num_lowinf)
-    tag = f"without_lowinf.{num_lowinf}"
+def run_mc_simulations_wo_lowinf_lsa(project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf):
+    datapackage_lowinf, offset = create_lowinf_lsa_datapackage(project, factor, cutoff, max_calc, num_lowinf)
+    tag = f"without_lowinf_lsa.{num_lowinf}"
     scores = run_mc_simulations_masked(project, fp_ecoinvent, datapackage_lowinf, iterations, seed, tag)
+    scores = np.array(scores) + offset
+    return scores
+
+
+def run_mc_simulations_wo_lowinf_xgb(project, fp_ecoinvent, xgb_model_tag, iterations, seed, num_lowinf):
+    datapackage_lowinf, offset = create_lowinf_xgb_datapackage(project, num_lowinf, xgb_model_tag)
+    tag = f"without_lowinf_xgb.model_{xgb_model_tag}.{num_lowinf}"
+    scores = run_mc_simulations_masked(project, fp_ecoinvent, datapackage_lowinf, iterations, seed, tag)
+    scores = np.array(scores) + offset
     return scores
