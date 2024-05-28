@@ -430,6 +430,26 @@ def train_xgboost_model(tag, iterations, seed, num_lowinf, test_size=0.2):
     return model
 
 
+def get_influential_indices(dict_inf, num_inf, iterations, seed):
+    # Determine top `num_lowinf_xgb` influential model inputs
+    dict_inf = {int(key[1:]): value for key, value in dict_inf.items()}
+    list_inf = sorted(dict_inf.items(), key=lambda item: item[1], reverse=True)[:num_inf]
+    where_inf = np.array([element[0] for element in list_inf])
+
+    # Attribute influential inputs to correct input types
+    _, indices = get_x_data(iterations, seed)
+    start = 0
+    indices_inf = dict()
+    for key, inds in indices.items():
+        size = len(inds)
+        mask = np.logical_and(where_inf >= start, where_inf < start + size)
+        where = where_inf[mask] - start
+        indices_inf[key] = np.sort(inds[where])
+        start += size
+
+    return indices_inf
+
+
 def get_inds_wo_lowinf_xgb(tag, iterations, seed, num_lowinf_xgb):
 
     fp_inds_tech = GSA_DIR / f"indices.tech.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
@@ -451,23 +471,9 @@ def get_inds_wo_lowinf_xgb(tag, iterations, seed, num_lowinf_xgb):
         fp = SCREENING_DIR / f"xgboost_model.{tag}.pickle"
         model = xgb.Booster()
         model.load_model(fp)
-
-        # Determine top `num_lowinf_xgb` influential model inputs
         dict_inf = model.get_score(importance_type="total_gain")
-        dict_inf = {int(key[1:]): value for key, value in dict_inf.items()}
-        list_inf = sorted(dict_inf.items(), key=lambda item: item[1], reverse=True)[:num_lowinf_xgb]
-        where_inf = np.array([element[0] for element in list_inf])
 
-        # Attribute influential inputs to correct input types
-        _, indices = get_x_data(iterations, seed)
-        start = 0
-        indices_inf = dict()
-        for key, inds in indices.items():
-            size = len(inds)
-            mask = np.logical_and(where_inf >= start, where_inf < start + size)
-            where = where_inf[mask] - start
-            indices_inf[key] = np.sort(inds[where])
-            start += size
+        indices_inf = get_influential_indices(dict_inf, num_lowinf_xgb, iterations, seed)
 
         tindices = indices_inf["technosphere"]
         bindices = indices_inf["biosphere"]

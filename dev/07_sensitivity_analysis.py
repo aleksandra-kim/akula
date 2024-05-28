@@ -16,6 +16,7 @@ from akula.sensitivity_analysis import (
     run_mc_simulations_wo_lowinf_xgb,
     run_mc_simulations_screening,
     train_xgboost_model,
+    compute_shap_values,
 )
 from akula.utils import compute_deterministic_score
 from akula.monte_carlo import plot_lcia_scores_from_two_cases
@@ -35,7 +36,8 @@ FACTOR = 10
 ITERATIONS_VALIDATION = 2_000
 ITERATIONS_SCREENING = 10_000
 NUM_LOWINF_LSA = 25_000
-NUM_LOWINF_XGB = 2_000
+NUM_LOWINF_XGB = 3_000
+NUM_INF = 200
 
 GSA_DIR = Path(__file__).parent.parent.resolve() / "data" / "sensitivity-analysis"
 SCREENING_DIR = GSA_DIR / "high-dimensional-screening"
@@ -119,7 +121,7 @@ if __name__ == "__main__":
     # =========================================================================
     # 4. Remove LOWLY influential inputs based on trained XGBoost model and feature importance
     # =========================================================================
-    xgb_model_tag = "1"
+    xgb_model_tag = "6"
     model = train_xgboost_model(xgb_model_tag, ITERATIONS_SCREENING, SEED, NUM_LOWINF_LSA)
     tmask_wo_lowinf_xgb, bmask_wo_lowinf_xgb, cmask_wo_lowinf_xgb, pmask_wo_lowinf_xgb = get_masks_wo_lowinf_xgb(
         PROJECT, xgb_model_tag, ITERATIONS_SCREENING, ITERATIONS_VALIDATION, SEED, NUM_LOWINF_XGB
@@ -145,7 +147,6 @@ if __name__ == "__main__":
     )
 
     # =========================================================================
-    # 6. Factor prioritization with Shapley values
+    # 6. Factor prioritization with SHAP values
     # =========================================================================
-
-    # Validate results
+    compute_shap_values(PROJECT, xgb_model_tag, NUM_INF, ITERATIONS_SCREENING, SEED, NUM_LOWINF_LSA)
