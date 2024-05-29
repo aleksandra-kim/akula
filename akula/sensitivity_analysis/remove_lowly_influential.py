@@ -9,9 +9,9 @@ from pathlib import Path
 from .utils import get_mask
 from ..utils import read_pickle, write_pickle, get_fu_pkgs, get_lca
 
+GSA_DIR = Path(__file__).parent.parent.parent.resolve() / "data" / "sensitivity-analysis"
 
 DATA_DIR = Path(__file__).parent.parent.parent.resolve() / "data"
-GSA_DIR = DATA_DIR / "sensitivity-analysis"
 DP_DIR = DATA_DIR / "datapackages"
 
 
@@ -97,7 +97,7 @@ def run_local_sa(
     for start in range(0, len(indices), batch_size):
 
         end = min(start + batch_size, len(indices))
-        fp_current = GSA_DIR / f"scores.{tag}.indices_{start:06d}_{end:06d}.pickle"
+        fp_current = GSA_DIR_CORR / f"scores.{tag}.indices_{start:06d}_{end:06d}.pickle"
 
         if matrix_type == "technosphere":
             print(f"LSA scores for TECH -- indices {start:6d} - {end:6d}")
@@ -160,7 +160,7 @@ def run_local_sa(
 def get_scores_local_sa_technosphere(mask, project, factor, tag):
     """Wrapper function to run MC simulations by varying 1 input at a time (local SA) for TECHNOSPHERE."""
 
-    fp = GSA_DIR / f"scores.tech.lsa.{tag}.factor_{factor}.pickle"
+    fp = GSA_DIR_CORR / f"scores.tech.lsa.{tag}.factor_{factor}.pickle"
 
     if fp.exists():
         scores = read_pickle(fp)
@@ -182,7 +182,7 @@ def get_scores_local_sa_technosphere(mask, project, factor, tag):
             else:
                 current_tag = f"tech.lsa.{tag}.factor_{factor}_div"
 
-            fp_i = GSA_DIR / f"scores.{current_tag}.pickle"
+            fp_i = GSA_DIR_CORR / f"scores.{current_tag}.pickle"
 
             if fp_i.exists():
                 scores_i = read_pickle(fp_i)
@@ -211,7 +211,7 @@ def get_scores_local_sa_biosphere(mask, project, factor):
     each default input value by only 1 factor.
     """
 
-    fp = GSA_DIR / f"scores.bio.lsa.factor_{factor}.pickle"
+    fp = GSA_DIR_CORR / f"scores.bio.lsa.factor_{factor}.pickle"
 
     if fp.exists():
         scores = read_pickle(fp)
@@ -240,7 +240,7 @@ def get_scores_local_sa_characterization(mask, project, factor):
     multiplying each default input value by only 1 factor.
     """
 
-    fp = GSA_DIR / f"scores.cf.lsa.factor_{factor}.pickle"
+    fp = GSA_DIR_CORR / f"scores.cf.lsa.factor_{factor}.pickle"
 
     if fp.exists():
         scores = read_pickle(fp)
@@ -266,9 +266,9 @@ def get_scores_local_sa(project, factor, cutoff, max_calc):
 
     tag = f"cutoff_{cutoff:.0e}.maxcalc_{max_calc:.0e}"
 
-    tmask_wo_noninf = read_pickle(GSA_DIR / f"mask.tech.without_noninf.sct.{tag}.pickle")
-    bmask_wo_noninf = read_pickle(GSA_DIR / "mask.bio.without_noninf.pickle")
-    cmask_wo_noninf = read_pickle(GSA_DIR / "mask.cf.without_noninf.pickle")
+    tmask_wo_noninf = read_pickle(GSA_DIR_CORR / f"mask.tech.without_noninf.sct.{tag}.pickle")
+    bmask_wo_noninf = read_pickle(GSA_DIR_CORR / "mask.bio.without_noninf.pickle")
+    cmask_wo_noninf = read_pickle(GSA_DIR_CORR / "mask.cf.without_noninf.pickle")
 
     tscores = get_scores_local_sa_technosphere(tmask_wo_noninf, project, factor, tag)
     bscores = get_scores_local_sa_biosphere(bmask_wo_noninf, project, factor)

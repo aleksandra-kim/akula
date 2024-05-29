@@ -9,10 +9,15 @@ from .high_dimensional_screening import get_x_data, get_y_scores
 
 GSA_DIR = Path(__file__).parent.parent.parent.resolve() / "data" / "sensitivity-analysis"
 SCREENING_DIR = GSA_DIR / "high-dimensional-screening"
+# SCREENING_DIR_CORR.mkdir(exist_ok=True, parents=True)
+#
+# GSA_DIR_INDEP = Path(__file__).parent.parent.parent.resolve() / "data" / "sensitivity-analysis-independent"
+# SCREENING_DIR_INDEP = GSA_DIR_INDEP / "high-dimensional-screening"
+# SCREENING_DIR_INDEP.mkdir(exist_ok=True, parents=True)
 
 
 def compute_shap_values(project, tag, num_inf, iterations, seed, num_lowinf_lsa, test_size=0.2):
-    fp = SCREENING_DIR / f"xgboost_model.{tag}.pickle"
+    fp = SCREENING_DIR_CORR / f"xgboost_model.{tag}.pickle"
     model = xgb.Booster()
     model.load_model(fp)
 
@@ -44,7 +49,6 @@ def compute_shap_values(project, tag, num_inf, iterations, seed, num_lowinf_lsa,
 #     ranking = rank_inputs(shap_values, num_inf, iterations, seed)
 #     where = np.argsort(shap_values)[:num_inf]
 #     print(shap_values[where])
-
 
     # bd.projects.set_current(project)
     # for key, inds in indices.items():

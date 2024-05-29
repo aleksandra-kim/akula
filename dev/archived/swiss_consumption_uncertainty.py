@@ -7,7 +7,7 @@ from fs.zipfs import ZipFS
 from consumption_model_ch.utils import get_habe_filepath
 
 #  Local files
-from .sensitivity_analysis import get_mask
+from akula.sensitivity_analysis import get_mask
 
 DATA_DIR = Path(__file__).parent.resolve() / "data"
 

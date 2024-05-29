@@ -25,16 +25,18 @@ PROJECT = "GSA with correlations"
 PROJECT_EXIOBASE = "GSA with correlations, exiobase"
 
 PROJECT_DIR = Path(__file__).parent.parent.resolve()
-FIGURES_DIR = PROJECT_DIR / "figures"
+FIGURES_DIR = PROJECT_DIR / "figures" / "correlated"
+FIGURES_DIR.mkdir(exist_ok=True, parents=True)
 FP_ECOINVENT = "/home/aleksandrakim/LCAfiles/ecoinvent_38_cutoff/datasets"
+INCLUDE_CORR = False
 
 # Parameters for GSA
 SEED = 222201
 CUTOFF = 1e-7
 MAX_CALC = 1e18
 FACTOR = 10
-ITERATIONS_VALIDATION = 2_000
-ITERATIONS_SCREENING = 10_000
+ITERATIONS_VALIDATION = 50
+ITERATIONS_SCREENING = 20
 NUM_LOWINF_LSA = 25_000
 NUM_LOWINF_XGB = 3_000
 NUM_INF = 200
@@ -58,7 +60,7 @@ if __name__ == "__main__":
         exiobase_offset = 703.1540208909953
 
     # 0.2 Run Monte Carlo simulations when all TECH, BIO and CF inputs vary, including 4 sampling modules
-    scores_all = run_mc_simulations_all_inputs(PROJECT, FP_ECOINVENT, ITERATIONS_VALIDATION, SEED)
+    scores_all = run_mc_simulations_all_inputs(PROJECT, FP_ECOINVENT, ITERATIONS_VALIDATION, SEED, INCLUDE_CORR)
 
     # =========================================================================
     # 1. Remove NON-influential inputs
@@ -80,7 +82,7 @@ if __name__ == "__main__":
     # Validate results
     num_noninf = sum(tmask_wo_noninf) + sum(bmask_wo_noninf) + sum(cmask_wo_noninf)
     scores_wo_noninf = run_mc_simulations_wo_noninf(
-        PROJECT, FP_ECOINVENT, CUTOFF, MAX_CALC, ITERATIONS_VALIDATION, SEED, num_noninf
+        PROJECT, FP_ECOINVENT, CUTOFF, MAX_CALC, ITERATIONS_VALIDATION, SEED, num_noninf, INCLUDE_CORR
     )
     figure = plot_lcia_scores_from_two_cases(scores_all, scores_wo_noninf, exiobase_offset)
     figure.write_image(FIGURES_DIR / f"validation_noninf.{num_noninf}.{SEED}.{ITERATIONS_VALIDATION}.pdf")
@@ -104,7 +106,7 @@ if __name__ == "__main__":
 
     # Validate results
     scores_wo_lowinf_lsa = run_mc_simulations_wo_lowinf_lsa(
-        PROJECT, FP_ECOINVENT, FACTOR, CUTOFF, MAX_CALC, ITERATIONS_VALIDATION, SEED, NUM_LOWINF_LSA
+        PROJECT, FP_ECOINVENT, FACTOR, CUTOFF, MAX_CALC, ITERATIONS_VALIDATION, SEED, NUM_LOWINF_LSA, INCLUDE_CORR
     )
     figure = plot_lcia_scores_from_two_cases(scores_all, scores_wo_lowinf_lsa, exiobase_offset)
     figure.write_image(FIGURES_DIR / f"validation.wo_lowinf_lsa.{NUM_LOWINF_LSA}.{SEED}.{ITERATIONS_VALIDATION}.pdf")
@@ -116,7 +118,7 @@ if __name__ == "__main__":
     # - Sufficient number of MC simulations is in the order of 2*NUM_LOWINF
     # =========================================================================
     scores_screening = run_mc_simulations_screening(
-        PROJECT, FP_ECOINVENT, FACTOR, CUTOFF, MAX_CALC, ITERATIONS_SCREENING, SEED, NUM_LOWINF_LSA
+        PROJECT, FP_ECOINVENT, FACTOR, CUTOFF, MAX_CALC, ITERATIONS_SCREENING, SEED, NUM_LOWINF_LSA, INCLUDE_CORR
     )
     # =========================================================================
     # 4. Remove LOWLY influential inputs based on trained XGBoost model and feature importance

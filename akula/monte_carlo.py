@@ -5,24 +5,11 @@ from pathlib import Path
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 import numpy as np
-import stats_arrays as sa
 
 from .utils import update_fig_axes, COLOR_PSI_BLUE, COLOR_DARKGRAY_HEX, get_consumption_activity
 
 MC_DIR = Path(__file__).parent.parent.resolve() / "data" / "monte-carlo" / "sampling-modules"
 MC_DIR.mkdir(parents=True, exist_ok=True)
-
-
-# def compute_offset(datapackages):
-#     offset = 0
-#     for datapackage in datapackages:
-#         for resource in datapackage.resources:
-#             if resource["kind"] == "distributions":
-#                 distributions = datapackage.get_resource(resource["name"])[0]
-#                 lognormal = distributions[distributions["uncertainty_type"] == sa.LognormalUncertainty.id]
-#                 lognormal["loc"]
-#         continue
-#     return offset
 
 
 def compute_consumption_lcia(project, iterations, seed=42, datapackages=None):
@@ -79,8 +66,8 @@ def plot_lcia_scores_from_two_cases(Y0, YS, offset=0):
     fig = make_subplots(rows=1, cols=2, shared_xaxes=False)
 
     x = np.arange(start, end)
-    fig.add_trace(go.Scatter(x=x, y=Y0[start:end]-YS[start:end],
-                             mode="markers", marker=dict(color=color1, symbol="diamond-tall", size=8), showlegend=False),
+    fig.add_trace(go.Scatter(x=x, y=Y0[start:end]-YS[start:end], mode="markers",
+                             marker=dict(color=color1, symbol="diamond-tall", size=8), showlegend=False),
                   row=1, col=1)
     fig.add_trace(go.Scatter(x=Y0, y=YS, mode="markers", marker=dict(color=color2, line=dict(width=1, color="black")),
                              showlegend=False, opacity=0.65),

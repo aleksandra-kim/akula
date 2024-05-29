@@ -11,8 +11,12 @@ from ..combustion import generate_combustion_datapackage
 from ..electricity import generate_entsoe_datapackage
 from ..markets import generate_markets_datapackage
 
-GSA_DIR = Path(__file__).parent.parent.parent.resolve() / "data" / "sensitivity-analysis"
 DATA_DIR = Path(__file__).parent.parent.parent.resolve() / "data" / "datapackages"
+GSA_DIR = Path(__file__).parent.parent.parent.resolve() / "data" / "sensitivity-analysis"
+GSA_DIR_CORR = GSA_DIR / "correlated"
+GSA_DIR_INDP = GSA_DIR / "independent"
+GSA_DIR_CORR.mkdir(exist_ok=True, parents=True)
+GSA_DIR_INDP.mkdir(exist_ok=True, parents=True)
 
 
 def create_all_datapackages(fp_ecoinvent, project, iterations, seed=42, directory=None):
@@ -27,13 +31,16 @@ def create_all_datapackages(fp_ecoinvent, project, iterations, seed=42, director
     return datapackages
 
 
-def run_mc_simulations_all_inputs(project, fp_ecoinvent, iterations, seed=42):
+def run_mc_simulations_all_inputs(project, fp_ecoinvent, iterations, seed=42, correlations=True):
     """Run Monte Carlo simulations when all model inputs vary."""
-    fp = GSA_DIR / f"scores.all_inputs.{seed}.{iterations}.pickle"
+    directory = GSA_DIR_CORR if correlations else GSA_DIR_INDP
+    fp = directory / f"scores.all_inputs.{seed}.{iterations}.pickle"
     if fp.exists():
         scores = read_pickle(fp)
     else:
-        datapackages = create_all_datapackages(fp_ecoinvent, project, iterations, seed)
+        datapackages = []
+        if correlations:
+            datapackages += create_all_datapackages(fp_ecoinvent, project, iterations, seed)
         scores = compute_consumption_lcia(project, iterations, seed, datapackages)
         write_pickle(scores, fp)
 
@@ -144,9 +151,9 @@ def create_lowinf_lsa_datapackage(project, factor, cutoff, max_calc, num_lowinf)
 def create_lowinf_xgb_datapackage(project, num_lowinf, xgb_model_tag):
 
     # Extract all masks without non-influential inputs
-    fp_tech = GSA_DIR / f"mask.tech.without_lowinf.{num_lowinf}.xgb.model_{xgb_model_tag}.pickle"
-    fp_bio = GSA_DIR / f"mask.bio.without_lowinf.{num_lowinf}.xgb.model_{xgb_model_tag}.pickle"
-    fp_cf = GSA_DIR / f"mask.cf.without_lowinf.{num_lowinf}.xgb.model_{xgb_model_tag}.pickle"
+    fp_tech = GSA_DIR_CORR / f"mask.tech.without_lowinf.{num_lowinf}.xgb.model_{xgb_model_tag}.pickle"
+    fp_bio = GSA_DIR_CORR / f"mask.bio.without_lowinf.{num_lowinf}.xgb.model_{xgb_model_tag}.pickle"
+    fp_cf = GSA_DIR_CORR / f"mask.cf.without_lowinf.{num_lowinf}.xgb.model_{xgb_model_tag}.pickle"
     tmask = read_pickle(fp_tech)
     bmask = read_pickle(fp_bio)
     cmask = read_pickle(fp_cf)
@@ -160,16 +167,22 @@ def create_lowinf_xgb_datapackage(project, num_lowinf, xgb_model_tag):
     return dp, offset
 
 
-def run_mc_simulations_masked(project, fp_ecoinvent, datapackage_masked, iterations, seed=42, tag=""):
+def run_mc_simulations_masked(
+        project, fp_ecoinvent, datapackage_masked, iterations, seed=42, tag="", correlations=True
+):
     """Run Monte Carlo simulations without non-influential inputs, but with all sampling modules."""
 
-    fp = GSA_DIR / f"scores.{tag}.{seed}.{iterations}.pickle"
+    directory = GSA_DIR_CORR if correlations else GSA_DIR_INDP
+    fp = directory / f"scores.{tag}.{seed}.{iterations}.pickle"
 
     if fp.exists():
         scores = read_pickle(fp)
     else:
-        datapackages_sampling_modules = create_all_datapackages(fp_ecoinvent, project, iterations, seed)
-        datapackages = [datapackage_masked] + datapackages_sampling_modules
+        datapackages = [datapackage_masked]
+        if correlations:
+            datapackages_sampling_modules = create_all_datapackages(fp_ecoinvent, project, iterations, seed)
+            datapackages += datapackages_sampling_modules
+
         scores = compute_consumption_lcia(project, iterations, seed, datapackages)
 
         write_pickle(scores, fp)
@@ -177,18 +190,22 @@ def run_mc_simulations_masked(project, fp_ecoinvent, datapackage_masked, iterati
     return scores
 
 
-def run_mc_simulations_wo_noninf(project, fp_ecoinvent, cutoff, max_calc, iterations, seed, num_noninf=None):
+def run_mc_simulations_wo_noninf(
+        project, fp_ecoinvent, cutoff, max_calc, iterations, seed, num_noninf=None, correlations=True
+):
     datapackage_noninf, offset = create_noninf_datapackage(project, cutoff, max_calc)
     tag = "without_noninf" if num_noninf is None else f"without_noninf.{num_noninf}"
-    scores = run_mc_simulations_masked(project, fp_ecoinvent, datapackage_noninf, iterations, seed, tag)
+    scores = run_mc_simulations_masked(project, fp_ecoinvent, datapackage_noninf, iterations, seed, tag, correlations)
     scores = np.array(scores) + offset
     return scores
 
 
-def run_mc_simulations_wo_lowinf_lsa(project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf):
+def run_mc_simulations_wo_lowinf_lsa(
+        project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf, correlations=True
+):
     datapackage_lowinf, offset = create_lowinf_lsa_datapackage(project, factor, cutoff, max_calc, num_lowinf)
     tag = f"without_lowinf_lsa.{num_lowinf}"
-    scores = run_mc_simulations_masked(project, fp_ecoinvent, datapackage_lowinf, iterations, seed, tag)
+    scores = run_mc_simulations_masked(project, fp_ecoinvent, datapackage_lowinf, iterations, seed, tag, correlations)
     scores = np.array(scores) + offset
     return scores
 

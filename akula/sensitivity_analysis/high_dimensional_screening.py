@@ -15,10 +15,13 @@ from ..utils import read_pickle, write_pickle, get_consumption_activity
 from ..sensitivity_analysis import create_all_datapackages
 from .remove_lowly_influential import get_tmask_wo_lowinf, get_bmask_wo_lowinf, get_cmask_wo_lowinf, get_pmask_wo_lowinf
 
+DATA_DIR = Path(__file__).parent.parent.parent.resolve() / "data" / "datapackages"
 GSA_DIR = Path(__file__).parent.parent.parent.resolve() / "data" / "sensitivity-analysis"
 SCREENING_DIR = GSA_DIR / "high-dimensional-screening"
-SCREENING_DIR.mkdir(exist_ok=True, parents=True)
-DATA_DIR = Path(__file__).parent.parent.parent.resolve() / "data" / "datapackages"
+SCREENING_DIR_CORR = SCREENING_DIR / "correlated"
+SCREENING_DIR_INDP = SCREENING_DIR / "independent"
+SCREENING_DIR_CORR.mkdir(exist_ok=True, parents=True)
+SCREENING_DIR_INDP.mkdir(exist_ok=True, parents=True)
 
 MC_BATCH_SIZE = 5_000
 N_BATCH_CONST = 2000
@@ -125,15 +128,21 @@ def create_tech_bio_cf_datapackages(project, factor, cutoff, max_calc, iteration
     return [tdp, bdp, cdp]
 
 
-def get_datapackages_screening(project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf):
+def get_datapackages_screening(
+        project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf, correlations=True
+):
     """Create all datapackages for high-dimensional screening."""
     dp_base = create_tech_bio_cf_datapackages(project, factor, cutoff, max_calc, iterations, seed, num_lowinf)
-    dp_modules = create_all_datapackages(fp_ecoinvent, project, iterations, seed, SCREENING_DIR)
-    dps = dp_base + dp_modules
+    dps = dp_base
+    if correlations:
+        dp_modules = create_all_datapackages(fp_ecoinvent, project, iterations, seed, SCREENING_DIR_CORR)
+        dps += dp_modules
     return dps
 
 
-def compute_consumption_lcia_screening(project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf):
+def compute_consumption_lcia_screening(
+        project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf, correlations=True
+):
 
     bd.projects.set_current(project)
 
@@ -142,7 +151,7 @@ def compute_consumption_lcia_screening(project, fp_ecoinvent, factor, cutoff, ma
     fu, pkgs, _ = bd.prepare_lca_inputs({activity: 1}, method=method, remapping=False)
 
     datapackages = get_datapackages_screening(
-        project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf
+        project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf, correlations
     )
 
     lca = bc.LCA(
@@ -173,9 +182,12 @@ def get_random_seeds(iterations, seed):
     return starts, n_batches, seeds
 
 
-def run_mc_simulations_screening(project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf):
+def run_mc_simulations_screening(
+        project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf, correlations=True,
+):
     """Run Monte Carlo simulations for high-dimensional screening."""
-    fp = SCREENING_DIR / f"scores.without_lowinf.{num_lowinf}.{seed}.{iterations}.pickle"
+    directory = SCREENING_DIR_CORR if correlations else SCREENING_DIR_INDP
+    fp = directory / f"scores.without_lowinf.{num_lowinf}.{seed}.{iterations}.pickle"
 
     if fp.exists():
         scores = read_pickle(fp)
@@ -188,13 +200,14 @@ def run_mc_simulations_screening(project, fp_ecoinvent, factor, cutoff, max_calc
             current_iterations = MC_BATCH_SIZE if i < n_batches - 1 else iterations - starts[i]
             print(f"MC simulations for screening -- random seed {i+1:2d} / {n_batches:2d} -- {seeds[i]}")
 
-            fp_current = SCREENING_DIR / f"scores.without_lowinf.{num_lowinf}.{seeds[i]}.{current_iterations}.pickle"
+            fp_current = directory / f"scores.without_lowinf.{num_lowinf}.{seeds[i]}.{current_iterations}.pickle"
 
             if fp_current.exists():
                 scores_current = read_pickle(fp_current)
             else:
                 scores_current = compute_consumption_lcia_screening(
-                    project, fp_ecoinvent, factor, cutoff, max_calc, current_iterations, seeds[i], num_lowinf
+                    project, fp_ecoinvent, factor, cutoff, max_calc, current_iterations, seeds[i],
+                    num_lowinf, correlations
                 )
                 write_pickle(scores_current, fp_current)
 
@@ -205,8 +218,9 @@ def run_mc_simulations_screening(project, fp_ecoinvent, factor, cutoff, max_calc
     return scores
 
 
-def get_y_scores(iterations, seed, num_lowinf):
-    fp = SCREENING_DIR / f"scores.without_lowinf.{num_lowinf}.{seed}.{iterations}.pickle"
+def get_y_scores(iterations, seed, num_lowinf, correlations=True):
+    directory = SCREENING_DIR_CORR if correlations else SCREENING_DIR_INDP
+    fp = directory / f"scores.without_lowinf.{num_lowinf}.{seed}.{iterations}.pickle"
     scores = np.array(read_pickle(fp))
     return scores
 
@@ -240,12 +254,12 @@ def get_x_data_characterization(iterations, seed):
 
 def get_x_data_parameterization(iterations, seed):
     # Parameters
-    fp = SCREENING_DIR / f"parameterization-parameters-{seed}-{iterations}.zip"
+    fp = SCREENING_DIR_CORR / f"parameterization-parameters-{seed}-{iterations}.zip"
     dp = bwp.load_datapackage(ZipFS(str(fp)))
     param_indices = dp.get_resource("ecoinvent-parameters.indices")[0]
     param_data = dp.get_resource("ecoinvent-parameters.data")[0]
     # Biosphere and technosphere exchanges
-    fp = SCREENING_DIR / f"parameterization-exchanges-{seed}-{iterations}.zip"
+    fp = SCREENING_DIR_CORR / f"parameterization-exchanges-{seed}-{iterations}.zip"
     dp = bwp.load_datapackage(ZipFS(str(fp)))
     tech_indices = dp.get_resource("parameterized-tech.indices")[0]
     bio_indices = dp.get_resource("parameterized-bio.indices")[0]
@@ -253,7 +267,7 @@ def get_x_data_parameterization(iterations, seed):
 
 
 def get_x_data_combustion(iterations, seed):
-    fp = SCREENING_DIR / f"combustion-{seed}-{iterations}.zip"
+    fp = SCREENING_DIR_CORR / f"combustion-{seed}-{iterations}.zip"
     dp = bwp.load_datapackage(ZipFS(str(fp)))
     ctech_data = dp.get_resource("combustion-tech.data")[0]
     ctech_indices = dp.get_resource("combustion-tech.indices")[0]
@@ -262,7 +276,7 @@ def get_x_data_combustion(iterations, seed):
 
 
 def get_x_data_entsoe(iterations, seed):
-    fp = SCREENING_DIR / f"entsoe-{seed}-{iterations}.zip"
+    fp = SCREENING_DIR_CORR / f"entsoe-{seed}-{iterations}.zip"
     dp = bwp.load_datapackage(ZipFS(str(fp)))
     indices = dp.get_resource("entsoe.indices")[0]
     data = dp.get_resource("entsoe.data")[0]
@@ -270,14 +284,14 @@ def get_x_data_entsoe(iterations, seed):
 
 
 def get_x_data_markets(iterations, seed):
-    fp = SCREENING_DIR / f"markets-{seed}-{iterations}.zip"
+    fp = SCREENING_DIR_CORR / f"markets-{seed}-{iterations}.zip"
     dp = bwp.load_datapackage(ZipFS(str(fp)))
     indices = dp.get_resource("markets.indices")[0]
     data = dp.get_resource("markets.data")[0]
     return data, indices
 
 
-def get_x_data(iterations, seed):
+def get_x_data(iterations, seed, correlations=True):
     """Read input data from datapackages and return indices and data."""
 
     starts, n_batches, seeds = get_random_seeds(iterations, seed)
@@ -359,7 +373,7 @@ def get_x_data(iterations, seed):
 def train_xgboost_model(tag, iterations, seed, num_lowinf, test_size=0.2):
     """Train gradient boosted tree regressor."""
 
-    fp = SCREENING_DIR / f"xgboost_model.{tag}.pickle"
+    fp = SCREENING_DIR_CORR / f"xgboost_model.{tag}.pickle"
 
     # Read X and Y data
     X, _ = get_x_data(iterations, seed)
@@ -381,7 +395,7 @@ def train_xgboost_model(tag, iterations, seed, num_lowinf, test_size=0.2):
 
     else:
         # Define the model
-        fp_params = SCREENING_DIR / f"xgboost_model.{tag}.params.json"
+        fp_params = SCREENING_DIR_CORR / f"xgboost_model.{tag}.params.json"
         params = dict(
             base_score=np.mean(Y_train),  # the initial prediction score of all instances, global bias
             n_estimators=1000,             # number of gradient boosted trees
@@ -452,10 +466,10 @@ def get_influential_indices(dict_inf, num_inf, iterations, seed):
 
 def get_inds_wo_lowinf_xgb(tag, iterations, seed, num_lowinf_xgb):
 
-    fp_inds_tech = GSA_DIR / f"indices.tech.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
-    fp_inds_bio = GSA_DIR / f"indices.bio.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
-    fp_inds_cf = GSA_DIR / f"indices.cf.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
-    fp_inds_param = GSA_DIR / f"indices.param.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_inds_tech = GSA_DIR_CORR / f"indices.tech.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_inds_bio = GSA_DIR_CORR / f"indices.bio.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_inds_cf = GSA_DIR_CORR / f"indices.cf.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_inds_param = GSA_DIR_CORR / f"indices.param.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
     fp_inds = [fp_inds_tech, fp_inds_bio, fp_inds_cf, fp_inds_param]
 
     inds_exist = [fp.exists() for fp in fp_inds]
@@ -468,7 +482,7 @@ def get_inds_wo_lowinf_xgb(tag, iterations, seed, num_lowinf_xgb):
 
     else:
         # Load XGBoost model
-        fp = SCREENING_DIR / f"xgboost_model.{tag}.pickle"
+        fp = SCREENING_DIR_CORR / f"xgboost_model.{tag}.pickle"
         model = xgb.Booster()
         model.load_model(fp)
         dict_inf = model.get_score(importance_type="total_gain")
@@ -490,10 +504,10 @@ def get_inds_wo_lowinf_xgb(tag, iterations, seed, num_lowinf_xgb):
 
 def get_masks_wo_lowinf_xgb(project, tag, iterations_screening, iterations_validation, seed, num_lowinf_xgb):
 
-    fp_mask_tech = GSA_DIR / f"mask.tech.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
-    fp_mask_bio = GSA_DIR / f"mask.bio.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
-    fp_mask_cf = GSA_DIR / f"mask.cf.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
-    fp_mask_param = GSA_DIR / f"mask.param.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_mask_tech = GSA_DIR_CORR / f"mask.tech.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_mask_bio = GSA_DIR_CORR / f"mask.bio.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_mask_cf = GSA_DIR_CORR / f"mask.cf.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_mask_param = GSA_DIR_CORR / f"mask.param.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
     fp_masks = [fp_mask_tech, fp_mask_bio, fp_mask_cf, fp_mask_param]
 
     masks_exist = [fp.exists() for fp in fp_masks]
