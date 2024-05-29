@@ -23,26 +23,35 @@ from akula.monte_carlo import plot_lcia_scores_from_two_cases
 
 PROJECT = "GSA with correlations"
 PROJECT_EXIOBASE = "GSA with correlations, exiobase"
+FP_ECOINVENT = "/home/aleksandrakim/LCAfiles/ecoinvent_38_cutoff/datasets"
 
 PROJECT_DIR = Path(__file__).parent.parent.resolve()
-FIGURES_DIR = PROJECT_DIR / "figures" / "correlated"
-FIGURES_DIR.mkdir(exist_ok=True, parents=True)
-FP_ECOINVENT = "/home/aleksandrakim/LCAfiles/ecoinvent_38_cutoff/datasets"
-INCLUDE_CORR = False
+GSA_DIR = Path(__file__).parent.parent.resolve() / "data" / "sensitivity-analysis"
+SCREENING_DIR = GSA_DIR / "high-dimensional-screening"
 
 # Parameters for GSA
 SEED = 222201
 CUTOFF = 1e-7
 MAX_CALC = 1e18
 FACTOR = 10
-ITERATIONS_VALIDATION = 50
-ITERATIONS_SCREENING = 20
-NUM_LOWINF_LSA = 25_000
-NUM_LOWINF_XGB = 3_000
-NUM_INF = 200
+ITERATIONS_VALIDATION = 2_000
+ITERATIONS_SCREENING = 10_000
 
-GSA_DIR = Path(__file__).parent.parent.resolve() / "data" / "sensitivity-analysis"
-SCREENING_DIR = GSA_DIR / "high-dimensional-screening"
+INCLUDE_CORR = False
+if INCLUDE_CORR:
+    FIGURES_DIR = PROJECT_DIR / "figures" / "correlated"
+    NUM_LOWINF_LSA = 25_000
+    NUM_LOWINF_XGB = 3_000
+    NUM_INF = 200
+    xgb_model_tag = "2"
+else:
+    FIGURES_DIR = PROJECT_DIR / "figures" / "independent"
+    NUM_LOWINF_LSA = 25_000
+    NUM_LOWINF_XGB = 3_000
+    NUM_INF = 200
+    xgb_model_tag = "0"
+
+FIGURES_DIR.mkdir(exist_ok=True, parents=True)
 
 
 if __name__ == "__main__":
@@ -102,7 +111,7 @@ if __name__ == "__main__":
     print(f"{sum(bmask_wo_lowinf_lsa):6d} / {len(bmask_wo_lowinf_lsa):6d}  BIO INPUTS after removing LOWLY influential "
                                                                        "with Local Sensitivity Analysis")
     print(f"{sum(cmask_wo_lowinf_lsa):6d} / {len(cmask_wo_lowinf_lsa):6d}   CF INPUTS after removing LOWLY influential "
-                                                                       "with Local Sensitivity Analysis\n")
+                                                                       "with Local Sensitivity Analysis")
 
     # Validate results
     scores_wo_lowinf_lsa = run_mc_simulations_wo_lowinf_lsa(
@@ -123,10 +132,9 @@ if __name__ == "__main__":
     # =========================================================================
     # 4. Remove LOWLY influential inputs based on trained XGBoost model and feature importance
     # =========================================================================
-    xgb_model_tag = "6"
-    model = train_xgboost_model(xgb_model_tag, ITERATIONS_SCREENING, SEED, NUM_LOWINF_LSA)
+    model = train_xgboost_model(xgb_model_tag, ITERATIONS_SCREENING, SEED, NUM_LOWINF_LSA, INCLUDE_CORR)
     tmask_wo_lowinf_xgb, bmask_wo_lowinf_xgb, cmask_wo_lowinf_xgb, pmask_wo_lowinf_xgb = get_masks_wo_lowinf_xgb(
-        PROJECT, xgb_model_tag, ITERATIONS_SCREENING, ITERATIONS_VALIDATION, SEED, NUM_LOWINF_XGB
+        PROJECT, xgb_model_tag, ITERATIONS_SCREENING, ITERATIONS_VALIDATION, SEED, NUM_LOWINF_XGB, INCLUDE_CORR
     )
 
     print(f"{sum(tmask_wo_lowinf_xgb):6d} / {len(tmask_wo_lowinf_xgb):6d} TECH INPUTS after removing LOWLY influential "
@@ -135,12 +143,14 @@ if __name__ == "__main__":
                                                                 "with Gradient Boosting")
     print(f"{sum(cmask_wo_lowinf_xgb):6d} / {len(cmask_wo_lowinf_xgb):6d}   CF INPUTS after removing LOWLY influential "
                                                                 "with Gradient Boosting")
-    print(f"{sum(pmask_wo_lowinf_xgb):6d} / {len(pmask_wo_lowinf_xgb):6d}  PARAMETERS after removing LOWLY influential "
-                                                                "with Gradient Boosting\n")
+
+    if INCLUDE_CORR:
+        print(f"\n{sum(pmask_wo_lowinf_xgb):6d} / {len(pmask_wo_lowinf_xgb):6d}  PARAMETERS after removing LOWLY "
+                                                                "influential with Gradient Boosting\n")
 
     # Validate results
     scores_wo_lowinf_xgb = run_mc_simulations_wo_lowinf_xgb(
-        PROJECT, FP_ECOINVENT, xgb_model_tag, ITERATIONS_VALIDATION, SEED, NUM_LOWINF_XGB
+        PROJECT, FP_ECOINVENT, xgb_model_tag, ITERATIONS_VALIDATION, SEED, NUM_LOWINF_XGB, INCLUDE_CORR
     )
     figure = plot_lcia_scores_from_two_cases(scores_all, scores_wo_lowinf_xgb, exiobase_offset)
     figure.write_image(
@@ -151,4 +161,6 @@ if __name__ == "__main__":
     # =========================================================================
     # 6. Factor prioritization with SHAP values
     # =========================================================================
-    compute_shap_values(PROJECT, xgb_model_tag, NUM_INF, ITERATIONS_SCREENING, SEED, NUM_LOWINF_LSA)
+    shap_values = compute_shap_values(xgb_model_tag, ITERATIONS_SCREENING, SEED, NUM_LOWINF_LSA, INCLUDE_CORR)
+
+    print()

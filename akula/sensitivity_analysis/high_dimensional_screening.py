@@ -17,6 +17,8 @@ from .remove_lowly_influential import get_tmask_wo_lowinf, get_bmask_wo_lowinf, 
 
 DATA_DIR = Path(__file__).parent.parent.parent.resolve() / "data" / "datapackages"
 GSA_DIR = Path(__file__).parent.parent.parent.resolve() / "data" / "sensitivity-analysis"
+GSA_DIR_CORR = GSA_DIR / "correlated"
+GSA_DIR_INDP = GSA_DIR / "independent"
 SCREENING_DIR = GSA_DIR / "high-dimensional-screening"
 SCREENING_DIR_CORR = SCREENING_DIR / "correlated"
 SCREENING_DIR_INDP = SCREENING_DIR / "independent"
@@ -24,7 +26,7 @@ SCREENING_DIR_CORR.mkdir(exist_ok=True, parents=True)
 SCREENING_DIR_INDP.mkdir(exist_ok=True, parents=True)
 
 MC_BATCH_SIZE = 5_000
-N_BATCH_CONST = 2000
+N_BATCH_CONST = 2_000
 
 
 def get_lca_stochastic(project, seed):
@@ -129,7 +131,7 @@ def create_tech_bio_cf_datapackages(project, factor, cutoff, max_calc, iteration
 
 
 def get_datapackages_screening(
-        project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf, correlations=True
+        project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf, correlations
 ):
     """Create all datapackages for high-dimensional screening."""
     dp_base = create_tech_bio_cf_datapackages(project, factor, cutoff, max_calc, iterations, seed, num_lowinf)
@@ -141,7 +143,7 @@ def get_datapackages_screening(
 
 
 def compute_consumption_lcia_screening(
-        project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf, correlations=True
+        project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf, correlations
 ):
 
     bd.projects.set_current(project)
@@ -183,7 +185,7 @@ def get_random_seeds(iterations, seed):
 
 
 def run_mc_simulations_screening(
-        project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf, correlations=True,
+        project, fp_ecoinvent, factor, cutoff, max_calc, iterations, seed, num_lowinf, correlations,
 ):
     """Run Monte Carlo simulations for high-dimensional screening."""
     directory = SCREENING_DIR_CORR if correlations else SCREENING_DIR_INDP
@@ -218,7 +220,7 @@ def run_mc_simulations_screening(
     return scores
 
 
-def get_y_scores(iterations, seed, num_lowinf, correlations=True):
+def get_y_scores(iterations, seed, num_lowinf, correlations):
     directory = SCREENING_DIR_CORR if correlations else SCREENING_DIR_INDP
     fp = directory / f"scores.without_lowinf.{num_lowinf}.{seed}.{iterations}.pickle"
     scores = np.array(read_pickle(fp))
@@ -291,18 +293,14 @@ def get_x_data_markets(iterations, seed):
     return data, indices
 
 
-def get_x_data(iterations, seed, correlations=True):
-    """Read input data from datapackages and return indices and data."""
+def get_x_data_independent(iterations, seed):
 
     starts, n_batches, seeds = get_random_seeds(iterations, seed)
 
     data_technosphere = []
     data_biosphere = []
     data_characterization = []
-    data_parameterization = []
-    data_combustion = []
-    data_entsoe = []
-    data_markets = []
+    tech_indices, bio_indices, cf_indices = None, None, None
 
     for i in range(n_batches):
         current_iterations = MC_BATCH_SIZE if i < n_batches - 1 else iterations - starts[i]
@@ -313,22 +311,63 @@ def get_x_data(iterations, seed, correlations=True):
         tech_data, tech_indices = get_x_data_technosphere(current_iterations, seeds[i])
         bio_data, bio_indices = get_x_data_biosphere(current_iterations, seeds[i])
         cf_data, cf_indices = get_x_data_characterization(current_iterations, seeds[i])
+
+        data_technosphere.append(tech_data)
+        data_biosphere.append(bio_data)
+        data_characterization.append(cf_data)
+
+    data_technosphere = np.hstack(data_technosphere)
+    data_biosphere = np.hstack(data_biosphere)
+    data_characterization = np.hstack(data_characterization)
+
+    data = np.vstack([
+        data_technosphere,
+        data_biosphere,
+        data_characterization,
+    ])
+
+    indices = {
+        "technosphere": tech_indices,
+        "biosphere": bio_indices,
+        "characterization": cf_indices,
+    }
+
+    return data, indices
+
+
+def get_x_data_correlated(iterations, seed):
+
+    data_indp, indices_indp = get_x_data_independent(iterations, seed)
+
+    data_technosphere, tech_indices = data_indp["technosphere"], indices_indp["technosphere"]
+    data_biosphere, bio_indices = data_indp["biosphere"], indices_indp["biosphere"]
+    data_characterization, cf_indices = data_indp["characterization"], indices_indp["characterization"]
+
+    starts, n_batches, seeds = get_random_seeds(iterations, seed)
+
+    data_parameterization = []
+    data_combustion = []
+    data_entsoe = []
+    data_markets = []
+    ptech_indices, pbio_indices, pindices = None, None, None
+    ctech_indices, cbio_indices, etech_indices, mtech_indices = None, None, None, None
+
+    for i in range(n_batches):
+        current_iterations = MC_BATCH_SIZE if i < n_batches - 1 else iterations - starts[i]
+
+        # if i < 5:
+        #     continue
+
         pdata, pindices, ptech_indices, pbio_indices = get_x_data_parameterization(current_iterations, seeds[i])
         ctech_data, ctech_indices, cbio_indices = get_x_data_combustion(current_iterations, seeds[i])
         etech_data, etech_indices = get_x_data_entsoe(current_iterations, seeds[i])
         mtech_data, mtech_indices = get_x_data_markets(current_iterations, seeds[i])
 
-        data_technosphere.append(tech_data)
-        data_biosphere.append(bio_data)
-        data_characterization.append(cf_data)
         data_parameterization.append(pdata)
         data_combustion.append(ctech_data)
         data_entsoe.append(etech_data)
         data_markets.append(mtech_data)
 
-    data_technosphere = np.hstack(data_technosphere)
-    data_biosphere = np.hstack(data_biosphere)
-    data_characterization = np.hstack(data_characterization)
     data_parameterization = np.hstack(data_parameterization)
     data_combustion = np.hstack(data_combustion)
     data_entsoe = np.hstack(data_entsoe)
@@ -357,6 +396,7 @@ def get_x_data(iterations, seed, correlations=True):
         data_characterization,
         data_parameterization
     ])
+
     tech_indices = np.hstack([tech_indices[tech_mask], ctech_indices, etech_indices, mtech_indices],
                              dtype=bwp.INDICES_DTYPE)
     bio_indices = bio_indices[bio_mask]
@@ -370,15 +410,24 @@ def get_x_data(iterations, seed, correlations=True):
     return data, indices
 
 
-def train_xgboost_model(tag, iterations, seed, num_lowinf, test_size=0.2):
+def get_x_data(iterations, seed, correlations):
+    """Read input data from datapackages and return indices and data."""
+    if correlations:
+        return get_x_data_correlated(iterations, seed)
+    else:
+        return get_x_data_independent(iterations, seed)
+
+
+def train_xgboost_model(tag, iterations, seed, num_lowinf, correlations, test_size=0.2):
     """Train gradient boosted tree regressor."""
 
-    fp = SCREENING_DIR_CORR / f"xgboost_model.{tag}.pickle"
+    directory = SCREENING_DIR_CORR if correlations else SCREENING_DIR_INDP
+    fp = directory / f"xgboost_model.{tag}.pickle"
 
     # Read X and Y data
-    X, _ = get_x_data(iterations, seed)
+    X, _ = get_x_data(iterations, seed, correlations)
     X = X.T
-    Y = get_y_scores(iterations, seed, num_lowinf)
+    Y = get_y_scores(iterations, seed, num_lowinf, correlations)
     X_train, X_test, Y_train, Y_test = train_test_split(
         X, Y, test_size=test_size, random_state=seed, shuffle=False,
     )
@@ -395,7 +444,7 @@ def train_xgboost_model(tag, iterations, seed, num_lowinf, test_size=0.2):
 
     else:
         # Define the model
-        fp_params = SCREENING_DIR_CORR / f"xgboost_model.{tag}.params.json"
+        fp_params = directory / f"xgboost_model.{tag}.params.json"
         params = dict(
             base_score=np.mean(Y_train),  # the initial prediction score of all instances, global bias
             n_estimators=1000,             # number of gradient boosted trees
@@ -436,6 +485,7 @@ def train_xgboost_model(tag, iterations, seed, num_lowinf, test_size=0.2):
     R2_test = r2_score(Y_test, y_prediction_test)
     explained_variance_train = explained_variance_score(Y_train, y_prediction_train)
     explained_variance_test = explained_variance_score(Y_test, y_prediction_test)
+
     print("\n===================")
     print(f"Training --> R2: {R2_train}, explained variance: {explained_variance_train}")
     print(f"Testing  --> R2: {R2_test}, explained variance: {explained_variance_test}")
@@ -444,14 +494,14 @@ def train_xgboost_model(tag, iterations, seed, num_lowinf, test_size=0.2):
     return model
 
 
-def get_influential_indices(dict_inf, num_inf, iterations, seed):
+def get_influential_indices(dict_inf, num_inf, iterations, seed, correlations):
     # Determine top `num_lowinf_xgb` influential model inputs
     dict_inf = {int(key[1:]): value for key, value in dict_inf.items()}
     list_inf = sorted(dict_inf.items(), key=lambda item: item[1], reverse=True)[:num_inf]
     where_inf = np.array([element[0] for element in list_inf])
 
     # Attribute influential inputs to correct input types
-    _, indices = get_x_data(iterations, seed)
+    _, indices = get_x_data(iterations, seed, correlations)
     start = 0
     indices_inf = dict()
     for key, inds in indices.items():
@@ -464,13 +514,19 @@ def get_influential_indices(dict_inf, num_inf, iterations, seed):
     return indices_inf
 
 
-def get_inds_wo_lowinf_xgb(tag, iterations, seed, num_lowinf_xgb):
+def get_inds_wo_lowinf_xgb(tag, iterations, seed, num_lowinf_xgb, correlations):
 
-    fp_inds_tech = GSA_DIR_CORR / f"indices.tech.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
-    fp_inds_bio = GSA_DIR_CORR / f"indices.bio.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
-    fp_inds_cf = GSA_DIR_CORR / f"indices.cf.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
-    fp_inds_param = GSA_DIR_CORR / f"indices.param.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
-    fp_inds = [fp_inds_tech, fp_inds_bio, fp_inds_cf, fp_inds_param]
+    gsa_directory = GSA_DIR_CORR if correlations else GSA_DIR_INDP
+    screening_directory = SCREENING_DIR_CORR if correlations else SCREENING_DIR_INDP
+
+    fp_inds_tech = gsa_directory / f"indices.tech.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_inds_bio = gsa_directory / f"indices.bio.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_inds_cf = gsa_directory / f"indices.cf.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_inds = [fp_inds_tech, fp_inds_bio, fp_inds_cf]
+
+    if correlations:
+        fp_inds_param = gsa_directory / f"indices.param.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+        fp_inds.append(fp_inds_param)
 
     inds_exist = [fp.exists() for fp in fp_inds]
 
@@ -478,37 +534,48 @@ def get_inds_wo_lowinf_xgb(tag, iterations, seed, num_lowinf_xgb):
         tindices = read_pickle(fp_inds_tech)
         bindices = read_pickle(fp_inds_bio)
         cindices = read_pickle(fp_inds_cf)
-        pindices = read_pickle(fp_inds_param)
+        if correlations:
+            pindices = read_pickle(fp_inds_param)
 
     else:
         # Load XGBoost model
-        fp = SCREENING_DIR_CORR / f"xgboost_model.{tag}.pickle"
+        fp = screening_directory / f"xgboost_model.{tag}.pickle"
         model = xgb.Booster()
         model.load_model(fp)
         dict_inf = model.get_score(importance_type="total_gain")
 
-        indices_inf = get_influential_indices(dict_inf, num_lowinf_xgb, iterations, seed)
+        indices_inf = get_influential_indices(dict_inf, num_lowinf_xgb, iterations, seed, correlations)
 
         tindices = indices_inf["technosphere"]
         bindices = indices_inf["biosphere"]
         cindices = indices_inf["characterization"]
-        pindices = indices_inf["parameterization"]
 
         write_pickle(tindices, fp_inds_tech)
         write_pickle(bindices, fp_inds_bio)
         write_pickle(cindices, fp_inds_cf)
-        write_pickle(pindices, fp_inds_param)
+
+        if correlations:
+            pindices = indices_inf["parameterization"]
+            write_pickle(pindices, fp_inds_param)
+        else:
+            pindices = None
 
     return tindices, bindices, cindices, pindices
 
 
-def get_masks_wo_lowinf_xgb(project, tag, iterations_screening, iterations_validation, seed, num_lowinf_xgb):
+def get_masks_wo_lowinf_xgb(
+        project, tag, iterations_screening, iterations_validation, seed, num_lowinf_xgb, correlations
+):
 
-    fp_mask_tech = GSA_DIR_CORR / f"mask.tech.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
-    fp_mask_bio = GSA_DIR_CORR / f"mask.bio.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
-    fp_mask_cf = GSA_DIR_CORR / f"mask.cf.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
-    fp_mask_param = GSA_DIR_CORR / f"mask.param.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
-    fp_masks = [fp_mask_tech, fp_mask_bio, fp_mask_cf, fp_mask_param]
+    directory = GSA_DIR_CORR if correlations else GSA_DIR_INDP
+
+    fp_mask_tech = directory / f"mask.tech.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_mask_bio = directory / f"mask.bio.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_mask_cf = directory / f"mask.cf.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+    fp_masks = [fp_mask_tech, fp_mask_bio, fp_mask_cf]
+    if correlations:
+        fp_mask_param = directory / f"mask.param.without_lowinf.{num_lowinf_xgb}.xgb.model_{tag}.pickle"
+        fp_masks.append(fp_mask_param)
 
     masks_exist = [fp.exists() for fp in fp_masks]
 
@@ -516,18 +583,17 @@ def get_masks_wo_lowinf_xgb(project, tag, iterations_screening, iterations_valid
         tmask_wo_lowinf = read_pickle(fp_mask_tech)
         bmask_wo_lowinf = read_pickle(fp_mask_bio)
         cmask_wo_lowinf = read_pickle(fp_mask_cf)
-        pmask_wo_lowinf = read_pickle(fp_mask_param)
+        pmask_wo_lowinf = read_pickle(fp_mask_param) if correlations else None
 
     else:
         tindices_wo_lowinf, bindices_wo_lowinf, cindices_wo_lowinf, pindices_wo_lowinf = get_inds_wo_lowinf_xgb(
-            tag, iterations_screening, seed, num_lowinf_xgb
+            tag, iterations_screening, seed, num_lowinf_xgb, correlations
         )
 
         # Derive masks
         tmask_wo_lowinf = get_tmask_wo_lowinf(project, tindices_wo_lowinf)
         bmask_wo_lowinf = get_bmask_wo_lowinf(project, bindices_wo_lowinf)
         cmask_wo_lowinf = get_cmask_wo_lowinf(project, cindices_wo_lowinf)
-        pmask_wo_lowinf = get_pmask_wo_lowinf(iterations_validation, seed, pindices_wo_lowinf)
 
         # assert (tmask_wo_lowinf.sum() + bmask_wo_lowinf.sum() + cmask_wo_lowinf.sum() + pmask_wo_lowinf.sum() ==
         #         num_lowinf_xgb)
@@ -535,6 +601,11 @@ def get_masks_wo_lowinf_xgb(project, tag, iterations_screening, iterations_valid
         write_pickle(tmask_wo_lowinf, fp_mask_tech)
         write_pickle(bmask_wo_lowinf, fp_mask_bio)
         write_pickle(cmask_wo_lowinf, fp_mask_cf)
-        write_pickle(pmask_wo_lowinf, fp_mask_param)
+
+        if correlations:
+            pmask_wo_lowinf = get_pmask_wo_lowinf(iterations_validation, seed, pindices_wo_lowinf)
+            write_pickle(pmask_wo_lowinf, fp_mask_param)
+        else:
+            pmask_wo_lowinf = None
 
     return tmask_wo_lowinf, bmask_wo_lowinf, cmask_wo_lowinf, pmask_wo_lowinf
