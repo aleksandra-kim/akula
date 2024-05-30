@@ -1,9 +1,13 @@
 import numpy as np
+import pandas as pd
 import xgboost as xgb
 import shap
 from pathlib import Path
 import bw2data as bd
 from sklearn.model_selection import train_test_split
+from scipy.special import softmax
+import country_converter as coco
+import logging
 
 from ..utils import read_pickle, write_pickle
 from .high_dimensional_screening import get_x_data, get_y_scores
@@ -14,6 +18,24 @@ GSA_DIR_INDP = GSA_DIR / "independent"
 SCREENING_DIR = GSA_DIR / "high-dimensional-screening"
 SCREENING_DIR_CORR = SCREENING_DIR / "correlated"
 SCREENING_DIR_INDP = SCREENING_DIR / "independent"
+
+LOCATIONS_ECOINVENT = {
+    "GLO": "Global",
+    "RER": "Europe",
+    "RoW": "Rest of the world",
+    "RNA": "Northern America",
+    "RAS": "Asia",
+    "US-RFC": "United States, Reliability First Corporation",
+    "US-MRO": "United States, Midwest Reliability Organization",
+    "US-WECC": "United States, Western Electricity Coordinating Council",
+    "US-SERC": "United States, SERC Reliability Corporation",
+    "CN-SGCC": "China, State Grid Corporation of China",
+    "CN-HE": "China, Henan",
+    "CN-SX": "China, Shanxi",
+    "RER w/o DE+NL+RU": "Europe without Germany, Netherlands, Russia",
+    "IN-Western grid": "India, Western grid",
+    "CA-QC": "Canada, Quebec"
+}
 
 
 def compute_shap_values(tag, iterations, seed, num_lowinf_lsa, correlations, test_size=0.2):
@@ -55,31 +77,124 @@ def plot_shap_values(shap_values):
     shap.plots.beeswarm(shap_values)
 
 
-def get_ranked_list(project, tag, iterations, seed, num_lowinf_lsa, correlations):
+def get_feature_importances_shap_values(shap_values, features, num_inf):
+    """
+    Prints the feature importances based on SHAP values in an ordered way
+    shap_values -> The SHAP values calculated from a shap.Explainer object
+    features -> The name of the features, on the order presented to the explainer.
+    Link: https://towardsdatascience.com/using-shap-values-to-explain-how-your-machine-learning-model-works-732b3f40e137
+    """
+    # Calculates the feature importance (mean absolute shap value) for each feature
+    importances = np.mean(np.abs(shap_values.values), axis=0)
+    # Calculates the normalized version
+    importances_norm = softmax(importances)
+    # Organize the importances and columns in a dictionary
+    feature_importances_norm = {feature: importance for importance, feature in zip(importances_norm, features)}
+    # Sorts the dictionary
+    feature_importances_norm = {
+        feature: importance for feature, importance in
+        sorted(feature_importances_norm.items(), key=lambda item: item[1], reverse=True)[:num_inf]
+    }
+    return feature_importances_norm
 
-    shap_values = compute_shap_values(tag, iterations, seed, num_lowinf_lsa, correlations)
 
-    bd.projects.set_current(project)
+def get_influential_shapley(dict_inf, num_inf, iterations, seed, correlations):
+    list_inf = sorted(dict_inf.items(), key=lambda item: item[1], reverse=True)[:num_inf]
+    where_inf = np.array([element[0] for element in list_inf])
 
-    ranking = []
+    # Attribute influential inputs to correct input types
+    _, indices = get_x_data(iterations, seed, correlations)
+    start = 0
+    indices_inf = dict()
+    for key, inds in indices.items():
+        size = len(inds)
+        mask = np.logical_and(where_inf >= start, where_inf < start + size)
+        where = where_inf[mask] - start
+        list_ = list()
+        for element in where:
+            ind = inds[element]
+            list_.append((ind[0], ind[1], dict_inf[element+start]))
+        indices_inf[key] = list_
+        start += size
+
+    return indices_inf
+
+
+def get_ranked_list(project, tag, iterations, seed, num_lowinf_lsa, num_inf, correlations):
+
+    directory = GSA_DIR_CORR if correlations else GSA_DIR_INDP
+    fp = directory / f"ranking.model_{tag}.{num_inf}.{seed}.{iterations}.csv"
+
+    if fp.exists():
+        ranking = pd.read_csv(fp)
+
+    else:
+        logging.disable(logging.CRITICAL)
+
+        # Compute feature importance values
+        shap_values = compute_shap_values(tag, iterations, seed, num_lowinf_lsa, correlations)
+        features = np.arange(num_lowinf_lsa)
+        feature_importances = get_feature_importances_shap_values(shap_values, features, num_inf)
+
+        # Get top `num_inf` features with highest shapley value scores
+        top_features = get_influential_shapley(feature_importances, num_inf, iterations, seed, correlations)
+
+        # Assign top feature indices to LCA inputs and save it in a dataframe `ranking`
+        bd.projects.set_current(project)
+
+        list_ = list()
+        id_ = 1
+        for key, inds in top_features.items():
+            for ind in inds:
+                input_ = bd.get_activity(ind[0])
+                output = bd.get_activity(ind[1])
+                if key != "characterization":
+                    dict1 = {
+                        "Rank": "",
+                        "ID": id_,
+                        "Type": "",
+                        "Link": "to",
+                        "Name": output['name'],
+                        "Reference product": output.get('reference product', ""),
+                        "Location": output.get('location', ""),
+                        "Categories": input_.get("categories", ""),
+                        "Sensitivity index": ind[2],
+                    }
+                    list_.append(dict1)
+                    id_ += 1
+                dict2 = {
+                    "ID": id_,
+                    "Type": key,
+                    "Link": "from",
+                    "Name": input_['name'],
+                    "Reference product": input_.get('reference product', ""),
+                    "Location": input_.get("location", ""),
+                    "Categories": input_.get("categories", ""),
+                    "Sensitivity index": ind[2],
+                }
+                list_.append(dict2)
+                id_ += 1
+
+        ranking = pd.DataFrame.from_records(list_)
+        ranking.sort_values(inplace=True, by=["Sensitivity index", "ID"], ascending=False)
+
+        # Polish data in the dataframe for the sake of readability
+        ranking["Rank"] = ""
+        rank = 1
+        for i, row in ranking.iterrows():
+            if len(row["Type"]) > 0:
+                ranking.at[i, "Rank"] = int(rank)
+                ranking.at[i, "Sensitivity index"] = f"{row['Sensitivity index']:5.4e}"
+                rank += 1
+            else:
+                ranking.at[i, "Sensitivity index"] = ""
+
+            location = coco.convert(row["Location"], to="name_short", not_found=row["Location"])
+            ranking.at[i, "Location"] = LOCATIONS_ECOINVENT.get(location, location)
+
+        ranking.reset_index(inplace=True)
+        ranking = ranking[["Rank", "Type", "Link", "Name", "Location", "Categories", "Sensitivity index"]]
+
+        ranking.to_csv(fp)
 
     return ranking
-
-
-# def rank_inputs():
-#     return ranking
-#
-#
-# def print_ranking(shap_values, num_inf, iterations, seed):
-#     ranking = rank_inputs(shap_values, num_inf, iterations, seed)
-#     where = np.argsort(shap_values)[:num_inf]
-#     print(shap_values[where])
-
-    #
-    # for key, inds in indices.items():
-    #     if key == "characterization":
-    #         for ind in inds:
-    #             input_ = bd.get_activity(ind[0])
-    #             output = bd.get_activity(ind[0])
-    #             print(f"FROM {input_['name']}, {input_.get('location', None)}")
-    #             print(f"TO   {output['name']}, {output.get('location', None)}\n")

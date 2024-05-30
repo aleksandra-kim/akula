@@ -16,7 +16,7 @@ from akula.sensitivity_analysis import (
     run_mc_simulations_wo_lowinf_xgb,
     run_mc_simulations_screening,
     train_xgboost_model,
-    compute_shap_values,
+    get_ranked_list,
 )
 from akula.utils import compute_deterministic_score
 from akula.monte_carlo import plot_lcia_scores_from_two_cases
@@ -35,19 +35,19 @@ CUTOFF = 1e-7
 MAX_CALC = 1e18
 FACTOR = 10
 ITERATIONS_VALIDATION = 2_000
-ITERATIONS_SCREENING = 10_000
+ITERATIONS_SCREENING = 15_000
 
 INCLUDE_CORR = False
 if INCLUDE_CORR:
     FIGURES_DIR = PROJECT_DIR / "figures" / "correlated"
     NUM_LOWINF_LSA = 25_000
-    NUM_LOWINF_XGB = 3_000
-    NUM_INF = 200
+    NUM_LOWINF_XGB = 2_000
+    NUM_INF = 50
     xgb_model_tag = "2"
 else:
     FIGURES_DIR = PROJECT_DIR / "figures" / "independent"
     NUM_LOWINF_LSA = 25_000
-    NUM_LOWINF_XGB = 3_000
+    NUM_LOWINF_XGB = 2_000
     NUM_INF = 200
     xgb_model_tag = "0"
 
@@ -159,8 +159,6 @@ if __name__ == "__main__":
     )
 
     # =========================================================================
-    # 6. Factor prioritization with SHAP values
+    # 6. Ranking of LCA model inputs with SHAP values
     # =========================================================================
-    shap_values = compute_shap_values(xgb_model_tag, ITERATIONS_SCREENING, SEED, NUM_LOWINF_LSA, INCLUDE_CORR)
-
-    print()
+    ranking = get_ranked_list(PROJECT, xgb_model_tag, ITERATIONS_SCREENING, SEED, NUM_LOWINF_LSA, NUM_INF, INCLUDE_CORR)

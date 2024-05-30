@@ -14,4 +14,4 @@ from .high_dimensional_screening import (
     train_xgboost_model,
     get_masks_wo_lowinf_xgb,
 )
-from .ranking import compute_shap_values
+from .ranking import get_ranked_list

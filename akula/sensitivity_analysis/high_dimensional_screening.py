@@ -496,7 +496,10 @@ def train_xgboost_model(tag, iterations, seed, num_lowinf, correlations, test_si
 
 def get_influential_indices(dict_inf, num_inf, iterations, seed, correlations):
     # Determine top `num_lowinf_xgb` influential model inputs
-    dict_inf = {int(key[1:]): value for key, value in dict_inf.items()}
+    try:
+        dict_inf = {int(key[1:]): value for key, value in dict_inf.items()}
+    except IndexError:
+        pass
     list_inf = sorted(dict_inf.items(), key=lambda item: item[1], reverse=True)[:num_inf]
     where_inf = np.array([element[0] for element in list_inf])
 
