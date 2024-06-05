@@ -9,7 +9,7 @@ from scipy.special import softmax
 import country_converter as coco
 import logging
 
-from ..utils import read_pickle, write_pickle
+from ..utils import read_pickle, write_pickle, get_locations_ecoinvent
 from .high_dimensional_screening import get_x_data, get_y_scores
 
 GSA_DIR = Path(__file__).parent.parent.parent.resolve() / "data" / "sensitivity-analysis"
@@ -18,24 +18,6 @@ GSA_DIR_INDP = GSA_DIR / "independent"
 SCREENING_DIR = GSA_DIR / "high-dimensional-screening"
 SCREENING_DIR_CORR = SCREENING_DIR / "correlated"
 SCREENING_DIR_INDP = SCREENING_DIR / "independent"
-
-LOCATIONS_ECOINVENT = {
-    "GLO": "Global",
-    "RER": "Europe",
-    "RoW": "Rest of the world",
-    "RNA": "Northern America",
-    "RAS": "Asia",
-    "US-RFC": "United States, Reliability First Corporation",
-    "US-MRO": "United States, Midwest Reliability Organization",
-    "US-WECC": "United States, Western Electricity Coordinating Council",
-    "US-SERC": "United States, SERC Reliability Corporation",
-    "CN-SGCC": "China, State Grid Corporation of China",
-    "CN-HE": "China, Henan",
-    "CN-SX": "China, Shanxi",
-    "RER w/o DE+NL+RU": "Europe without Germany, Netherlands, Russia",
-    "IN-Western grid": "India, Western grid",
-    "CA-QC": "Canada, Quebec"
-}
 
 
 def compute_shap_values(tag, iterations, seed, num_lowinf_lsa, correlations, test_size=0.2):
@@ -130,6 +112,7 @@ def get_ranked_list(project, tag, iterations, seed, num_lowinf_lsa, num_inf, cor
 
     else:
         logging.disable(logging.CRITICAL)
+        locations = get_locations_ecoinvent()
 
         # Compute feature importance values
         shap_values = compute_shap_values(tag, iterations, seed, num_lowinf_lsa, correlations)
@@ -190,11 +173,11 @@ def get_ranked_list(project, tag, iterations, seed, num_lowinf_lsa, num_inf, cor
                 ranking.at[i, "Sensitivity index"] = ""
 
             location = coco.convert(row["Location"], to="name_short", not_found=row["Location"])
-            ranking.at[i, "Location"] = LOCATIONS_ECOINVENT.get(location, location)
+            ranking.at[i, "Location"] = locations.get(location, location)
 
         ranking.reset_index(inplace=True)
         ranking = ranking[["Rank", "Type", "Link", "Name", "Location", "Categories", "Sensitivity index"]]
 
-        ranking.to_csv(fp)
+        ranking.to_csv(fp, index=False)
 
     return ranking

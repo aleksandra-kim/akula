@@ -27,8 +27,8 @@ FIGURES_DIR_ENTSOE = FIGURES_DIR / "dirichlet" / "entsoe"
 FIGURES_DIR_ENTSOE.mkdir(parents=True, exist_ok=True)
 
 entsoe = False
-markets = False
-denmark = True
+markets = True
+denmark = False
 
 if __name__ == "__main__":
     bd.projects.set_current(PROJECT)

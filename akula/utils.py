@@ -5,6 +5,10 @@ import bw_processing as bwp
 import pickle
 import stats_arrays as sa
 from copy import deepcopy
+import pandas as pd
+import country_converter as coco
+import logging
+from pathlib import Path
 
 COLOR_GRAY_HEX = "#b2bcc0"
 COLOR_DARKGRAY_HEX = "#485063"
@@ -21,6 +25,8 @@ LABELS_DICT = {
     "biosphere": 'ecoinvent_3.8_cutoff_biosphere_matrix',
     "characterization": 'IPCC_2013_climate_change_GWP_100a_uncertain_matrix_data',
 }
+
+DATA_DIR = Path(__file__).parent.parent.resolve() / "data"
 
 
 def get_consumption_activity():
@@ -168,6 +174,66 @@ def get_lca_score_shift(project, masks_dict, shift_median=True):
     return lca2.score - static_score
 
 
+def generate_csv_sampling_module_exchanges(dp, directory):
+
+    for name, dp_group in dp.groups.items():
+        fp = directory / f"{name}.csv"
+
+        if not fp.exists():
+            logging.disable(logging.CRITICAL)
+            locations = get_locations_ecoinvent()
+
+            indices = dp.get_resource(f"{name}.indices")[0]
+
+            list_ = list()
+            id_ = 1
+
+            for ind in indices:
+                input_ = bd.get_activity(ind[0])
+                output = bd.get_activity(ind[1])
+
+                input_location = coco.convert(input_.get("location", ""), to="name_short",
+                                              not_found=input_.get("location", ""))
+                dict1 = {
+                    "ID": id_,
+                    "Link": "from",
+                    "Name": input_['name'],
+                    "Reference product": input_.get('reference product', ""),
+                    "Location": locations.get(input_location, input_location),
+                    "Categories": input_.get("categories", ""),
+                }
+                list_.append(dict1)
+                id_ += 1
+
+                output_location = coco.convert(output.get("location", ""), to="name_short",
+                                               not_found=output.get("location", ""))
+                dict2 = {
+                    "ID": id_,
+                    "Link": "to",
+                    "Name": output['name'],
+                    "Reference product": output.get('reference product', ""),
+                    "Location": locations.get(output_location, output_location),
+                    "Categories": input_.get("categories", ""),
+                }
+                list_.append(dict2)
+                id_ += 1
+
+            df = pd.DataFrame.from_records(list_)
+            df.sort_values(inplace=True, by=["ID"], ascending=True)
+
+            df['ID'] = df['ID'].apply(lambda x: x//2+1 if x % 2 else "")
+
+            df.to_csv(fp, index=False)
+
+
+def get_locations_ecoinvent():
+    fp = DATA_DIR / "ecoinvent" / "Database-Overview-for-ecoinvent-v3.10_29.04.24.xlsx"
+    df = pd.read_excel(fp, sheet_name="Geographies", usecols=["Shortname", "Name"])
+    df.set_index("Shortname", inplace=True)
+    locations = df.to_dict()["Name"]
+    return locations
+
+
 def write_pickle(data, filepath):
     """Write ``data`` to a file with .pickle extension"""
     with open(filepath, "wb") as f:
@@ -214,67 +280,3 @@ def update_fig_axes(fig):
         plot_bgcolor="rgba(255,255,255,1)",
     )
     return fig
-
-
-# def setup_bw_project(years="151617"):
-#     project = "GSA for correlations"
-#     bd.projects.set_current(project)
-#
-#     co = bd.Database('swiss consumption 1.0')
-#     fu = [act for act in co if f"ch hh average consumption aggregated, years {years}" == act['name']][0]
-#     demand = {fu: 1}
-#     method = ("IPCC 2013", "climate change", "GWP 100a", "uncertain")
-#
-#     lca = bc.LCA(demand=demand, method=method, use_distributions=False)
-#     lca.lci()
-#     lca.lcia()
-#
-#     return lca
-
-
-# def create_static_datapackage(name, indices_tech=None, data_tech=None, flip_tech=None, indices_bio=None, data_bio=None):
-#
-#     dp = bwp.create_datapackage(
-#         name=f"validation.{name}.static",
-#         seed=42,
-#     )
-#
-#     if indices_tech is not None:
-#         dp.add_persistent_vector(
-#             matrix="technosphere_matrix",
-#             data_array=data_tech,
-#             # Resource group name that will show up in provenance
-#             name=f"{name}-tech",
-#             indices_array=indices_tech,
-#             flip_array=flip_tech,
-#         )
-#
-#     if indices_bio is not None:
-#         dp.add_persistent_vector(
-#             matrix="biosphere_matrix",
-#             data_array=data_bio,
-#             # Resource group name that will show up in provenance (?)
-#             name=f"{name}-bio",
-#             indices_array=indices_bio,
-#         )
-#
-#     return dp
-#
-#
-# def pop_indices_from_dict(indices, dict_):
-#     count = 0
-#     for key in indices:
-#         try:
-#             dict_.pop(tuple(key))
-#             count += 1
-#         except KeyError:
-#             pass
-#     # print(f"Removed {count:4d} elements from dictionary")
-
-
-# def get_mask_wrt_dp(indices_all, indices_dp, mask_screening):
-#     """Get screening mask wrt indices of a datapackage."""
-#     mask_dp_and_screening_wrt_all = get_mask(indices_all, indices_dp) & mask_screening
-#     indices_dp_and_screening = indices_all[mask_dp_and_screening_wrt_all]
-#     mask_screening_wrt_dp = get_mask(indices_dp, indices_dp_and_screening)
-#     return mask_screening_wrt_dp

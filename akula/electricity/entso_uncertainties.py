@@ -392,7 +392,7 @@ def plot_entsoe_ecoinvent(project, Y_ecoinvent, Y_entso):
     fig = update_fig_axes(fig)
 
     fig.update_xaxes(title_text=r"$\text{LCIA scores, [kg CO}_2\text{-eq.]}$")
-    fig.update_yaxes(title_text=r"$\text{Probability}$")
+    fig.update_yaxes(title_text=r"$\text{Frequency}$")
     fig.layout.yaxis2.update({"title": ""})
 
     fig.update_layout(

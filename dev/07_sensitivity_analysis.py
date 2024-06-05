@@ -21,6 +21,7 @@ from akula.sensitivity_analysis import (
 from akula.utils import compute_deterministic_score
 from akula.monte_carlo import plot_lcia_scores_from_two_cases
 
+
 PROJECT = "GSA with correlations"
 PROJECT_EXIOBASE = "GSA with correlations, exiobase"
 FP_ECOINVENT = "/home/aleksandrakim/LCAfiles/ecoinvent_38_cutoff/datasets"
@@ -35,21 +36,21 @@ CUTOFF = 1e-7
 MAX_CALC = 1e18
 FACTOR = 10
 ITERATIONS_VALIDATION = 2_000
-ITERATIONS_SCREENING = 15_000
+ITERATIONS_SCREENING = 20_000
 
 INCLUDE_CORR = False
 if INCLUDE_CORR:
     FIGURES_DIR = PROJECT_DIR / "figures" / "correlated"
     NUM_LOWINF_LSA = 25_000
     NUM_LOWINF_XGB = 2_000
-    NUM_INF = 50
+    NUM_INF = 200
     xgb_model_tag = "2"
 else:
     FIGURES_DIR = PROJECT_DIR / "figures" / "independent"
     NUM_LOWINF_LSA = 25_000
     NUM_LOWINF_XGB = 2_000
     NUM_INF = 200
-    xgb_model_tag = "0"
+    xgb_model_tag = "2"
 
 FIGURES_DIR.mkdir(exist_ok=True, parents=True)
 
@@ -145,7 +146,7 @@ if __name__ == "__main__":
                                                                 "with Gradient Boosting")
 
     if INCLUDE_CORR:
-        print(f"\n{sum(pmask_wo_lowinf_xgb):6d} / {len(pmask_wo_lowinf_xgb):6d}  PARAMETERS after removing LOWLY "
+        print(f"{sum(pmask_wo_lowinf_xgb):6d} / {len(pmask_wo_lowinf_xgb):6d}  PARAMETERS after removing LOWLY "
                                                                 "influential with Gradient Boosting\n")
 
     # Validate results

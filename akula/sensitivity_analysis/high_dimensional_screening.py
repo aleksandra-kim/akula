@@ -338,10 +338,12 @@ def get_x_data_independent(iterations, seed):
 def get_x_data_correlated(iterations, seed):
 
     data_indp, indices_indp = get_x_data_independent(iterations, seed)
+    len_tech = len(indices_indp["technosphere"])
+    len_bio = len(indices_indp["biosphere"])
 
-    data_technosphere, tech_indices = data_indp["technosphere"], indices_indp["technosphere"]
-    data_biosphere, bio_indices = data_indp["biosphere"], indices_indp["biosphere"]
-    data_characterization, cf_indices = data_indp["characterization"], indices_indp["characterization"]
+    data_technosphere, tech_indices = data_indp[:len_tech, :], indices_indp["technosphere"]
+    data_biosphere, bio_indices = data_indp[len_tech:len_tech+len_bio], indices_indp["biosphere"]
+    data_characterization, cf_indices = data_indp[len_tech+len_bio:], indices_indp["characterization"]
 
     starts, n_batches, seeds = get_random_seeds(iterations, seed)
 
@@ -447,23 +449,23 @@ def train_xgboost_model(tag, iterations, seed, num_lowinf, correlations, test_si
         fp_params = directory / f"xgboost_model.{tag}.params.json"
         params = dict(
             base_score=np.mean(Y_train),  # the initial prediction score of all instances, global bias
-            n_estimators=1000,             # number of gradient boosted trees
+            n_estimators=600,             # number of gradient boosted trees
             max_depth=4,                  # maximum tree depth for base learners
             learning_rate=0.15,           # boosting learning rate, xgb's `eta`
             verbosity=3,                  # degree of verbosity, valid values are 0 (silent) - 3 (debug)
             # booster='gbtree',           # specify which booster to use: gbtree, gblinear or dart
             gamma=0,                      # minimum loss reduction to make further partition on a leaf node of the tree
-            subsample=0.5,                # subsample ratio of the training instance
-            colsample_bytree=0.1,           # subsample ratio of columns when constructing each tree
-            reg_alpha=0.2,                  # L1 regularization term on weights (xgb’s alpha)
-            reg_lambda=0.5,                 # L2 regularization term on weights (xgb’s lambda)
+            subsample=0.3,                # subsample ratio of the training instance
+            colsample_bytree=0.2,           # subsample ratio of columns when constructing each tree
+            reg_alpha=0,                  # L1 regularization term on weights (xgb’s alpha)
+            reg_lambda=0,                 # L2 regularization term on weights (xgb’s lambda)
             # importance_type="gain",     # for tree models: “gain”, “weight”, “cover”, “total_gain” or “total_cover”
             early_stopping_rounds=30,     # improve validation metric at least once in every early_stopping_rounds
             # eval_metric=["rmse"],
             random_state=seed,
             # tree_method="hist",
             objective='reg:squarederror',
-            min_child_weight=600,
+            min_child_weight=300,
         )
 
         # Write params into a json file
