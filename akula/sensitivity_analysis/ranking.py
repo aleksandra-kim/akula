@@ -122,6 +122,8 @@ def get_ranked_list(project, tag, iterations, seed, num_lowinf_lsa, num_inf, cor
         # Get top `num_inf` features with highest shapley value scores
         top_features = get_influential_shapley(feature_importances, num_inf, iterations, seed, correlations)
 
+        write_pickle(top_features, directory / f"ranking.indices.model_{tag}.{num_inf}.{seed}.{iterations}.pickle")
+
         # Assign top feature indices to LCA inputs and save it in a dataframe `ranking`
         bd.projects.set_current(project)
 

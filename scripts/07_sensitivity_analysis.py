@@ -19,7 +19,7 @@ from akula.sensitivity_analysis import (
     get_ranked_list,
 )
 from akula.utils import compute_deterministic_score
-from akula.monte_carlo import plot_lcia_scores_from_two_cases
+from akula.monte_carlo import plot_lcia_scores_from_two_cases, plot_lcia_scores_from_two_cases_partial
 
 
 PROJECT = "GSA with correlations"
@@ -36,21 +36,23 @@ CUTOFF = 1e-7
 MAX_CALC = 1e18
 FACTOR = 10
 ITERATIONS_VALIDATION = 2_000
-ITERATIONS_SCREENING = 25_000
 
-INCLUDE_CORR = True
+
+INCLUDE_CORR = False
 if INCLUDE_CORR:
     FIGURES_DIR = PROJECT_DIR / "figures" / "correlated"
     NUM_LOWINF_LSA = 25_000
     NUM_LOWINF_XGB = 2_000
     NUM_INF = 200
-    xgb_model_tag = "2"
+    ITERATIONS_SCREENING = 20_000
+    xgb_model_tag = "9"  # model 9 with 20k iterations gives good results
 else:
     FIGURES_DIR = PROJECT_DIR / "figures" / "independent"
     NUM_LOWINF_LSA = 25_000
     NUM_LOWINF_XGB = 2_000
     NUM_INF = 200
-    xgb_model_tag = "3"
+    ITERATIONS_SCREENING = 20_000
+    xgb_model_tag = "3"  # model 3 gives great results
 
 FIGURES_DIR.mkdir(exist_ok=True, parents=True)
 
@@ -97,6 +99,9 @@ if __name__ == "__main__":
     figure = plot_lcia_scores_from_two_cases(scores_all, scores_wo_noninf, exiobase_offset)
     figure.write_image(FIGURES_DIR / f"validation_noninf.{num_noninf}.{SEED}.{ITERATIONS_VALIDATION}.pdf")
 
+    figure = plot_lcia_scores_from_two_cases_partial(scores_all, scores_wo_noninf, exiobase_offset)
+    figure.write_image(FIGURES_DIR / f"paper.validation_noninf.{num_noninf}.{SEED}.{ITERATIONS_VALIDATION}.svg")
+
     # =========================================================================
     # 2. Remove LOWLY influential inputs with local sensitivity analysis
     # =========================================================================
@@ -120,6 +125,9 @@ if __name__ == "__main__":
     )
     figure = plot_lcia_scores_from_two_cases(scores_all, scores_wo_lowinf_lsa, exiobase_offset)
     figure.write_image(FIGURES_DIR / f"validation.wo_lowinf_lsa.{NUM_LOWINF_LSA}.{SEED}.{ITERATIONS_VALIDATION}.pdf")
+
+    figure = plot_lcia_scores_from_two_cases_partial(scores_all, scores_wo_lowinf_lsa, exiobase_offset)
+    figure.write_image(FIGURES_DIR / f"paper.validation.wo_lowinf_lsa.{NUM_LOWINF_LSA}.{SEED}.{ITERATIONS_VALIDATION}.svg")
 
     # =========================================================================
     # 3. Run MC for high dimensional screening
@@ -157,6 +165,12 @@ if __name__ == "__main__":
     figure.write_image(
         FIGURES_DIR /
         f"validation.wo_lowinf_xgb.model_{xgb_model_tag}.{NUM_LOWINF_XGB}.{SEED}.{ITERATIONS_VALIDATION}.pdf"
+    )
+
+    figure = plot_lcia_scores_from_two_cases_partial(scores_all, scores_wo_lowinf_xgb, exiobase_offset)
+    figure.write_image(
+        FIGURES_DIR /
+        f"paper.validation.wo_lowinf_xgb.model_{xgb_model_tag}.{NUM_LOWINF_XGB}.{SEED}.{ITERATIONS_VALIDATION}.svg"
     )
 
     # =========================================================================

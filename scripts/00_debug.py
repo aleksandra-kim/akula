@@ -2,6 +2,7 @@ import numpy as np
 from pathlib import Path
 import bw2data as bd
 import pandas as pd
+import bw_processing as bwp
 
 import os
 os.environ["ENTSOE_API_TOKEN"] = "0d6ea062-f603-43d3-bc60-176159803035"
@@ -21,12 +22,25 @@ seed = 222201
 
 FP_ECOINVENT = "/home/aleksandrakim/LCAfiles/ecoinvent_38_cutoff/datasets"
 PROJECT = "GSA with correlations"
-
+DATA_DIR = Path(__file__).parent.parent.resolve() / "data"
+GSA_DIR = DATA_DIR / "sensitivity-analysis"
+DP_DIR = DATA_DIR / "datapackages"
 
 if __name__ == "__main__":
     bd.projects.set_current(PROJECT)
     ei = bd.Database("ecoinvent 3.8. cutoff")
     bi = bd.Database("biosphere3")
+
+    rcorr = read_pickle(GSA_DIR / "correlated" / "ranking.indices.model_9.200.222201.20000.pickle")
+    rindp = read_pickle(GSA_DIR / "independent" / "ranking.indices.model_3.200.222201.20000.pickle")
+
+    bcorr, tcorr, ccorr = rcorr["biosphere"], rcorr["technosphere"], rcorr["characterization"]
+    bindp, tindp, cindp = rindp["biosphere"], rindp["technosphere"], rindp["characterization"]
+
+    tcorr = np.array([el[0:2] for el in tcorr], dtype=bwp.INDICES_DTYPE)
+    tindp = np.array([el[0:2] for el in tindp], dtype=bwp.INDICES_DTYPE)
+    bcorr = np.array([el[0:2] for el in bcorr], dtype=bwp.INDICES_DTYPE)
+    bindp = np.array([el[0:2] for el in bindp], dtype=bwp.INDICES_DTYPE)
 
     params, dp_parameterization = generate_parameterization_datapackage(
         FP_ECOINVENT, "parameterization", iterations, seed
@@ -35,16 +49,19 @@ if __name__ == "__main__":
     dp_entsoe = generate_entsoe_datapackage("entsoe", iterations, seed)
     dp_markets = generate_markets_datapackage("markets", iterations, seed)
 
-    # Compute feature importance values
-    num_lowinf_lsa = 25000
-    # tag = "2"
-    # correlations = True
-    # num_inf = 200
-    # shap_values = compute_shap_values(tag, iterations, seed, num_lowinf_lsa, correlations)
-    # features = np.arange(num_lowinf_lsa)
-    # feature_importances = get_feature_importances_shap_values(shap_values, features, num_inf)
-    #
-    # # Get top `num_inf` features with highest shapley value scores
-    # top_features = get_influential_shapley(feature_importances, num_inf, iterations, seed, correlations)
-    #
-    # print()
+    tparm = dp_parameterization.data[0]
+    bparm = dp_parameterization.data[3]
+    tcomb = dp_combustion.data[0]
+    bcomb = dp_combustion.data[3]
+    tents = dp_entsoe.data[0]
+    tmrkt = dp_markets.data[0]
+
+    t2000corr = read_pickle(GSA_DIR / "correlated" / "indices.tech.without_lowinf.2000.xgb.model_9.pickle")
+    b2000corr = read_pickle(GSA_DIR / "correlated" / "indices.bio.without_lowinf.2000.xgb.model_9.pickle")
+    c2000corr = read_pickle(GSA_DIR / "correlated" / "indices.cf.without_lowinf.2000.xgb.model_9.pickle")
+
+    t2000indp = read_pickle(GSA_DIR / "independent" / "indices.tech.without_lowinf.2000.xgb.model_3.pickle")
+    b2000indp = read_pickle(GSA_DIR / "independent" / "indices.bio.without_lowinf.2000.xgb.model_3.pickle")
+    c2000indp = read_pickle(GSA_DIR / "independent" / "indices.cf.without_lowinf.2000.xgb.model_3.pickle")
+
+    print()

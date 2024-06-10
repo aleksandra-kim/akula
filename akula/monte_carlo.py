@@ -97,3 +97,44 @@ def plot_lcia_scores_from_two_cases(Y0, YS, offset=0):
     fig.update_yaxes(range=[Ymin, Ymax], title_text=axis_text, title_standoff=5, row=1, col=2)
 
     return fig
+
+
+def plot_lcia_scores_from_two_cases_partial(Y0, YS, offset=0):
+
+    Y0 = np.array(Y0) + offset
+    YS = np.array(YS) + offset
+
+    axis_text = r"$\text{LCIA scores}$"
+
+    color2 = COLOR_DARKGRAY_HEX
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=Y0, y=YS, mode="markers", marker=dict(color=color2, line=dict(width=1, color="black")),
+                             showlegend=False, opacity=0.65))
+
+    fig = update_fig_axes(fig)
+
+    if offset > 0:
+        tickvals = [1700, 2000, 2300]
+        Ymin, Ymax = 1600, 2400
+    else:
+        tickvals = [1000, 1300, 1600]
+        Ymin, Ymax = 900, 1700
+
+    fig.update_layout(
+        width=200,
+        height=160,
+        xaxis=dict(tickmode="array", tickvals=tickvals),
+        yaxis=dict(tickmode="array", tickvals=tickvals),
+        margin=dict(l=0, r=0, t=0, b=0),
+    )
+
+    fig.update_xaxes(range=[Ymin, Ymax], title_text=axis_text, title_standoff=5, tickangle=0)
+    fig.update_yaxes(range=[Ymin, Ymax], title_text=axis_text, title_standoff=5)
+
+    fig.update_layout(
+        paper_bgcolor="rgba(255,255,255,0)",
+        plot_bgcolor="rgba(255,255,255,0)",
+    )
+
+    return fig
