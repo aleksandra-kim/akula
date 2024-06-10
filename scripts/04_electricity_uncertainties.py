@@ -29,9 +29,9 @@ if __name__ == "__main__":
     # Figure 1 in the paper
     figure = plot_entsoe_ecoinvent(PROJECT, results["ecoinvent"], results["entsoe"])
     figure.show()
-    figure.write_image(FIGURES_DIR / "ecoinvent_entsoe_uncertainties.pdf")
+    figure.write_image(FIGURES_DIR / "ecoinvent_entsoe_uncertainties.eps")
 
     # Figure 1 in the SI
     figure = plot_entsoe_seasonal(results)
     figure.show()
-    figure.write_image(FIGURES_DIR / "entsoe_seasonal_uncertainties.pdf")
+    figure.write_image(FIGURES_DIR / "entsoe_seasonal_uncertainties.eps")

@@ -10,7 +10,7 @@ from akula.markets import (
     generate_markets_datapackage,
     plot_dirichlet_samples,
     plot_dirichlet_entsoe_samples,
-    plot_denmark_markets,
+    plot_markets_validation,
 )
 from akula.electricity import generate_entsoe_datapackage
 
@@ -26,9 +26,13 @@ FIGURES_DIR_MARKETS.mkdir(parents=True, exist_ok=True)
 FIGURES_DIR_ENTSOE = FIGURES_DIR / "dirichlet" / "entsoe"
 FIGURES_DIR_ENTSOE.mkdir(parents=True, exist_ok=True)
 
+FIGURES_DIR_EUROPE = FIGURES_DIR / "europe"
+FIGURES_DIR_EUROPE.mkdir(parents=True, exist_ok=True)
+
 entsoe = False
-markets = True
+markets = False
 denmark = False
+europe = True
 
 if __name__ == "__main__":
     bd.projects.set_current(PROJECT)
@@ -75,5 +79,18 @@ if __name__ == "__main__":
         dp_entsoe = generate_entsoe_datapackage("entsoe", iterations, seed)
         dp_dirichlet = generate_markets_datapackage("markets-entsoe", iterations, seed,
                                                     for_entsoe=True, fit_lognormal=False)
-        figure = plot_denmark_markets(dp_entsoe, dp_dirichlet)
-        figure.write_image(FIGURES_DIR / "denmark.pdf")
+        figure = plot_markets_validation(dp_entsoe, dp_dirichlet, location="DK")
+        figure.write_image(FIGURES_DIR / "denmark.eps")
+
+    if europe:
+        dp_entsoe = generate_entsoe_datapackage("entsoe", iterations, seed)
+        dp_dirichlet = generate_markets_datapackage("markets-entsoe", iterations, seed,
+                                                    for_entsoe=True, fit_lognormal=False)
+        cols = list(set(dp_entsoe.data[0]['col']))
+        locations = sorted(set([bd.get_activity(col)["location"] for col in cols]))
+        for location in locations:
+            print(location)
+            if location in ["DK", "CH"]:
+                continue
+            figure = plot_markets_validation(dp_entsoe, dp_dirichlet, location=location, plot_zoomed=False)
+            figure.write_image(FIGURES_DIR_EUROPE / f"{location}.eps")

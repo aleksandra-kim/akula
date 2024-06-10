@@ -41,7 +41,7 @@ if __name__ == "__main__":
     project = "GSA for archetypes"
     bd.projects.set_current(project)
     iterations = 20000
-    write_figs = Path("/Users/akim/PycharmProjects/akula/dev/write_files/paper3")
+    write_figs = Path("/Users/akim/PycharmProjects/akula/scripts/write_files/paper3")
 
     dp = bwp.load_datapackage(ZipFS(DATA_DIR / "entsoe-timeseries.zip"))
     tindices = dp.get_resource("timeseries ENTSO electricity values.indices")[0]

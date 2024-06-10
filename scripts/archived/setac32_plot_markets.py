@@ -38,7 +38,7 @@ if __name__ == "__main__":
 
     bd.projects.set_current("GSA for archetypes")
     iterations = 20000
-    write_figs = Path("/Users/akim/PycharmProjects/akula/dev/write_files/paper3")
+    write_figs = Path("/Users/akim/PycharmProjects/akula/scripts/write_files/paper3")
 
     dp = bwp.load_datapackage(ZipFS(DATA_DIR / "implicit-markets.zip"))
     tindices = dp.get_resource("implicit-markets.indices")[0]

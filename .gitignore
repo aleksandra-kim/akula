@@ -56,10 +56,10 @@ MANIFEST
 .conda*/
 
 # Local files
-dev/write_files/
-dev/archived/.ipynb_checkpoints
-dev/archived/archived
-dev/archived/figures
+scripts/write_files/
+scripts/archived/.ipynb_checkpoints
+scripts/archived/archived
+scripts/archived/figures
 data/datapackages/*
 data/monte-carlo/electricity-uncertainties/*
 data/monte-carlo/sampling-modules/*

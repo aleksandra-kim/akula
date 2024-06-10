@@ -16,7 +16,7 @@ if __name__ == "__main__":
 
     bd.projects.set_current("GSA for archetypes")
     iterations = 2000
-    write_figs = Path("/Users/akim/PycharmProjects/akula/dev/write_files/paper3")
+    write_figs = Path("/Users/akim/PycharmProjects/akula/scripts/write_files/paper3")
 
     dp = bwp.load_datapackage(ZipFS(DATA_DIR / "liquid-fuels-kilogram.zip"))
     tindices = dp.get_resource("liquid-fuels-tech.indices")[0]

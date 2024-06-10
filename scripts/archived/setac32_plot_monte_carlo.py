@@ -148,7 +148,7 @@ if __name__ == "__main__":
     bd.projects.set_current(project)
     fp_monte_carlo = Path("write_files") / project.lower().replace(" ", "_") / "monte_carlo"
     fp_monte_carlo.mkdir(parents=True, exist_ok=True)
-    write_figs = Path("/Users/akim/PycharmProjects/akula/dev/write_files/paper3")
+    write_figs = Path("/Users/akim/PycharmProjects/akula/scripts/write_files/paper3")
 
     fp_option = DATA_DIR / f"{option}.zip"
 

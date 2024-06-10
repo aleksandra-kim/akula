@@ -714,7 +714,7 @@ def generate_validation_datapackages(indices, mask, num_samples, seed=42):
     # fp_parameters = DATA_DIR / "ecoinvent-parameters.pickle"
     # parameters = read_pickle(fp_parameters)
 
-    # write_dir = Path("/Users/akim/PycharmProjects/akula/dev/write_files/gsa_for_archetypes/"
+    # write_dir = Path("/Users/akim/PycharmProjects/akula/scripts/write_files/gsa_for_archetypes/"
     #                  "ch_hh_average_consumption_aggregated_years_151617")
     # fp_local_sa = write_dir / "local_sa.ecoinvent-parameterization.pickle"
     # local_sa = read_pickle(fp_local_sa)

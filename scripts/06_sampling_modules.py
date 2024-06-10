@@ -40,19 +40,6 @@ if __name__ == "__main__":
     dp_entsoe = generate_entsoe_datapackage("entsoe", iterations, seed)
     dp_markets = generate_markets_datapackage("markets", iterations, seed)
 
-    cols = set(dp_combustion.data[0]["col"])
-    names = []
-    ccls = []
-    for col in cols:
-        act = bd.get_activity(col)["name"]
-        cls = bd.get_activity(col).as_dict()['classifications']
-        names.append(act)
-        ccls += cls
-    print(set(ccls))
-    print("==========")
-    print(set(names))
-
-
     # =========================================================================
     # 2. Run MC simulations, and compute LCIA WITHOUT any sampling module
     # =========================================================================
@@ -69,24 +56,24 @@ if __name__ == "__main__":
     # =========================================================================
     # 4. Figure 5 in the paper
     # =========================================================================
-    # exiobase_offset = exiobase_lcia - no_exiobase_lcia
-    # print(exiobase_offset)  # should be 703.1540208909953 kg CO2-eq.
-    #
-    # figure = plot_lcia_scores_from_two_cases(scores_no_sampling, scores_parameterization, exiobase_offset)
-    # figure.show()
-    # figure.write_image(FIGURES_DIR / "sampling_parameterization.pdf")
-    #
-    # figure = plot_lcia_scores_from_two_cases(scores_no_sampling, scores_combustion, exiobase_offset)
-    # figure.show()
-    # figure.write_image(FIGURES_DIR / "sampling_combustion.pdf")
-    #
-    # figure = plot_lcia_scores_from_two_cases(scores_no_sampling, scores_entsoe, exiobase_offset)
-    # figure.show()
-    # figure.write_image(FIGURES_DIR / "sampling_entsoe.pdf")
-    #
-    # figure = plot_lcia_scores_from_two_cases(scores_no_sampling, scores_markets, exiobase_offset)
-    # figure.show()
-    # figure.write_image(FIGURES_DIR / "sampling_markets.pdf")
+    exiobase_offset = exiobase_lcia - no_exiobase_lcia
+    print(exiobase_offset)  # should be 703.1540208909953 kg CO2-eq.
+
+    figure = plot_lcia_scores_from_two_cases(scores_no_sampling, scores_parameterization, exiobase_offset)
+    figure.show()
+    figure.write_image(FIGURES_DIR / "sampling_parameterization.eps")
+
+    figure = plot_lcia_scores_from_two_cases(scores_no_sampling, scores_combustion, exiobase_offset)
+    figure.show()
+    figure.write_image(FIGURES_DIR / "sampling_combustion.eps")
+
+    figure = plot_lcia_scores_from_two_cases(scores_no_sampling, scores_entsoe, exiobase_offset)
+    figure.show()
+    figure.write_image(FIGURES_DIR / "sampling_entsoe.eps")
+
+    figure = plot_lcia_scores_from_two_cases(scores_no_sampling, scores_markets, exiobase_offset)
+    figure.show()
+    figure.write_image(FIGURES_DIR / "sampling_markets.eps")
 
     # =========================================================================
     # 5. Generate csv file with exchanges of each sampling module for the SI

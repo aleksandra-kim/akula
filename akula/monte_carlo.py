@@ -91,7 +91,7 @@ def plot_lcia_scores_from_two_cases(Y0, YS, offset=0):
         margin=dict(l=20, r=20, t=10, b=20),
     )
 
-    fig.update_xaxes(title_text=r"$\text{Sample number}$", title_standoff=5, row=1, col=1)
+    fig.update_xaxes(title_text=r"$\text{MC simulations}$", title_standoff=5, row=1, col=1)
     fig.update_yaxes(range=[-100, 100], title_text=r"$\Delta \text{ LCIA scores}$", title_standoff=5, row=1, col=1)
     fig.update_xaxes(range=[Ymin, Ymax], title_text=axis_text, title_standoff=5, row=1, col=2)
     fig.update_yaxes(range=[Ymin, Ymax], title_text=axis_text, title_standoff=5, row=1, col=2)

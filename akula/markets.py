@@ -21,6 +21,81 @@ from .electricity.utils import get_one_activity
 DATA_DIR = Path(__file__).parent.parent.resolve() / "data" / "datapackages"
 PERCENTILES = [5, 95]
 
+ELECTRICITY_ACTS = {
+    'electricity production, photovoltaic, 3kWp slanted-roof installation, single-Si, panel, mounted':
+        "solar, single-Si",
+    'electricity production, photovoltaic, 3kWp slanted-roof installation, multi-Si, panel, mounted':
+        "solar, multi-Si",
+    'electricity production, solar thermal parabolic trough, 50 MW':
+        "solar, trough",
+    'electricity production, solar tower power plant, 20 MW':
+        "solar, tower",
+    'electricity voltage transformation from medium to low voltage':
+        "medium to low voltage",
+    'electricity voltage transformation from high to medium voltage':
+        "high to medium voltage",
+    'electricity, from municipal waste incineration to generic market for electricity, medium voltage':
+        "waste incineration",
+    'market for electricity, high voltage':
+        "high voltage",
+    'electricity production, wind, >3MW turbine, onshore':
+        "wind, greater 3MW",
+    'heat and power co-generation, natural gas, conventional power plant, 100MW electrical':
+        "heat/power, gas",
+    'electricity production, oil':
+        "electricity, oil",
+    'heat and power co-generation, wood chips, 6667 kW, state-of-the-art 2014':
+        "heat/power, wood",
+    'heat and power co-generation, wood chips, 6667 kW':
+        "heat/power, wood",
+    'electricity production, wind, <1MW turbine, onshore':
+        "wind, lower 1MW",
+    'heat and power co-generation, biogas, gas engine':
+        "heat/power, biogas",
+    'electricity production, wind, 1-3MW turbine, offshore':
+        "wind, 1-3MW",
+    'heat and power co-generation, hard coal':
+        "heat/power, coal",
+    'heat and power co-generation, natural gas, combined cycle power plant, 400MW electrical':
+        "gas, 400MW",
+    'electricity production, wind, 1-3MW turbine, onshore':
+        "wind, 1-3MW",
+    'heat and power co-generation, oil':
+        "heat/power, oil",
+    'heat and power co-generation, lignite':
+        "heat/power, lignite",
+    'electricity production, natural gas, conventional power plant':
+        "n.gas, conventional",
+    'electricity production, natural gas, combined cycle power plant':
+        "n.gas, combined cycle",
+    'electricity production, hydro, pumped storage':
+        "hydro, pumped storage",
+    'electricity production, hydro, reservoir, alpine region':
+        "hydro, alpine",
+    'electricity production, hydro, reservoir, non-alpine region':
+        "hydro, non-alpine",
+    'electricity production, hydro, run-of-river':
+        "hydro, run-of-river",
+    'electricity production, hard coal':
+        "hard coal",
+    'electricity production, lignite':
+        "lignite",
+    'electricity production, photovoltaic, 570kWp open ground installation, multi-Si':
+        "solar, multi-Si",
+    'electricity production, nuclear, pressure water reactor':
+        "nuclear, pressure water",
+    'electricity production, nuclear, boiling water reactor':
+        "nuclear, boiling water",
+    'electricity production, nuclear, pressure water reactor, heavy water moderated':
+        "nuclear, pressure water",
+    'electricity production, deep geothermal':
+        "deep geothermal",
+    'electricity production, peat':
+        "electricity, peat",
+    'treatment of coal gas, in power plant':
+        "treatment of coal gas",
+}
+
 
 def similar_fuzzy(a, b):
     """Fuzzy comparison between `a` and `b` strings using partial ratio."""
@@ -582,7 +657,8 @@ def plot_dirichlet_entsoe_samples(act_id, dp_entsoe, dp_dirichlet, num_bins=100)
     return fig
 
 
-def plot_denmark_markets(dp_entsoe, dp_dirichlet, num_bins=300, ei_name="ecoinvent 3.8 cutoff"):
+def plot_markets_validation(dp_entsoe, dp_dirichlet, location="DK", plot_zoomed=True,
+                            num_bins=300, ei_name="ecoinvent 3.8 cutoff"):
 
     # Data from datapackages
     data_entsoe = dp_entsoe.get_resource('entsoe.data')[0]
@@ -591,54 +667,52 @@ def plot_denmark_markets(dp_entsoe, dp_dirichlet, num_bins=300, ei_name="ecoinve
     indices_dirichlet = dp_dirichlet.get_resource('markets-entsoe.indices')[0]
 
     # IDs of the Denmark markets
-    low_voltage = get_one_activity(ei_name, name="market for electricity, low voltage", location="DK")
-    medium_voltage = get_one_activity(ei_name, name="market for electricity, medium voltage", location="DK")
-    high_voltage = get_one_activity(ei_name, name="market for electricity, high voltage", location="DK")
+    low_voltage = get_one_activity(ei_name, name="market for electricity, low voltage", location=location)
+    medium_voltage = get_one_activity(ei_name, name="market for electricity, medium voltage", location=location)
+    high_voltage = get_one_activity(ei_name, name="market for electricity, high voltage", location=location)
     cols = [low_voltage.id, medium_voltage.id, high_voltage.id]
 
-    # Names of the exchanges in the Denmark markets for plotting
-    titles_dict = {
-        'electricity production, photovoltaic, 3kWp slanted-roof installation, single-Si, panel, mounted':
-            "solar, single-Si",
-        'electricity production, photovoltaic, 3kWp slanted-roof installation, multi-Si, panel, mounted':
-            "solar, multi-Si",
-        'electricity voltage transformation from medium to low voltage':
-            "medium to low voltage",
-        'electricity voltage transformation from high to medium voltage':
-            "high to medium voltage",
-        'electricity, from municipal waste incineration to generic market for electricity, medium voltage':
-            "waste incineration",
-        'market for electricity, high voltage':
-            "high voltage",
-        'electricity production, wind, >3MW turbine, onshore':
-            "wind, greater 3MW",
-        'heat and power co-generation, natural gas, conventional power plant, 100MW electrical':
-            "heat/power, gas",
-        'electricity production, oil':
-            "electricity, oil",
-        'heat and power co-generation, wood chips, 6667 kW, state-of-the-art 2014':
-            "heat/power, wood",
-        'electricity production, wind, <1MW turbine, onshore':
-            "wind, lower 1MW",
-        'heat and power co-generation, biogas, gas engine':
-            "heat/power, biogas",
-        'electricity production, wind, 1-3MW turbine, offshore':
-            "wind, 1-3MW",
-        'heat and power co-generation, hard coal':
-            "heat/power, coal",
-        'heat and power co-generation, natural gas, combined cycle power plant, 400MW electrical':
-            "gas, 400MW",
-        'electricity production, wind, 1-3MW turbine, onshore':
-            "wind, 1-3MW",
-        'heat and power co-generation, oil':
-            "heat/power, oil",
-    }
+    # Compute number of rows and columns
+    mask_low = indices_dirichlet['col'] == low_voltage.id
+    len_low = len(indices_dirichlet[mask_low])
+    mask_medium = indices_dirichlet['col'] == medium_voltage.id
+    len_medium = len(indices_dirichlet[mask_medium])
+    mask_high = indices_dirichlet['col'] == high_voltage.id
+    len_high = len(indices_dirichlet[mask_high])
+    row_low_medium = 1 if len_low or len_medium else 0
+    row_high = int(np.ceil(len_high / 7))
+    num_rows, num_cols = row_low_medium + row_high, 7
+
+    print(len_low, len_medium, len_high)
 
     # Create figure
     opacity = 0.65
-    num_rows, num_cols = 3, 7
-    fig = make_subplots(rows=num_rows+1, cols=num_cols, vertical_spacing=0.15, horizontal_spacing=0.05,
-                        subplot_titles=["temp"]*28, row_heights=[0.3, 0.01,  0.3, 0.3])
+    num_rows_figure = num_rows + 1
+    vertical_spacing = 0.15
+    if num_rows == 1:
+        row_heights = [1.0]
+        num_rows_figure = 1
+        vertical_spacing = 0
+    elif num_rows == 2:
+        if len_low or len_medium:
+            row_heights = [0.45, 0.01, 0.45]
+        else:
+            row_heights = [0.3, 0.3]
+            num_rows_figure = 2
+            vertical_spacing = 0.3
+    elif num_rows == 3:
+        row_heights = [0.3, 0.01, 0.3, 0.3]
+    elif num_rows == 4:
+        row_heights = [0.22, 0.01, 0.22, 0.22, 0.22]
+    elif num_rows == 5:
+        row_heights = [0.18, 0.01, 0.18, 0.18, 0.18, 0.18]
+        vertical_spacing = 0.11
+    elif num_rows == 6:
+        row_heights = [0.15, 0.01, 0.15, 0.15, 0.15, 0.15, 0.15]
+        vertical_spacing = 0.09
+    fig = make_subplots(rows=num_rows_figure, cols=num_cols, vertical_spacing=vertical_spacing, horizontal_spacing=0.05,
+                        subplot_titles=["temp"] * num_rows_figure * 7, row_heights=row_heights)
+
     showlegend = True
     row_offset = 0
     titles_str_all = []
@@ -646,13 +720,20 @@ def plot_denmark_markets(dp_entsoe, dp_dirichlet, num_bins=300, ei_name="ecoinve
     for col in cols:
 
         # Determine location of the subplot on the figure grid
-        col_offset = 0 if col in [low_voltage.id, high_voltage.id] else 4
-        irow = 1 if col in [low_voltage.id, medium_voltage.id] else 3
+        if col in [low_voltage.id, high_voltage.id]:
+            col_offset = 0
+        else:
+            col_offset = len_low + 1
+        if col in [low_voltage.id, medium_voltage.id]:
+            irow = 1
+        else:
+            irow = 3 if len_low or len_medium else 1
 
         # Get Dirichlet distributions samples that were fit to ENTSO-E data
         mask = indices_dirichlet['col'] == col
         indices_act = indices_dirichlet[mask]
         num_exchanges = len(indices_act)
+
         data_dirichlet_col = data_dirichlet[mask, :]
 
         # Extract ENTSO-E data for the given activity and its exchanges
@@ -666,7 +747,7 @@ def plot_denmark_markets(dp_entsoe, dp_dirichlet, num_bins=300, ei_name="ecoinve
 
         # Create titles of the subplots
         titles = [bd.get_activity(int(row)) for row in indices_act['row']]
-        titles_str = [f"{titles_dict.get(t['name'], t['name'])}, {t['location']}" for t in titles]
+        titles_str = [f"{ELECTRICITY_ACTS.get(t['name'], t['name'])}, {t['location']}" for t in titles]
         titles_str_all += titles_str
 
         for j in range(num_exchanges):
@@ -695,6 +776,9 @@ def plot_denmark_markets(dp_entsoe, dp_dirichlet, num_bins=300, ei_name="ecoinve
             Y_entsoe, _ = np.histogram(Y_entsoe, bins=bins_, density=True)
             Y_lognorm = lognorm.pdf(midbins, s=scale, scale=np.exp(loc))
             Y_dirichlet, _ = np.histogram(Y_dirichlet, bins=bins_, density=True)
+            xmin = lognorm.ppf(0.05, s=scale, scale=np.exp(loc))
+            xmax = lognorm.ppf(0.9, s=scale, scale=np.exp(loc))
+            ymax = np.max([np.percentile(Y_dirichlet, 95), 1.5*np.percentile(Y_entsoe, 99.5)])
 
             # Plot ENTSO-E samples
             fig.add_trace(
@@ -738,8 +822,8 @@ def plot_denmark_markets(dp_entsoe, dp_dirichlet, num_bins=300, ei_name="ecoinve
                 col=j % num_cols + 1 + col_offset,
             )
             showlegend = False
-
-    plot_zoomed = True
+            fig.update_xaxes(range=[xmin, xmax], row=irow + row_offset, col=j % num_cols + 1 + col_offset, tickangle=0)
+            fig.update_yaxes(range=[0, ymax], row=irow + row_offset, col=j % num_cols + 1 + col_offset)
 
     if plot_zoomed:
 
@@ -793,59 +877,133 @@ def plot_denmark_markets(dp_entsoe, dp_dirichlet, num_bins=300, ei_name="ecoinve
 
     fig.update_xaxes(title_text=r"$\text{Share}$", title_standoff=0.06)
     fig.update_yaxes(title_text=r"$\text{Frequency}$", col=1, title_standoff=10)
-    fig.update_layout(width=1200, height=550, margin=dict(t=60, b=0, l=20, r=0),
-                      legend=dict(yanchor="top", y=-0.15, xanchor="center", x=0.5, orientation='h', font=dict(size=13)))
+
+    y_offset = 0.09
+    y = -0.15
+    l, r = 20, 0
+    if num_rows_figure == 1:
+        y_offset = 0.4
+        y = -0.5
+        height = 200
+    elif num_rows_figure == 2:
+        height = 400
+    elif num_rows_figure in [3, 4, 5]:
+        height = 550
+    elif num_rows_figure == 6:
+        height = 650
+    elif num_rows_figure == 7:
+        height = 750
+        y_offset = 0.04
+    if location == "CZ":
+        l, r = 40, 40
+    elif location == "FR":
+        y = 0
+        y_offset = 0.05
+    fig.update_layout(width=1200, height=height, margin=dict(t=60, b=0, l=l, r=r),
+                      legend=dict(yanchor="top", y=y, xanchor="center", x=0.5, orientation='h', font=dict(size=13)))
 
     annotations = list(fig.layout.annotations)
     k = 0
-    for i in range(3):
+    for i in range(len_low):
         str_ = r"$\text{" + titles_str_all[k] + "}$"
         annotations[i].update(dict(text=str_, font=dict(size=14)))
         k += 1
-    annotations[3].update({'text': ""})
-    for i in range(4, 6):
+    annotations[len_low].update({'text': ""})
+    for i in range(len_low+1, len_low+1+len_medium):
         str_ = r"$\text{" + titles_str_all[k] + "}$"
         annotations[i].update(dict(text=str_, font=dict(size=14)))
         k += 1
-    for i in range(6, 14):
+    start_high = 14 if len_low or len_medium else 0
+    range_high = int(7 * (np.ceil(len_high / 7)))
+    for i in range(len_low+1+len_medium, start_high):
         str_ = ""
         annotations[i].update(dict(text=str_, font=dict(size=14)))
-    for i in range(14, 28):
-        str_ = r"$\text{" + titles_str_all[k] + "}$"
+    for i in range(start_high, start_high+range_high):
+        try:
+            str_ = r"$\text{" + titles_str_all[k] + "}$"
+        except IndexError:
+            str_ = ""
         annotations[i].update(dict(text=str_, font=dict(size=14)))
         k += 1
     fig.layout.update({"annotations": annotations})
 
     # Bigger titles
-    fig.add_annotation(
-        deepcopy(annotations[1]).update(
-            dict(
-                font=dict(size=16),
-                text=r"$\text{Market for electricity, LOW voltage}$",
-                x=annotations[1]['x'],
-                y=annotations[1]['y']+0.09,
+    if location == "DK":
+        fig.add_annotation(
+            deepcopy(annotations[1]).update(
+                dict(
+                    font=dict(size=16),
+                    text=r"$\text{Market for electricity, LOW voltage}$",
+                    x=annotations[1]['x'],
+                    y=annotations[1]['y']+y_offset,
+                )
             )
         )
-    )
-    fig.add_annotation(
-        annotations[4].update(
-            dict(
-                font=dict(size=16),
-                text=r"$\text{Market for electricity, MEDIUM voltage}$",
-                x=(annotations[4]['x'] + annotations[5]['x'])/2,
-                y=annotations[4]['y']+0.09,
+        fig.add_annotation(
+            annotations[4].update(
+                dict(
+                    font=dict(size=16),
+                    text=r"$\text{Market for electricity, MEDIUM voltage}$",
+                    x=(annotations[4]['x'] + annotations[5]['x'])/2,
+                    y=annotations[4]['y']+y_offset,
+                )
             )
         )
-    )
-    fig.add_annotation(
-        annotations[17].update(
-            dict(
-                font=dict(size=16),
-                text=r"$\text{Market for electricity, HIGH voltage}$",
-                x=annotations[17]['x'],
-                y=annotations[17]['y']+0.09,
+        fig.add_annotation(
+            annotations[17].update(
+                dict(
+                    font=dict(size=16),
+                    text=r"$\text{Market for electricity, HIGH voltage}$",
+                    x=annotations[17]['x'],
+                    y=annotations[17]['y']+y_offset,
+                )
             )
         )
-    )
+    else:
+        if len_low == 3:
+            fig.add_annotation(
+                deepcopy(annotations[1]).update(
+                    dict(
+                        font=dict(size=16),
+                        text=r"$\text{Market for electricity, LOW voltage}$",
+                        x=annotations[1]['x'],
+                        y=annotations[1]['y'] + y_offset,
+                    )
+                )
+            )
+        elif len_low == 4:
+            fig.add_annotation(
+                deepcopy(annotations[1]).update(
+                    dict(
+                        font=dict(size=16),
+                        text=r"$\text{Market for electricity, LOW voltage}$",
+                        x=(annotations[1]['x']+annotations[2]['x'])/2,
+                        y=annotations[1]['y'] + y_offset,
+                    )
+                )
+            )
+        if len_medium == 2:
+            fig.add_annotation(
+                deepcopy(annotations[len_low + 1]).update(
+                    dict(
+                        font=dict(size=16),
+                        text=r"$\text{Market for electricity, MEDIUM voltage}$",
+                        x=(annotations[len_low+1]['x'] + annotations[len_low+2]['x'])/2,
+                        y=annotations[len_low + 1]['y'] + y_offset,
+                    )
+                )
+            )
+        if len_high:
+            ind = 17 if len_low or len_medium else 3
+            fig.add_annotation(
+                deepcopy(annotations[ind]).update(
+                    dict(
+                        font=dict(size=16),
+                        text=r"$\text{Market for electricity, HIGH voltage}$",
+                        x=annotations[ind]['x'],
+                        y=annotations[ind]['y'] + y_offset,
+                    )
+                )
+            )
 
     return fig

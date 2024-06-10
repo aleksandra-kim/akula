@@ -36,9 +36,9 @@ CUTOFF = 1e-7
 MAX_CALC = 1e18
 FACTOR = 10
 ITERATIONS_VALIDATION = 2_000
-ITERATIONS_SCREENING = 20_000
+ITERATIONS_SCREENING = 25_000
 
-INCLUDE_CORR = False
+INCLUDE_CORR = True
 if INCLUDE_CORR:
     FIGURES_DIR = PROJECT_DIR / "figures" / "correlated"
     NUM_LOWINF_LSA = 25_000
@@ -50,7 +50,7 @@ else:
     NUM_LOWINF_LSA = 25_000
     NUM_LOWINF_XGB = 2_000
     NUM_INF = 200
-    xgb_model_tag = "2"
+    xgb_model_tag = "3"
 
 FIGURES_DIR.mkdir(exist_ok=True, parents=True)
 
