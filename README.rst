@@ -33,6 +33,10 @@
 GSA of Correlated Uncertainties in LCA
 ======================================
 
+.. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.12599545.svg
+  :alt: Zenodo doi
+
+
 This GitHub repository provides implementation of the Global Sensitivity Analysis (GSA) protocol for Life Cycle Assessment (LCA) models in the presence of correlated and dependent model inputs. The computations are done for the case study of Swiss household consumption.
 
 This code is part of the publication "Global Sensitivity Analysis of Correlated Uncertainties in Life Cycle Assessment" submitted to the Journal of Industrial Ecology in June 2024. Authors: Aleksandra Kim, Christopher Mutel and Stefanie Hellweg from ETH Zurich and Paul Scherrer Institute in Switzerland.
