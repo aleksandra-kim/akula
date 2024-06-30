@@ -99,12 +99,10 @@ def plot_lcia_scores_from_two_cases(Y0, YS, offset=0):
     return fig
 
 
-def plot_lcia_scores_from_two_cases_partial(Y0, YS, offset=0):
+def plot_lcia_scores_from_two_cases_partial(Y0, YS, yaxis_text, offset=0):
 
     Y0 = np.array(Y0) + offset
     YS = np.array(YS) + offset
-
-    axis_text = r"$\text{LCIA scores}$"
 
     color2 = COLOR_DARKGRAY_HEX
 
@@ -129,8 +127,8 @@ def plot_lcia_scores_from_two_cases_partial(Y0, YS, offset=0):
         margin=dict(l=0, r=0, t=0, b=0),
     )
 
-    fig.update_xaxes(range=[Ymin, Ymax], title_text=axis_text, title_standoff=5, tickangle=0)
-    fig.update_yaxes(range=[Ymin, Ymax], title_text=axis_text, title_standoff=5)
+    fig.update_xaxes(range=[Ymin, Ymax], title_text=r"$\text{LCIA scores }Y_\text{all}$", title_standoff=5, tickangle=0)
+    fig.update_yaxes(range=[Ymin, Ymax], title_text=r"$\text{LCIA scores }" + yaxis_text, title_standoff=5)
 
     fig.update_layout(
         paper_bgcolor="rgba(255,255,255,0)",

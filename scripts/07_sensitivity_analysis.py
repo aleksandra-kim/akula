@@ -99,7 +99,7 @@ if __name__ == "__main__":
     figure = plot_lcia_scores_from_two_cases(scores_all, scores_wo_noninf, exiobase_offset)
     figure.write_image(FIGURES_DIR / f"validation_noninf.{num_noninf}.{SEED}.{ITERATIONS_VALIDATION}.pdf")
 
-    figure = plot_lcia_scores_from_two_cases_partial(scores_all, scores_wo_noninf, exiobase_offset)
+    figure = plot_lcia_scores_from_two_cases_partial(scores_all, scores_wo_noninf, r"Y_\text{non}$", exiobase_offset)
     figure.write_image(FIGURES_DIR / f"paper.validation_noninf.{num_noninf}.{SEED}.{ITERATIONS_VALIDATION}.svg")
 
     # =========================================================================
@@ -126,7 +126,7 @@ if __name__ == "__main__":
     figure = plot_lcia_scores_from_two_cases(scores_all, scores_wo_lowinf_lsa, exiobase_offset)
     figure.write_image(FIGURES_DIR / f"validation.wo_lowinf_lsa.{NUM_LOWINF_LSA}.{SEED}.{ITERATIONS_VALIDATION}.pdf")
 
-    figure = plot_lcia_scores_from_two_cases_partial(scores_all, scores_wo_lowinf_lsa, exiobase_offset)
+    figure = plot_lcia_scores_from_two_cases_partial(scores_all, scores_wo_lowinf_lsa, r"Y_\text{lsa}$", exiobase_offset)
     figure.write_image(FIGURES_DIR / f"paper.validation.wo_lowinf_lsa.{NUM_LOWINF_LSA}.{SEED}.{ITERATIONS_VALIDATION}.svg")
 
     # =========================================================================
@@ -167,7 +167,7 @@ if __name__ == "__main__":
         f"validation.wo_lowinf_xgb.model_{xgb_model_tag}.{NUM_LOWINF_XGB}.{SEED}.{ITERATIONS_VALIDATION}.pdf"
     )
 
-    figure = plot_lcia_scores_from_two_cases_partial(scores_all, scores_wo_lowinf_xgb, exiobase_offset)
+    figure = plot_lcia_scores_from_two_cases_partial(scores_all, scores_wo_lowinf_xgb, r"Y_\text{xgb}$", exiobase_offset)
     figure.write_image(
         FIGURES_DIR /
         f"paper.validation.wo_lowinf_xgb.model_{xgb_model_tag}.{NUM_LOWINF_XGB}.{SEED}.{ITERATIONS_VALIDATION}.svg"

@@ -13,8 +13,8 @@ from pathlib import Path
 # Local files
 from ..constants import *
 from ..utils import (
-    update_fig_axes, COLOR_BRIGHT_PINK_RGB,
-    COLOR_DARKGRAY_HEX, COLOR_PSI_LPURPLE, COLOR_PSI_LPURPLE_OPAQUE, COLOR_DARKGRAY_HEX_OPAQUE, COLOR_BLACK_HEX
+    update_fig_axes, COLOR_BRIGHT_PINK_RGB, COLOR_DARKGRAY_HEX, COLOR_PSI_LPURPLE, COLOR_PSI_LPURPLE_OPAQUE,
+    COLOR_DARKGRAY_HEX_OPAQUE, COLOR_BLACK_HEX,
 )
 from .utils import get_one_activity
 
@@ -265,11 +265,11 @@ def create_ecoinvent_original_dp(project):
     return dp_ecoinvent
 
 
-def compute_static_score(project, use_entsoe=False):
+def compute_static_score(project, use_entsoe=False, location="CH"):
     """Compute deterministic LCIA score."""
     bd.projects.set_current(project)
     method = ("IPCC 2013", "climate change", "GWP 100a", "uncertain")
-    activity = get_one_activity("ecoinvent 3.8 cutoff", name="market for electricity, low voltage", location="CH")
+    activity = get_one_activity("ecoinvent 3.8 cutoff", name="market for electricity, low voltage", location=location)
     fu, data_objs, _ = bd.prepare_lca_inputs({activity: 1}, method=method, remapping=False)
 
     if use_entsoe:
@@ -289,7 +289,7 @@ def compute_static_score(project, use_entsoe=False):
     return lca.score
 
 
-def compute_low_voltage_ch_lcia(project, dp, iterations=1000, seed=None):
+def compute_low_voltage_lcia(project, dp, iterations=1000, seed=None, location="CH"):
     """
     Compute climate change scores for the activity `market for electricity, low voltage, CH` based on ENTSOE or
     ecoinvent data in dp.
@@ -306,7 +306,7 @@ def compute_low_voltage_ch_lcia(project, dp, iterations=1000, seed=None):
 
     bd.projects.set_current(project)
     method = ("IPCC 2013", "climate change", "GWP 100a", "uncertain")
-    activity = get_one_activity("ecoinvent 3.8 cutoff", name="market for electricity, low voltage", location="CH")
+    activity = get_one_activity("ecoinvent 3.8 cutoff", name="market for electricity, low voltage", location=location)
 
     fu, data_objs, _ = bd.prepare_lca_inputs({activity: 1}, method=method, remapping=False)
 
@@ -325,7 +325,7 @@ def compute_low_voltage_ch_lcia(project, dp, iterations=1000, seed=None):
     return scores
 
 
-def compute_scores(project, options, iterations, seed):
+def compute_scores(project, options, iterations, seed, location):
     """Run MC simulations and compute LCIA scores for various options."""
     results = {}
 
@@ -333,7 +333,7 @@ def compute_scores(project, options, iterations, seed):
 
         print(f"Computing {opt} scores")
 
-        fp = MC_DIR / f"{opt}.N{iterations}.seed{seed}.pickle"
+        fp = MC_DIR / f"{opt}.N{iterations}.seed{seed}.{location}.pickle"
         if fp.exists():
             with open(fp, "rb") as f:
                 lcia_scores = pickle.load(f)
@@ -342,18 +342,29 @@ def compute_scores(project, options, iterations, seed):
                 datapackage = create_ecoinvent_original_dp(project)
             else:
                 datapackage = create_entsoe_dp(option=opt, iterations=iterations)
-            lcia_scores = compute_low_voltage_ch_lcia(project, datapackage, iterations=iterations, seed=seed)
+            lcia_scores = compute_low_voltage_lcia(project, datapackage, iterations=iterations, seed=seed, location=location)
             with open(fp, "wb") as f:
                 pickle.dump(lcia_scores, f)
-        results[opt] = lcia_scores
+
+        results[opt] = np.array(lcia_scores)
+
     return results
 
 
-def plot_entsoe_ecoinvent(project, Y_ecoinvent, Y_entso):
+def plot_entsoe_ecoinvent(project, Y_ecoinvent, Y_entso, location):
     group_labels = [r'$\text{Ecoinvent}$', r'$\text{ENTSO-E}$']
 
-    score_ecoinvent = compute_static_score(project, use_entsoe=False)
-    score_entsoe = compute_static_score(project, use_entsoe=True)
+    score_ecoinvent = compute_static_score(project, use_entsoe=False, location=location)
+    score_entsoe = compute_static_score(project, use_entsoe=True, location=location)
+
+    Y_ecoinvent = Y_ecoinvent[np.logical_and(
+        Y_ecoinvent >= np.percentile(Y_ecoinvent, 1),
+        Y_ecoinvent <= np.percentile(Y_ecoinvent, 99)
+    )]
+    Y_entso = Y_entso[np.logical_and(
+        Y_entso >= np.percentile(Y_entso, 1),
+        Y_entso <= np.percentile(Y_entso, 99)
+    )]
 
     # Create distplot with custom bin_size
     fig = ff.create_distplot(
@@ -369,7 +380,7 @@ def plot_entsoe_ecoinvent(project, Y_ecoinvent, Y_entso):
             y=[0],
             mode="markers",
             marker=dict(size=14, symbol="x", color=COLOR_BLACK_HEX, opacity=1),
-            name=r"$\text{Static LCIA score from ecoinvent}$",
+            name=r"$\text{Deterministic LCIA score from ecoinvent}$",
             legendrank=3,
         )
     )
@@ -384,14 +395,14 @@ def plot_entsoe_ecoinvent(project, Y_ecoinvent, Y_entso):
                 symbol="diamond-tall",
                 color=COLOR_BRIGHT_PINK_RGB,
             ),
-            name=r"$\text{Static LCIA score from ENTSO-E}$",
+            name=r"$\text{Deterministic LCIA score from ENTSO-E}$",
             legendrank=4
         )
     )
 
     fig = update_fig_axes(fig)
 
-    fig.update_xaxes(title_text=r"$\text{LCIA scores, [kg CO}_2\text{-eq.]}$")
+    fig.update_xaxes(title_text=r"$\text{LCIA scores, [kg CO}_2\text{-eq.]}$", range=[-0.02, 1.02])
     fig.update_yaxes(title_text=r"$\text{Frequency}$")
     fig.layout.yaxis2.update({"title": ""})
 
@@ -444,7 +455,7 @@ def plot_entsoe_seasonal(data):
 
     fig.update_traces(orientation='h', side='positive', width=2, points=False)
     fig = update_fig_axes(fig)
-    fig.update_xaxes(range=(-0.02, 0.42), title_text=r"$\text{LCIA scores, [kg CO}_2\text{-eq.]}$")
+    fig.update_xaxes(range=(-0.02, 1.02), title_text=r"$\text{LCIA scores, [kg CO}_2\text{-eq.]}$")
     fig.update_layout(xaxis_showgrid=True, xaxis_zeroline=False, yaxis_showgrid=False,
                       width=560, height=360, legend=dict(yanchor="top", y=0.98, xanchor="left", x=0.75))
 

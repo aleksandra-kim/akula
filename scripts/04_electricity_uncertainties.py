@@ -24,14 +24,15 @@ if __name__ == "__main__":
     seed = 111111
 
     options = ["winter", "autumn", "summer", "spring", "nighttime", "daytime", "fitted", "entsoe", "ecoinvent"]
-    results = compute_scores(PROJECT, options, iterations, seed)
+    # options = ["entsoe", "ecoinvent"]
+    results = compute_scores(PROJECT, options, iterations, seed, location="DK")
 
-    # Figure 1 in the paper
-    figure = plot_entsoe_ecoinvent(PROJECT, results["ecoinvent"], results["entsoe"])
+    # Figure 2 in the paper
+    figure = plot_entsoe_ecoinvent(PROJECT, results["ecoinvent"], results["entsoe"], location="DK")
     figure.show()
     figure.write_image(FIGURES_DIR / "ecoinvent_entsoe_uncertainties.eps")
 
-    # Figure 1 in the SI
+    # Figure S1 in the SI
     figure = plot_entsoe_seasonal(results)
     figure.show()
     figure.write_image(FIGURES_DIR / "entsoe_seasonal_uncertainties.eps")

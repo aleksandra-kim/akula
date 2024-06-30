@@ -94,6 +94,34 @@ ELECTRICITY_ACTS = {
         "electricity, peat",
     'treatment of coal gas, in power plant':
         "treatment of coal gas",
+    'electricity production, photovoltaic, 3kWp facade installation, multi-Si, laminated, integrated':
+        "solar, facade multi-Si",
+    'electricity production, photovoltaic, 3kWp facade installation, multi-Si, panel, mounted':
+        "solar, facade multi-Si",
+    'electricity production, photovoltaic, 3kWp facade installation, single-Si, laminated, integrated':
+        "solar, facade single-Si",
+    'electricity production, photovoltaic, 3kWp facade installation, single-Si, panel, mounted':
+        "solar, facade single-Si",
+    'electricity production, photovoltaic, 3kWp flat-roof installation, multi-Si':
+        "solar, flat-roof multi-Si",
+    'electricity production, photovoltaic, 3kWp flat-roof installation, single-Si':
+        "solar, flat-roof single-Si",
+    'electricity production, photovoltaic, 3kWp slanted-roof installation, CIS, panel, mounted':
+        "solar, slanted-roof CIS",
+    'electricity production, photovoltaic, 3kWp slanted-roof installation, CdTe, laminated, integrated':
+        "solar, slanted-roof CdTe",
+    'electricity production, photovoltaic, 3kWp slanted-roof installation, a-Si, laminated, integrated':
+        "solar, slanted-roof a-Si",
+    'electricity production, photovoltaic, 3kWp slanted-roof installation, a-Si, panel, mounted':
+        "solar, slanted-roof a-Si",
+    'electricity production, photovoltaic, 3kWp slanted-roof installation, multi-Si, laminated, integrated':
+        "solar, slanted multi-Si",
+    'electricity production, photovoltaic, 3kWp slanted-roof installation, ribbon-Si, laminated, integrated':
+        "solar, slanted ribbon-Si",
+    'electricity production, photovoltaic, 3kWp slanted-roof installation, ribbon-Si, panel, mounted':
+        "solar, slanted ribbon-Si",
+    'electricity production, photovoltaic, 3kWp slanted-roof installation, single-Si, laminated, integrated':
+        "solar, slanted single-Si",
 }
 
 
@@ -666,7 +694,7 @@ def plot_markets_validation(dp_entsoe, dp_dirichlet, location="DK", plot_zoomed=
     data_dirichlet = dp_dirichlet.get_resource('markets-entsoe.data')[0]
     indices_dirichlet = dp_dirichlet.get_resource('markets-entsoe.indices')[0]
 
-    # IDs of the Denmark markets
+    # IDs of the markets
     low_voltage = get_one_activity(ei_name, name="market for electricity, low voltage", location=location)
     medium_voltage = get_one_activity(ei_name, name="market for electricity, medium voltage", location=location)
     high_voltage = get_one_activity(ei_name, name="market for electricity, high voltage", location=location)
@@ -710,6 +738,7 @@ def plot_markets_validation(dp_entsoe, dp_dirichlet, location="DK", plot_zoomed=
     elif num_rows == 6:
         row_heights = [0.15, 0.01, 0.15, 0.15, 0.15, 0.15, 0.15]
         vertical_spacing = 0.09
+
     fig = make_subplots(rows=num_rows_figure, cols=num_cols, vertical_spacing=vertical_spacing, horizontal_spacing=0.05,
                         subplot_titles=["temp"] * num_rows_figure * 7, row_heights=row_heights)
 
@@ -1007,3 +1036,168 @@ def plot_markets_validation(dp_entsoe, dp_dirichlet, location="DK", plot_zoomed=
             )
 
     return fig
+
+
+def plot_markets_validation_ch(dp_entsoe, dp_dirichlet, location="CH",
+                               num_bins=300, ei_name="ecoinvent 3.8 cutoff"):
+    # Data from datapackages
+    data_entsoe = dp_entsoe.get_resource('entsoe.data')[0]
+    indices_entsoe = dp_entsoe.get_resource('entsoe.indices')[0]
+    data_dirichlet = dp_dirichlet.get_resource('markets-entsoe.data')[0]
+    indices_dirichlet = dp_dirichlet.get_resource('markets-entsoe.indices')[0]
+
+    # IDs of the markets
+    low_voltage = get_one_activity(ei_name, name="market for electricity, low voltage", location=location)
+    medium_voltage = get_one_activity(ei_name, name="market for electricity, medium voltage", location=location)
+    high_voltage = get_one_activity(ei_name, name="market for electricity, high voltage", location=location)
+    cols = [low_voltage.id, medium_voltage.id, high_voltage.id]
+
+    # Create figure
+    opacity = 0.65
+    num_rows = 3
+    num_cols = 7
+    fig = make_subplots(rows=num_rows, cols=num_cols, vertical_spacing=0.14, horizontal_spacing=0.05,
+                        subplot_titles=["temp"] * num_rows * 7, row_heights=[0.22, 0.22, 0.22])
+
+    showlegend = True
+    titles_str_all = []
+
+    for col in cols:
+
+        # Get Dirichlet distributions samples that were fit to ENTSO-E data
+        mask = indices_dirichlet['col'] == col
+        indices_act = indices_dirichlet[mask]
+        num_exchanges = len(indices_act)
+
+        data_dirichlet_col = data_dirichlet[mask, :]
+
+        # Extract ENTSO-E data for the given activity and its exchanges
+        where = []
+        for inds in indices_act:
+            where.append(np.where(indices_entsoe == inds)[0][0])
+        data_entsoe_col = data_entsoe[where, :]
+
+        # Fit lognormal distributions to ENTSO-E data
+        distributions_lognorm = fit_distributions(data_entsoe_col, indices_entsoe[where], fit_lognormal=True)
+
+        # Create titles of the subplots
+        titles = [bd.get_activity(int(row)) for row in indices_act['row']]
+        titles_str = [f"{ELECTRICITY_ACTS.get(t['name'], t['name'])}" for t in titles]
+        titles_str_all += titles_str
+
+        irow = 1
+
+        for j in range(num_exchanges):
+
+            Y_entsoe = data_entsoe_col[j, :]
+            min_entsoe = min(Y_entsoe)
+            max_entsoe = max(Y_entsoe)
+
+            loc = distributions_lognorm[j]['loc']
+            scale = distributions_lognorm[j]['scale']
+            min_lognorm = lognorm.ppf(0.001, s=scale, scale=np.exp(loc))
+            max_lognorm = lognorm.ppf(0.999, s=scale, scale=np.exp(loc))
+
+            Y_dirichlet = data_dirichlet_col[j, :]
+            min_dirichlet = min(Y_dirichlet)
+            max_dirichlet = max(Y_dirichlet)
+
+            bin_min = max(min(min_lognorm, min_entsoe, min_dirichlet), 0)
+            bin_max = min(max(max_lognorm, max_entsoe, max_dirichlet), 1)
+
+            bins_ = np.linspace(bin_min, bin_max, num_bins + 1, endpoint=True)
+            midbins = (bins_[1:] + bins_[:-1]) / 2
+            Y_entsoe, _ = np.histogram(Y_entsoe, bins=bins_, density=True)
+            Y_lognorm = lognorm.pdf(midbins, s=scale, scale=np.exp(loc))
+            Y_dirichlet, _ = np.histogram(Y_dirichlet, bins=bins_, density=True)
+            if j in [7, 9, 12]:
+                xmin = lognorm.ppf(0.01, s=scale, scale=np.exp(loc))
+                xmax = lognorm.ppf(0.995, s=scale, scale=np.exp(loc))
+            else:
+                xmin = lognorm.ppf(0.01, s=scale, scale=np.exp(loc))
+                xmax = lognorm.ppf(0.95, s=scale, scale=np.exp(loc))
+            ymax = np.max([np.percentile(Y_dirichlet, 99), 1.5 * np.percentile(Y_entsoe, 99.5)])
+
+            # Plot ENTSO-E samples
+            fig.add_trace(
+                go.Scatter(
+                    x=midbins,
+                    y=Y_entsoe,
+                    name=r"$\text{ENTSO-E samples}$",
+                    showlegend=showlegend,
+                    opacity=opacity,
+                    line=dict(color=COLOR_DARKGRAY_HEX, width=1, shape="hvh"),
+                    fill="tozeroy",
+                ),
+                row=irow,
+                col=j % num_cols + 1,
+            )
+            # Plot fitted lognormal distribution
+            fig.add_trace(
+                go.Scatter(
+                    x=midbins,
+                    y=Y_lognorm,
+                    line=dict(color="red"),
+                    name=r"$\text{Fitted lognormal}$",
+                    showlegend=showlegend,
+                    legendrank=1,
+                ),
+                row=irow,
+                col=j % num_cols + 1,
+            )
+            # Plot Dirichlet samples
+            fig.add_trace(
+                go.Scatter(
+                    x=midbins,
+                    y=Y_dirichlet,
+                    name=r"$\text{Dirichlet samples}$",
+                    showlegend=showlegend,
+                    opacity=opacity,
+                    line=dict(color=COLOR_PSI_DGREEN, width=1, shape="hvh"),
+                    fill="tozeroy",
+                ),
+                row=irow,
+                col=j % num_cols + 1,
+            )
+            showlegend = False
+            fig.update_xaxes(range=[xmin, xmax], row=irow, col=j % num_cols + 1, tickangle=0)
+            fig.update_yaxes(range=[0, ymax], row=irow, col=j % num_cols + 1)
+
+            if j % num_cols + 1 in [7, 14]:
+                irow += 1
+
+    fig = update_fig_axes(fig)
+
+    fig.update_xaxes(title_text=r"$\text{Share}$", title_standoff=0.06)
+    fig.update_yaxes(title_text=r"$\text{Frequency}$", col=1, title_standoff=10)
+
+    y_offset = 0.09
+    fig.update_layout(width=1200, height=550, margin=dict(t=60, b=0, l=30, r=30),
+                      legend=dict(yanchor="top", y=-0.15, xanchor="center", x=0.5, orientation='h', font=dict(size=13)))
+
+    annotations = list(fig.layout.annotations)
+    k = 0
+    for i in range(17):
+        str_ = r"$\text{" + titles_str_all[k] + "}$"
+        annotations[i].update(dict(text=str_, font=dict(size=14)))
+        k += 1
+    for i in range(17, 21):
+        annotations[i].update({'text': ""})
+    fig.layout.update({"annotations": annotations})
+
+    # Bigger titles
+    fig.add_annotation(
+        deepcopy(annotations[1]).update(
+            dict(
+                font=dict(size=16),
+                text=r"$\text{Market for electricity, LOW voltage}$",
+                x=annotations[3]['x'],
+                y=annotations[1]['y'] + y_offset,
+            )
+        )
+    )
+
+    return fig
+
+
+

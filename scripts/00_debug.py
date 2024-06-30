@@ -64,4 +64,15 @@ if __name__ == "__main__":
     b2000indp = read_pickle(GSA_DIR / "independent" / "indices.bio.without_lowinf.2000.xgb.model_3.pickle")
     c2000indp = read_pickle(GSA_DIR / "independent" / "indices.cf.without_lowinf.2000.xgb.model_3.pickle")
 
+    inds = np.intersect1d(tcorr, tents)
+    for ind in inds:
+        row = ind["row"]
+        act = bd.get_activity(row)
+        print(act["name"], act.get("location"))
+
+        col = ind["col"]
+        act = bd.get_activity(col)
+        print(act["name"], act["location"])
+
+        print()
     print()

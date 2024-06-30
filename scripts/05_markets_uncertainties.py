@@ -11,6 +11,7 @@ from akula.markets import (
     plot_dirichlet_samples,
     plot_dirichlet_entsoe_samples,
     plot_markets_validation,
+    plot_markets_validation_ch,
 )
 from akula.electricity import generate_entsoe_datapackage
 
@@ -88,9 +89,12 @@ if __name__ == "__main__":
                                                     for_entsoe=True, fit_lognormal=False)
         cols = list(set(dp_entsoe.data[0]['col']))
         locations = sorted(set([bd.get_activity(col)["location"] for col in cols]))
-        for location in locations:
+        for location in locations[4:5]:
             print(location)
-            if location in ["DK", "CH"]:
+            if location == "CH":
+                figure = plot_markets_validation_ch(dp_entsoe, dp_dirichlet, location=location)
+            elif location == "DK":
                 continue
-            figure = plot_markets_validation(dp_entsoe, dp_dirichlet, location=location, plot_zoomed=False)
+            else:
+                figure = plot_markets_validation(dp_entsoe, dp_dirichlet, location=location, plot_zoomed=False)
             figure.write_image(FIGURES_DIR_EUROPE / f"{location}.eps")
