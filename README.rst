@@ -29,30 +29,36 @@
 
 |
 
-=====
-akula
-=====
+======================================
+GSA of Correlated Uncertainties in LCA
+======================================
+
+This GitHub repository provides implementation of the Global Sensitivity Analysis (GSA) protocol for Life Cycle Assessment (LCA) models in the presence of correlated and dependent model inputs. The computations are done for the case study of Swiss household consumption.
+
+This code is part of the publication "Global Sensitivity Analysis of Correlated Uncertainties in Life Cycle Assessment" submitted to the Journal of Industrial Ecology in June 2024. Authors: Aleksandra Kim, Christopher Mutel and Stefanie Hellweg from ETH Zurich and Paul Scherrer Institute in Switzerland.
 
 
-    Add a short description here!
+Abstract
+========
 
+Recent advances in research have made global sensitivity analysis of very large and highly linear life cycle assessment systems feasible. In this paper, we build on these developments to include sensitivity analysis of correlated parameters and nonlinear models. We augment numerical uncertainty propagation with Monte Carlo simulations (i) to include propagation of uncertainty from uncertain variables in parameterized inventory datasets; (ii) to account for correlations between process inputs and outputs, and in particular incorporate the carbon balance of combustion activities; (iii) to employ published time-series data instead of static values for electricity generation market mixes in Europe; (iv) to ensure that inputs which are supposed to reach a fixed total (e.g. the percentage contributions of power sources to an electricity mix) actually do so consistently by using the Dirichlet distribution. We then iterate on existing global sensitivity analysis protocols for high-dimensional systems to improve their computational performance. In order to correctly calculate sensitivity rankings for correlated inputs, we use SHapley Additive exPlanations (SHAP) as feature importance metrics with gradient boosted trees. Our results for a case study of climate change impacts of an average Swiss household confirm that neglecting correlations limits the validity of uncertainty and sensitivity analysis. Our methodology and correlated sampling modules are given as open source code.
 
-A longer description of your project goes here...
 
 Installation
 ============
+Create conda environment and install all the necessary packages specified in the requirements.txt file:
 ::
 
     conda create --name <environment_name> --file requirements.txt python=3.10 -c conda-forge -c cmutel -c defaults -c anaconda -c haasad
     conda activate <environment_name>
     pip install bw2io==0.9.dev11
 
-Clone consumption model and do an editable install
+Git clone consumption model from https://github.com/aleksandra-kim/consumption_model_ch and do an editable install:
 ::
 
    pip install -e .
 
-Install bentso using pip
+Install bentso using pip:
 ::
 
    pip install bentso
